@@ -37,8 +37,9 @@ ambiente di build. I dettagli sono in [docs/LIMITATIONS.md](docs/LIMITATIONS.md)
 
 L'APK è installabile su Android 12+ con architettura arm64. È la variante **debug**
 (`com.bigbai.app.debug`), firmata con la chiave debug Android (`CN=Android Debug`): è dichiarato,
-non nascosto. La CI pubblica lo stesso APK come artifact `BIG-B-AI-Debug-APK` (retention 30
-giorni) insieme al checksum SHA-256.
+non nascosto. I valori qui sopra sono la build locale di riferimento; la CI produce un APK
+equivalente e lo pubblica come artifact `BIG-B-AI-Debug-APK` (retention 30 giorni) con il proprio
+file `.sha256` accanto. L'hash può cambiare tra una build e l'altra per i timestamp di firma.
 
 I modelli **non** sono inclusi nell'APK: si scaricano dall'app, con ripresa del download e verifica
 SHA-256. L'APK contiene solo il motore.
@@ -131,7 +132,8 @@ Java/C++ sul dispositivo; nessun OCR. Elenco completo e motivato in
 
 ## CI
 
-`.github/workflows/android.yml` compila la libreria nativa, esegue i test JVM, produce l'APK debug
+[`.github/workflows/android.yml`](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/workflows/android.yml)
+compila la libreria nativa, esegue i test JVM, produce l'APK debug
 e lo pubblica come artifact **BIG-B-AI-Debug-APK** (APK + SHA-256, retention 30 giorni). Il setup
 dell'SDK usa `android-actions/setup-android@v4`, che non richiede più il pacchetto `tools` rimosso
 da Google (causa del precedente errore "Failed to find package 'tools'").
