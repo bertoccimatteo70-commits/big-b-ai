@@ -1,0 +1,30 @@
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Native / vendored sources fetched by scripts/fetch-llama.sh
+/third_party/llama.cpp/
+/app/src/main/jniLibs/
+/llm/src/main/jniLibs/
+
+# Build & distribution output
+/app/build/
+/core/build/
+/llm/build/
+/code/build/
+/dist/
+*.apk
+*.aab
+*.keystore
+*.jks
+keystore.properties
+
+# Logs
+*.log
