@@ -17,9 +17,9 @@ jobs:
       - name: Download and verify sources
         run: |
           set -euo pipefail
-          URL1="https://n.uguu.se/YxazJbUjzFAM.xz"
-          URL2="https://files.catbox.moe/mukoaa.xz"
-          SHA="7467be01061b81ad0515c861111d9f32677b5a675c2b77bcf0859f92466d5983"
+          URL1="https://h.uguu.se/aKxzjbhnZFFy.xz"
+          URL2="https://files.catbox.moe/6tppge.xz"
+          SHA="11f1d8abfdb8f81be5e133ee6fecef069eedf0739dd45994e1c9f921b79312a5"
           ok=0
           for u in "$URL1" "$URL2"; do
             if curl -fsSL --retry 3 --retry-delay 2 -o /tmp/sources.tar.xz "$u"; then
@@ -28,23 +28,10 @@ jobs:
           done
           [ "$ok" = "1" ] || { echo "ERROR: archive download or checksum failed"; exit 1; }
           tar -xJf /tmp/sources.tar.xz -C .
-          ls -la
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.11.1"
-
-      - name: Generate Gradle wrapper
-        run: |
-          set -euo pipefail
-          mkdir -p /tmp/wrap && cd /tmp/wrap
-          gradle wrapper --gradle-version 8.11.1 --distribution-type bin --no-daemon
-          cd "$GITHUB_WORKSPACE"
-          cp /tmp/wrap/gradlew /tmp/wrap/gradlew.bat .
-          mkdir -p gradle/wrapper
-          cp /tmp/wrap/gradle/wrapper/gradle-wrapper.jar /tmp/wrap/gradle/wrapper/gradle-wrapper.properties gradle/wrapper/
+          test -f gradlew
+          test -f gradle/wrapper/gradle-wrapper.jar
           chmod +x gradlew
+          ls -la
 
       - name: Commit imported sources
         run: |
