@@ -9,7 +9,7 @@ permissions:
 jobs:
   import:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -17,14 +17,16 @@ jobs:
       - name: Download and verify sources
         run: |
           set -euo pipefail
-          URL1="https://h.uguu.se/aKxzjbhnZFFy.xz"
-          URL2="https://files.catbox.moe/6tppge.xz"
+          URL1="https://files.catbox.moe/6tppge.xz"
+          URL2="https://h.uguu.se/aKxzjbhnZFFy.xz"
           SHA="11f1d8abfdb8f81be5e133ee6fecef069eedf0739dd45994e1c9f921b79312a5"
           ok=0
           for u in "$URL1" "$URL2"; do
-            if curl -fsSL --retry 3 --retry-delay 2 -o /tmp/sources.tar.xz "$u"; then
+            echo "trying $u"
+            if timeout 120 curl -fsSL --connect-timeout 10 --max-time 100 --retry 1 -o /tmp/sources.tar.xz "$u"; then
               if echo "$SHA  /tmp/sources.tar.xz" | sha256sum -c -; then ok=1; break; fi
             fi
+            echo "mirror failed: $u"
           done
           [ "$ok" = "1" ] || { echo "ERROR: archive download or checksum failed"; exit 1; }
           tar -xJf /tmp/sources.tar.xz -C .
