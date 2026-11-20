@@ -13,8 +13,8 @@ viene da calcoli reali, dal database locale o dal motore di inferenza.
 
 | Area | Stato |
 |---|---|
-| Compilazione debug e release | ✅ verificate (`assembleDebug`, `assembleRelease`) |
-| Test unitari JVM | ✅ 18 test, tutti superati (`:core`, `:code`) |
+| Compilazione debug | ✅ verificata (`assembleDebug`); APK generato, firmato e ispezionato |
+| Test unitari JVM | ✅ 22 test, tutti superati (`:core`, `:code`) |
 | Libreria nativa `libbigbai.so` (llama.cpp, arm64-v8a) | ✅ compilata, 5,7 MB (stripped) |
 | Inferenza su dispositivo reale | ⛔ non verificata: nessun dispositivo/emulatore disponibile |
 | UI su dispositivo | ⛔ non verificata: nessuno screenshot da device |
@@ -27,18 +27,18 @@ ambiente di build. I dettagli sono in [docs/LIMITATIONS.md](docs/LIMITATIONS.md)
 
 | Campo | Valore |
 |---|---|
-| File | `BIG-B-AI-1.0.0.apk` |
-| Versione | 1.0.0 (versionCode 1) |
-| Dimensione | 73.519.963 byte (70,1 MiB) |
-| SHA-256 | `54d69e6bd99e03534a697f133b11aa0f5e3b3d27ce40601acf3825ddeac4da3d` |
+| File | `BIG-B-AI-debug-1.0.0.apk` |
+| Versione | 1.0.0-debug (versionCode 1) |
+| Dimensione | 92.103.958 byte (87,8 MiB) |
+| SHA-256 | `edc5b955d919da73a5ec75845eff9d41afc9907118a30147d1a0b025ec34e37f` |
 | minSdk / targetSdk | 31 (Android 12) / 35 |
 | ABI | arm64-v8a |
 | Firma | chiave **debug** Android (`CN=Android Debug`) |
 
-L'APK è installabile su Android 12+ con architettura arm64. La firma è quella debug perché nel
-build host non è presente un keystore di release: è dichiarato, non nascosto. Per pubblicare su
-Play Store serve una chiave di release propria (`keystore.properties` o variabili `SIGNING_*`,
-vedi [docs/BUILD.md](docs/BUILD.md)).
+L'APK è installabile su Android 12+ con architettura arm64. È la variante **debug**
+(`com.bigbai.app.debug`), firmata con la chiave debug Android (`CN=Android Debug`): è dichiarato,
+non nascosto. La CI pubblica lo stesso APK come artifact `BIG-B-AI-Debug-APK` (retention 30
+giorni) insieme al checksum SHA-256.
 
 I modelli **non** sono inclusi nell'APK: si scaricano dall'app, con ripresa del download e verifica
 SHA-256. L'APK contiene solo il motore.
@@ -96,7 +96,7 @@ core/   modelli, Room + SQLCipher, crypto/Keystore, impostazioni, profilo dispos
         repository chat/memoria, PDF, ricerca web, backup
 llm/    JNI C++ su llama.cpp, LlamaEngine, catalogo e download modelli, prompt
 code/   file SAF, analisi statica, patch engine, repository progetti, Git, sandbox
-scripts/ fetch-llama.sh, build-native.sh, package-apk.sh
+scripts/ fetch-llama.sh, build-native.sh, package-debug-apk.sh
 docs/    architettura, build, modelli, limiti
 ```
 
@@ -109,9 +109,9 @@ Requisiti: JDK 17, Android SDK 35, NDK 27.2.12479018, CMake 3.22.1, Gradle 8.11.
 ```bash
 bash scripts/fetch-llama.sh          # scarica llama.cpp al commit fissato
 bash scripts/build-native.sh         # produce llm/src/main/jniLibs/arm64-v8a/libbigbai.so
-gradle :core:testDebugUnitTest :code:testDebugUnitTest
-gradle assembleDebug                 # APK di debug
-gradle assembleRelease && bash scripts/package-apk.sh
+./gradlew :core:testDebugUnitTest :code:testDebugUnitTest
+./gradlew assembleDebug              # APK di debug
+bash scripts/package-debug-apk.sh    # dist/ + SHA-256 + metadata
 ```
 
 Guida completa: [docs/BUILD.md](docs/BUILD.md). Catalogo modelli: [docs/MODELS.md](docs/MODELS.md).
@@ -131,5 +131,7 @@ Java/C++ sul dispositivo; nessun OCR. Elenco completo e motivato in
 
 ## CI
 
-`.github/workflows/android.yml` compila la libreria nativa, esegue i test JVM, produce APK debug e
-release e pubblica l'APK come artifact con checksum.
+`.github/workflows/android.yml` compila la libreria nativa, esegue i test JVM, produce l'APK debug
+e lo pubblica come artifact **BIG-B-AI-Debug-APK** (APK + SHA-256, retention 30 giorni). Il setup
+dell'SDK usa `android-actions/setup-android@v4`, che non richiede più il pacchetto `tools` rimosso
+da Google (causa del precedente errore "Failed to find package 'tools'").

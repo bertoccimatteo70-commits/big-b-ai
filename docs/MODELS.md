@@ -81,7 +81,27 @@ dice invece di inventare contenuto.
 
 ## Modificare il catalogo
 
-Aggiungere una voce in `model_catalog.json` con slug, famiglia, ruolo, tier, parametri, licenza,
-repo di origine, `contextTrain`, `layers`, `kvHeads`, `headDim` e la lista di varianti con nome file,
-dimensione e SHA-256. Gli hash devono essere quelli reali del file: il download viene rifiutato se
-non coincidono.
+Aggiungere una voce in `model_catalog.json` con:
+
+```json
+{
+  "slug": "...",
+  "family": "...",
+  "role": "CHAT | CODE | VISION",
+  "tier": "FAST | BALANCED | SMART | MAX",
+  "params": "3B",
+  "license": "Apache-2.0",
+  "licenseUrl": "...",
+  "sourceUrl": "...",
+  "repo": "owner/repo",
+  "contextTrain": 32768,
+  "layers": 36,
+  "kvHeads": 2,
+  "headDim": 128,
+  "variants": [
+    { "quant": "Q4_K_M", "files": [ { "name": "...gguf", "size": 123, "sha256": "..." } ] }
+  ]
+}
+```
+
+Gli hash devono essere quelli reali del file: il download viene rifiutato se non coincidono.

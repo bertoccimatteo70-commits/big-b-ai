@@ -1,0 +1,1 @@
+-dontwarn net.zetetic.database.sqlcipher.**

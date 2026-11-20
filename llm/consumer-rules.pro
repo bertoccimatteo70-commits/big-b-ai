@@ -1,0 +1,1 @@
+-keepclasseswithmembernames class com.bigbai.llm.NativeLlama { native <methods>; }

@@ -1,0 +1,307 @@
+{
+  "version": 1,
+  "updated": "2026-11-20",
+  "models": [
+    {
+      "slug": "qwen2.5-0.5b-instruct",
+      "family": "Qwen2.5 0.5B Instruct",
+      "role": "CHAT",
+      "tier": "FAST",
+      "params": "0.5B",
+      "license": "Apache-2.0",
+      "licenseUrl": "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+      "sourceUrl": "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+      "repo": "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+      "contextTrain": 32768,
+      "layers": 24,
+      "kvHeads": 2,
+      "headDim": 64,
+      "variants": [
+        {
+          "quant": "Q2_K",
+          "files": [
+            {"name": "qwen2.5-0.5b-instruct-q2_k.gguf", "size": 415182688, "sha256": "9ee36184e616dfc76df4f5dd66f908dbde6979524ae36e6cefb67f532f798cb8"}
+          ]
+        },
+        {
+          "quant": "Q3_K_M",
+          "files": [
+            {"name": "qwen2.5-0.5b-instruct-q3_k_m.gguf", "size": 432041824, "sha256": "590d2479d401db206fe12a4562294d2de6211e06338a6e34fbad64b32f1469d0"}
+          ]
+        },
+        {
+          "quant": "Q4_K_M",
+          "files": [
+            {"name": "qwen2.5-0.5b-instruct-q4_k_m.gguf", "size": 491400032, "sha256": "74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db"}
+          ]
+        },
+        {
+          "quant": "Q5_K_M",
+          "files": [
+            {"name": "qwen2.5-0.5b-instruct-q5_k_m.gguf", "size": 522186592, "sha256": "041474553fcabfc2a2d67903f9d2c2e50bd92528e670da4f33b5d0ce6e59fd55"}
+          ]
+        },
+        {
+          "quant": "Q6_K",
+          "files": [
+            {"name": "qwen2.5-0.5b-instruct-q6_k.gguf", "size": 650379104, "sha256": "2f82233630c349ccf6b8daccf48f9a7865713d9f08a2eadfa456cebe9b97c7f5"}
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "qwen2.5-1.5b-instruct",
+      "family": "Qwen2.5 1.5B Instruct",
+      "role": "CHAT",
+      "tier": "BALANCED",
+      "params": "1.5B",
+      "license": "Apache-2.0",
+      "licenseUrl": "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF",
+      "sourceUrl": "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF",
+      "repo": "Qwen/Qwen2.5-1.5B-Instruct-GGUF",
+      "contextTrain": 32768,
+      "layers": 28,
+      "kvHeads": 2,
+      "headDim": 128,
+      "variants": [
+        {
+          "quant": "Q2_K",
+          "files": [
+            {"name": "qwen2.5-1.5b-instruct-q2_k.gguf", "size": 752880160, "sha256": "5ede348e91ce1e7a330926ec5b202c27b864d065149dc463257fde1f98865b3a"}
+          ]
+        },
+        {
+          "quant": "Q3_K_M",
+          "files": [
+            {"name": "qwen2.5-1.5b-instruct-q3_k_m.gguf", "size": 924455968, "sha256": "58cb5c05ecef48e82961f1a2be6544145ea26136f69dddda4bbbd092f0e4b993"}
+          ]
+        },
+        {
+          "quant": "Q4_K_M",
+          "files": [
+            {"name": "qwen2.5-1.5b-instruct-q4_k_m.gguf", "size": 1117320736, "sha256": "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e"}
+          ]
+        },
+        {
+          "quant": "Q5_K_M",
+          "files": [
+            {"name": "qwen2.5-1.5b-instruct-q5_k_m.gguf", "size": 1285494304, "sha256": "b46661073c18e5b56a41fa320975f866a00def1ff08feef4718e013258896f8c"}
+          ]
+        },
+        {
+          "quant": "Q6_K",
+          "files": [
+            {"name": "qwen2.5-1.5b-instruct-q6_k.gguf", "size": 1464178720, "sha256": "e16d94f3b1eb243f6f6be9eee51090ef5dfd741324394fd5b6e0e425c33df5c7"}
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "qwen2.5-3b-instruct",
+      "family": "Qwen2.5 3B Instruct",
+      "role": "CHAT",
+      "tier": "SMART",
+      "params": "3B",
+      "license": "Apache-2.0",
+      "licenseUrl": "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF",
+      "sourceUrl": "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF",
+      "repo": "Qwen/Qwen2.5-3B-Instruct-GGUF",
+      "contextTrain": 32768,
+      "layers": 36,
+      "kvHeads": 2,
+      "headDim": 128,
+      "variants": [
+        {
+          "quant": "Q2_K",
+          "files": [
+            {"name": "qwen2.5-3b-instruct-q2_k.gguf", "size": 1376856480, "sha256": "8ab4be7ea643fe2b207cf286ce032ca4f5b592f4cebb0db6aa6533c0b26f218d"}
+          ]
+        },
+        {
+          "quant": "Q3_K_M",
+          "files": [
+            {"name": "qwen2.5-3b-instruct-q3_k_m.gguf", "size": 1724178848, "sha256": "ba8627a48c2bddefac2f995caf7887551304f26a72137fb94b74449121d0df4e"}
+          ]
+        },
+        {
+          "quant": "Q4_K_M",
+          "files": [
+            {"name": "qwen2.5-3b-instruct-q4_k_m.gguf", "size": 2104932768, "sha256": "626b4a6678b86442240e33df819e00132d3ba7dddfe1cdc4fbb18e0a9615c62d"}
+          ]
+        },
+        {
+          "quant": "Q5_K_M",
+          "files": [
+            {"name": "qwen2.5-3b-instruct-q5_k_m.gguf", "size": 2438740384, "sha256": "2c63dde5f2c9ab1fd64d47dee2d34dade6ba9ff62442d1d20b5342310c982081"}
+          ]
+        },
+        {
+          "quant": "Q6_K",
+          "files": [
+            {"name": "qwen2.5-3b-instruct-q6_k.gguf", "size": 2793410976, "sha256": "12da1a5d3fa6905111d8798b00ed49e0f6425441598c8c41bb37a2c36d49d0f3"}
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "qwen2.5-7b-instruct",
+      "family": "Qwen2.5 7B Instruct",
+      "role": "CHAT",
+      "tier": "MAX",
+      "params": "7B",
+      "license": "Apache-2.0",
+      "licenseUrl": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF",
+      "sourceUrl": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF",
+      "repo": "Qwen/Qwen2.5-7B-Instruct-GGUF",
+      "contextTrain": 32768,
+      "layers": 28,
+      "kvHeads": 4,
+      "headDim": 128,
+      "variants": [
+        {
+          "quant": "Q2_K",
+          "files": [
+            {"name": "qwen2.5-7b-instruct-q2_k.gguf", "size": 3015940000, "sha256": "a0fc885ff014d73c02dcc4ad093f110c6dd4e0e308f84efe1accf078d364a87a"}
+          ]
+        },
+        {
+          "quant": "Q3_K_M",
+          "files": [
+            {"name": "qwen2.5-7b-instruct-q3_k_m.gguf", "size": 3808391072, "sha256": "a96b16179dc6cc9afdf0cf7a96a80c199cbd00b9be207c3465be21cb721cca5e"}
+          ]
+        },
+        {
+          "quant": "Q4_K_M",
+          "files": [
+            {"name": "qwen2.5-7b-instruct-q4_k_m-00001-of-00002.gguf", "size": 3993201344, "sha256": "dfce12e3862a5283ccfb88221b48480e58745165de856439950d0f22590580db"},
+            {"name": "qwen2.5-7b-instruct-q4_k_m-00002-of-00002.gguf", "size": 689872288, "sha256": "539cf93f78e887edea1c04e2d7d8cdaca9d01dae9c9025bcb8accbe29df3d72a"}
+          ]
+        },
+        {
+          "quant": "Q5_K_M",
+          "files": [
+            {"name": "qwen2.5-7b-instruct-q5_k_m-00001-of-00002.gguf", "size": 3989841792, "sha256": "42f6693004793ee6cf1b2b723f0273b10f86a3bb2a949bd9128d4cda5fb866cd"},
+            {"name": "qwen2.5-7b-instruct-q5_k_m-00002-of-00002.gguf", "size": 1454989568, "sha256": "beba9d4f2f5a1fe7d144dcae332e68b52c26705c5310dece2e5d1997e091e134"}
+          ]
+        },
+        {
+          "quant": "Q6_K",
+          "files": [
+            {"name": "qwen2.5-7b-instruct-q6_k-00001-of-00002.gguf", "size": 3950642464, "sha256": "156c51f478e073210d2fd3923d0f5840e31b51745cc05f93a65cc416f1191e4f"},
+            {"name": "qwen2.5-7b-instruct-q6_k-00002-of-00002.gguf", "size": 2303556416, "sha256": "8d1d3fbbe7a4238744d2cbf64fc54bae2ecd65017871de34bca47cb8598b6275"}
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "qwen2.5-coder-1.5b-instruct",
+      "family": "Qwen2.5 Coder 1.5B Instruct",
+      "role": "CODE",
+      "tier": "BALANCED",
+      "params": "1.5B",
+      "license": "Apache-2.0",
+      "licenseUrl": "https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF",
+      "sourceUrl": "https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF",
+      "repo": "Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF",
+      "contextTrain": 32768,
+      "layers": 28,
+      "kvHeads": 2,
+      "headDim": 128,
+      "variants": [
+        {
+          "quant": "Q2_K",
+          "files": [
+            {"name": "qwen2.5-coder-1.5b-instruct-q2_k.gguf", "size": 752880192, "sha256": "3ec56d48cc5acdb93c4323f0d01a3b5db0c73c54fe71831199223720d37f6fcd"}
+          ]
+        },
+        {
+          "quant": "Q4_K_M",
+          "files": [
+            {"name": "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf", "size": 1117320768, "sha256": "cc324af070c2ecbfd324a30884d2f951a7ff756aba85cb811a6ec436933bb046"}
+          ]
+        },
+        {
+          "quant": "Q5_K_M",
+          "files": [
+            {"name": "qwen2.5-coder-1.5b-instruct-q5_k_m.gguf", "size": 1285494336, "sha256": "f15d02e8e51a5c6f9448b972819acfa66aee4d8bb7d881a8b8ba3d90da08ef09"}
+          ]
+        },
+        {
+          "quant": "Q6_K",
+          "files": [
+            {"name": "qwen2.5-coder-1.5b-instruct-q6_k.gguf", "size": 1464178752, "sha256": "9b05dce8089197c866b9f76e1db45de8617cda98d9d06059958cb8ad32c56dfa"}
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "qwen2.5-coder-7b-instruct",
+      "family": "Qwen2.5 Coder 7B Instruct",
+      "role": "CODE",
+      "tier": "SMART",
+      "params": "7B",
+      "license": "Apache-2.0",
+      "licenseUrl": "https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct-GGUF",
+      "sourceUrl": "https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct-GGUF",
+      "repo": "Qwen/Qwen2.5-Coder-7B-Instruct-GGUF",
+      "contextTrain": 32768,
+      "layers": 28,
+      "kvHeads": 4,
+      "headDim": 128,
+      "variants": [
+        {
+          "quant": "Q2_K",
+          "files": [
+            {"name": "qwen2.5-coder-7b-instruct-q2_k.gguf", "size": 3015940032, "sha256": "6ce2630974b0ef631e2b29064cd10a9cb16b278d001961d72bfd86987392c8d9"}
+          ]
+        },
+        {
+          "quant": "Q3_K_M",
+          "files": [
+            {"name": "qwen2.5-coder-7b-instruct-q3_k_m.gguf", "size": 3808391104, "sha256": "ff5c64615cf8a44651d208e9d8da1f753feefc21605e6c1ee67957aa77257c3c"}
+          ]
+        },
+        {
+          "quant": "Q4_K_M",
+          "files": [
+            {"name": "qwen2.5-coder-7b-instruct-q4_k_m.gguf", "size": 4683073536, "sha256": "509287f78cb4d4cf6b3843734733b914b2c158e43e22a7f4bf5e963800894d3c"}
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "qwen2.5-vl-3b-instruct",
+      "family": "Qwen2.5 VL 3B Instruct",
+      "role": "VISION",
+      "tier": "SMART",
+      "params": "3B",
+      "license": "Apache-2.0",
+      "licenseUrl": "https://huggingface.co/ggml-org/Qwen2.5-VL-3B-Instruct-GGUF",
+      "sourceUrl": "https://huggingface.co/ggml-org/Qwen2.5-VL-3B-Instruct-GGUF",
+      "repo": "ggml-org/Qwen2.5-VL-3B-Instruct-GGUF",
+      "contextTrain": 32768,
+      "layers": 36,
+      "kvHeads": 2,
+      "headDim": 128,
+      "mmproj": {
+        "name": "mmproj-Qwen2.5-VL-3B-Instruct-Q8_0.gguf",
+        "size": 844757728,
+        "sha256": "980c9b2f78c04e6cff93d277ada09e768394f112d75db3b4e9dea8a69f9fb904"
+      },
+      "variants": [
+        {
+          "quant": "Q4_K_M",
+          "files": [
+            {"name": "Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf", "size": 1929901056, "sha256": "d02fe9b69ad8cadbbd228e387667af66612c44bed29ffc8eb1e7caf9ac486c12"}
+          ]
+        },
+        {
+          "quant": "Q8_0",
+          "files": [
+            {"name": "Qwen2.5-VL-3B-Instruct-Q8_0.gguf", "size": 3285474304, "sha256": "fa8aeb3b6bf6152774e87d13e09892aa065f4e0c4abe90806cd8ab18ff72d9fe"}
+          ]
+        }
+      ]
+    }
+  ]
+}

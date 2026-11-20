@@ -7,8 +7,8 @@ L'obiettivo è che nessuno scopra un limite solo dopo aver installato l'APK.
 
 | Cosa | Stato |
 |---|---|
-| Compilazione debug e release | Verificata in questo ambiente |
-| Test unitari JVM (18) | Verificati |
+| Compilazione debug | Verificata in questo ambiente |
+| Test unitari JVM (22) | Verificati |
 | Libreria nativa arm64 | Compilata e strippata |
 | Avvio dell'app su dispositivo | **Non verificato** |
 | Inferenza reale (testo) | **Non verificata** su device |
@@ -34,13 +34,14 @@ implementate e compilano, ma non sono state eseguite: non vengono dichiarate "fu
 - **Nessun OCR.** I PDF scansionati non sono leggibili.
 - **Nessun modello incluso.** L'APK contiene il motore; i modelli si scaricano (centinaia di MB).
 
-## Release
+## Consegna
 
-- **Firma debug.** L'APK è firmato con `CN=Android Debug` perché non è disponibile un keystore di
-  release. Installabile, ma non adatto a Play Store né a una distribuzione "ufficiale".
-- **R8/minify disattivato.** Scelta deliberata per la v1: non è stato possibile verificare su
-  device che le regole di offuscamento non rompessero JGit, Room o il ponte JNI. Meglio un APK
-  più grande che un crash non diagnosticabile.
+- **Solo APK di debug.** La consegna è `BIG-B-AI-debug-1.0.0.apk`, firmato con `CN=Android Debug`:
+  installabile, ma non adatto a Play Store né a una distribuzione "ufficiale". Non vengono
+  prodotti AAB né release firmate.
+- **R8/minify disattivato.** Scelta deliberata: non è stato possibile verificare su device che le
+  regole di offuscamento non rompessero JGit, Room o il ponte JNI. Meglio un APK più grande che un
+  crash non diagnosticabile.
 - **Nessun test strumentale.** Non ci sono test Android (`androidTest`) eseguiti.
 
 ## Funzionalità

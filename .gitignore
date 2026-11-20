@@ -28,3 +28,6 @@ keystore.properties
 
 # Logs
 *.log
+
+# Kotlin build metadata
+.kotlin/

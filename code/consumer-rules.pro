@@ -1,0 +1,2 @@
+-dontwarn org.eclipse.jgit.**
+-dontwarn org.slf4j.**

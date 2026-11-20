@@ -14,8 +14,8 @@
 | CMake | 3.22.1 |
 | llama.cpp | v1.0.0, commit `b1b770d90d94cad9e9ea5b993bdbc383a522fb28` |
 
-Il Gradle wrapper JAR non è committato: la CI usa `gradle/actions/setup-gradle` con
-`gradle-version: 8.11.1`. In locale serve un Gradle 8.11.1 nel `PATH`.
+Il Gradle wrapper è committato (`gradlew`, `gradle/wrapper/`), quindi locale e CI usano la stessa
+versione senza dipendere da un Gradle installato nel `PATH`.
 
 ## 1. Libreria nativa
 
@@ -49,10 +49,9 @@ impostazioni. Il percorso CPU è compilato e verificato.
 ## 2. Build Gradle
 
 ```bash
-gradle --no-daemon :core:testDebugUnitTest :code:testDebugUnitTest
-gradle --no-daemon assembleDebug
-gradle --no-daemon assembleRelease
-bash scripts/package-apk.sh
+./gradlew --no-daemon :core:testDebugUnitTest :code:testDebugUnitTest
+./gradlew --no-daemon assembleDebug
+bash scripts/package-debug-apk.sh
 ```
 
 `gradle.properties` è tarato su host con 2 core e ~4 GB di RAM:
@@ -65,27 +64,25 @@ kotlin.compiler.execution.strategy=in-process
 
 Su una macchina più grande si possono alzare questi valori.
 
-## 3. Firma
+## 3. APK di debug
 
-La release usa, in ordine:
+La consegna è un APK di debug, firmato con la chiave debug Android (`CN=Android Debug`):
 
-1. variabili d'ambiente `SIGNING_STORE_FILE`, `SIGNING_STORE_PASSWORD`, `SIGNING_KEY_ALIAS`,
-   `SIGNING_KEY_PASSWORD`;
-2. `keystore.properties` nella root (non committato);
-3. **fallback alla chiave debug**, con un APK comunque installabile e verificabile.
-
-Per una release firmata:
-
-```properties
-# keystore.properties
-storeFile=/percorso/release.jks
-storePassword=...
-keyAlias=bigbai
-keyPassword=...
+```bash
+./gradlew --no-daemon assembleDebug
+bash scripts/package-debug-apk.sh
 ```
 
-L'APK di questa release è firmato con la chiave debug (`CN=Android Debug`): è dichiarato nel
-README e nel file `dist/BIG-B-AI-1.0.0.txt`.
+Lo script copia l'APK in `dist/BIG-B-AI-debug-<versione>.apk`, verifica che
+`lib/arm64-v8a/libbigbai.so` sia davvero dentro l'APK (un APK senza motore nativo non deve mai
+essere pubblicato), calcola lo SHA-256 e scrive `dist/BIG-B-AI-debug-<versione>.txt` con
+dimensione, data, package e firma.
+
+La variante debug usa `applicationId` `com.bigbai.app.debug` e `versionName` `1.0.0-debug`, quindi
+convive con una eventuale build di release sullo stesso dispositivo.
+
+`app/build.gradle.kts` supporta ancora la firma di release (`keystore.properties` o variabili
+`SIGNING_*`) per build future, ma non fa parte di questa consegna.
 
 ## 4. Test
 
@@ -95,17 +92,19 @@ I test unitari JVM coprono la logica pura, senza Android framework:
 - `StaticAnalyzersTest` (10 test): HTML, Java, C++, CSS.
 - `HtmlTextTest` (4 test): rimozione script/style, entità, spazi.
 
-Totale: **18 test, tutti superati**. Non esistono test strumentali: richiederebbero un device.
+Totale: **22 test, tutti superati**. Non esistono test strumentali: richiederebbero un device.
 
 ## 5. CI
 
-`.github/workflows/android.yml`:
+`.github/workflows/android.yml` (solo build debug):
 
-1. JDK 17 + Gradle 8.11.1 + Android SDK + NDK/CMake;
+1. JDK 17, Android SDK con `android-actions/setup-android@v4` (niente pacchetto `tools`, rimosso da
+   Google), NDK 27.2.12479018 e CMake 3.22.1;
 2. `fetch-llama.sh` e `build-native.sh`;
-3. test JVM;
-4. `assembleDebug` e `assembleRelease`;
-5. `package-apk.sh` e upload degli artifact (`dist/*.apk`, checksum, metadata).
+3. test JVM (`:core`, `:code`);
+4. `./gradlew assembleDebug`;
+5. `package-debug-apk.sh` e upload dell'artifact **BIG-B-AI-Debug-APK** (APK + `.sha256`,
+   retention 30 giorni).
 
 ## Problemi comuni
 
@@ -116,3 +115,4 @@ Totale: **18 test, tutti superati**. Non esistono test strumentali: richiederebb
 | `UnsatisfiedLinkError: libbigbai.so` | La libreria non è stata costruita o l'ABI non è `arm64-v8a`. Rieseguire `build-native.sh`. |
 | `apksigner: java: not found` | `JAVA_HOME` non impostato nella shell. Esportare il JDK 17. |
 | Build nativa uccisa (OOM) | Ridurre `JOBS` a 1 e chiudere altri processi. |
+| `Failed to find package 'tools'` | `android-actions/setup-android@v3` chiedeva il pacchetto `tools`, rimosso dal repository Android. Il workflow usa `v4` e dichiara i pacchetti esplicitamente. |

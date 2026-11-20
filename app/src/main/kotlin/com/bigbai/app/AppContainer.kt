@@ -1,0 +1,76 @@
+package com.bigbai.app
+
+import android.app.Application
+import com.bigbai.code.GitManager
+import com.bigbai.code.JsSandbox
+import com.bigbai.code.ProjectFiles
+import com.bigbai.code.ProjectRepository
+import com.bigbai.core.backup.BackupManager
+import com.bigbai.core.db.AppDatabase
+import com.bigbai.core.device.DeviceProfile
+import com.bigbai.core.device.MemorySampler
+import com.bigbai.core.pdf.PdfExtractor
+import com.bigbai.core.repo.ChatRepository
+import com.bigbai.core.repo.MemoryRepository
+import com.bigbai.core.search.WebSearchClient
+import com.bigbai.core.security.CryptoManager
+import com.bigbai.core.settings.SettingsRepository
+import com.bigbai.llm.LlamaEngine
+import com.bigbai.llm.ModelCatalog
+import com.bigbai.llm.ModelDownloadManager
+import com.bigbai.llm.ModelStore
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+
+/**
+ * Manual dependency container.
+ *
+ * Hilt would add a compiler and a second build pipeline for no benefit at this
+ * size; every dependency here has exactly one lifetime, and lazy initialisation
+ * keeps the database, Keystore and native library off the application startup
+ * path (startup time is a first-class requirement).
+ */
+class AppContainer(private val app: Application) {
+
+    val context: android.content.Context get() = app
+
+    val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    val deviceProfile: DeviceProfile by lazy { DeviceProfile.read(app) }
+    val memorySampler: MemorySampler by lazy { MemorySampler(app) }
+    val crypto: CryptoManager by lazy { CryptoManager(app) }
+    val settings: SettingsRepository by lazy { SettingsRepository(app) }
+
+    val database: AppDatabase by lazy {
+        AppDatabase.open(app, crypto.databasePassphrase())
+    }
+
+    val chat: ChatRepository by lazy { ChatRepository(database) }
+    val memory: MemoryRepository by lazy { MemoryRepository(database) }
+
+    val catalog: ModelCatalog by lazy { ModelCatalog.load(app) }
+    val modelStore: ModelStore by lazy { ModelStore(app) }
+    val downloader: ModelDownloadManager by lazy {
+        ModelDownloadManager(app, modelStore, database.downloadDao())
+    }
+    val engine: LlamaEngine by lazy { LlamaEngine(app, memorySampler) }
+
+    val pdf: PdfExtractor by lazy { PdfExtractor(app) }
+    val search: WebSearchClient by lazy { WebSearchClient(app) }
+
+    val projectFiles: ProjectFiles by lazy { ProjectFiles(app) }
+    val projects: ProjectRepository by lazy { ProjectRepository(database, projectFiles) }
+    val git: GitManager by lazy { GitManager(app) }
+    val sandbox: JsSandbox by lazy { JsSandbox(app) }
+
+    val backup: BackupManager by lazy { BackupManager(app, database, settings) }
+    val notifications: Notifications by lazy { Notifications(app) }
+
+    suspend fun budgetBytes(): Long {
+        val current = settings.current()
+        return deviceProfile.budgetBytes(current.ramMode)
+    }
+
+    fun isLowEndDevice(): Boolean = deviceProfile.tier == com.bigbai.core.device.DeviceTier.LOW
+}

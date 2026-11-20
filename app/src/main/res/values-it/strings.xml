@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">AI</string>
+    <string name="channel_downloads">Download dei modelli</string>
+    <string name="channel_downloads_desc">Avanzamento dei download dei modelli</string>
+    <string name="channel_backup">Backup</string>
+    <string name="channel_backup_desc">Esito dei backup cifrati</string>
+    <string name="channel_alerts">Avvisi</string>
+    <string name="channel_alerts_desc">Errori e comunicazioni importanti</string>
+    <string name="notification_download_starting">Avvio del download…</string>
+    <string name="notification_download_done">Download completato e verificato</string>
+    <string name="notification_download_paused">Download in pausa</string>
+    <string name="notification_download_failed">Download non riuscito</string>
+    <string name="notification_backup_done">Backup completato</string>
+    <string name="notification_backup_failed">Backup non riuscito</string>
+</resources>
