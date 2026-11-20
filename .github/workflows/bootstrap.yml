@@ -29,25 +29,24 @@ jobs:
             fi
           done
           cat /tmp/mirrors.log
-          if [ "$ok" = "1" ]; then
-            tar -xJf /tmp/sources.tar.xz -C .
-            rm -f bootstrap-error.txt
-            touch /tmp/import-ok
-          else
-            cp /tmp/mirrors.log bootstrap-error.txt
+          if [ "$ok" != "1" ]; then
             echo "ERROR: no mirror delivered a valid archive"
+            exit 1
           fi
+          tar -xJf /tmp/sources.tar.xz -C .
+          # Workflow files are not modified here: GITHUB_TOKEN is not allowed to
+          # create or update them. android.yml is already identical to the repo.
+          git checkout -- .github/workflows/android.yml 2>/dev/null || true
+          test -f gradlew
+          test -f gradle/wrapper/gradle-wrapper.jar
+          chmod +x gradlew
+          ls -la
 
-      - name: Commit result
+      - name: Commit imported sources
         run: |
           set -euo pipefail
           git config user.name "BIG B AI"
           git config user.email "dev@bigbai.local"
-          MSG="chore: bootstrap diagnostics"
-          if [ -f /tmp/import-ok ]; then
-            git rm -q .github/workflows/bootstrap.yml
-            MSG="feat: import BIG B AI 1.0.0 sources (chat, models, memory, BIG B Code)"
-          fi
           git add -A
-          git commit -m "$MSG" || echo "nothing to commit"
+          git commit -m "feat: import BIG B AI 1.0.0 sources (chat, models, memory, BIG B Code)"
           git push origin HEAD:main
