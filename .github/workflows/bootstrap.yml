@@ -16,31 +16,38 @@ jobs:
 
       - name: Download and verify sources
         run: |
-          set -euo pipefail
-          URL1="https://files.catbox.moe/6tppge.xz"
-          URL2="https://h.uguu.se/aKxzjbhnZFFy.xz"
+          set -uo pipefail
           SHA="11f1d8abfdb8f81be5e133ee6fecef069eedf0739dd45994e1c9f921b79312a5"
+          : > /tmp/mirrors.log
           ok=0
-          for u in "$URL1" "$URL2"; do
-            echo "trying $u"
-            if timeout 120 curl -fsSL --connect-timeout 10 --max-time 100 --retry 1 -o /tmp/sources.tar.xz "$u"; then
-              if echo "$SHA  /tmp/sources.tar.xz" | sha256sum -c -; then ok=1; break; fi
+          for u in "https://x0.at/jzCc.xz" "https://files.catbox.moe/6tppge.xz" "https://h.uguu.se/aKxzjbhnZFFy.xz"; do
+            code=$(timeout 120 curl -sSL --connect-timeout 10 --max-time 100 -o /tmp/sources.tar.xz -w '%{http_code}' "$u" 2>>/tmp/mirrors.log || echo "curl-fail")
+            echo "$u -> HTTP $code, $(wc -c < /tmp/sources.tar.xz 2>/dev/null || echo 0) bytes" >> /tmp/mirrors.log
+            if [ "$code" = "200" ] && echo "$SHA  /tmp/sources.tar.xz" | sha256sum -c - >> /tmp/mirrors.log 2>&1; then
+              ok=1
+              break
             fi
-            echo "mirror failed: $u"
           done
-          [ "$ok" = "1" ] || { echo "ERROR: archive download or checksum failed"; exit 1; }
-          tar -xJf /tmp/sources.tar.xz -C .
-          test -f gradlew
-          test -f gradle/wrapper/gradle-wrapper.jar
-          chmod +x gradlew
-          ls -la
+          cat /tmp/mirrors.log
+          if [ "$ok" = "1" ]; then
+            tar -xJf /tmp/sources.tar.xz -C .
+            rm -f bootstrap-error.txt
+            touch /tmp/import-ok
+          else
+            cp /tmp/mirrors.log bootstrap-error.txt
+            echo "ERROR: no mirror delivered a valid archive"
+          fi
 
-      - name: Commit imported sources
+      - name: Commit result
         run: |
           set -euo pipefail
-          git rm -q .github/workflows/bootstrap.yml
           git config user.name "BIG B AI"
           git config user.email "dev@bigbai.local"
+          MSG="chore: bootstrap diagnostics"
+          if [ -f /tmp/import-ok ]; then
+            git rm -q .github/workflows/bootstrap.yml
+            MSG="feat: import BIG B AI 1.0.0 sources (chat, models, memory, BIG B Code)"
+          fi
           git add -A
-          git commit -m "feat: import BIG B AI 1.0.0 sources (chat, models, memory, BIG B Code)"
+          git commit -m "$MSG" || echo "nothing to commit"
           git push origin HEAD:main
