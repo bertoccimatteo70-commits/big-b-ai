@@ -6,7 +6,9 @@ import android.provider.OpenableColumns
 import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.InputStream
 
 data class FileNode(
     val name: String,
@@ -33,7 +35,8 @@ class ProjectFiles(private val context: Context) {
         val normalised = path.replace('\\', '/').trim().removePrefix("/")
         if (normalised.isBlank()) return null
         if (normalised.contains("..")) return null
-        if (normalised.startsWith(".") && normalised.length > 1 && !normalised.startsWith(".").not()) return null
+        // Hidden files are outside the project surface the user granted.
+        if (normalised.startsWith(".")) return null
         return normalised
     }
 
@@ -78,7 +81,7 @@ class ProjectFiles(private val context: Context) {
             if (!file.isFile || file.length() > maxBytes) return@withContext null
             runCatching {
                 context.contentResolver.openInputStream(file.uri)?.use { input ->
-                    input.readBytes().toString(Charsets.UTF_8)
+                    readBounded(input, maxBytes)
                 }
             }.getOrNull()
         }
@@ -154,7 +157,7 @@ class ProjectFiles(private val context: Context) {
                 } else if (isTextFile(name) && child.length() <= maxBytesPerFile) {
                     runCatching {
                         context.contentResolver.openInputStream(child.uri)?.use { input ->
-                            result[path] = input.readBytes().toString(Charsets.UTF_8)
+                            readBounded(input, maxBytesPerFile)?.let { text -> result[path] = text }
                         }
                     }
                 }
@@ -176,6 +179,26 @@ class ProjectFiles(private val context: Context) {
     }
 
     companion object {
+        /**
+         * Reads at most [maxBytes] and returns null when the stream is larger.
+         * Document providers may report a length of 0 or lie about it, so the
+         * cap must be enforced while reading, not only from metadata.
+         */
+        internal fun readBounded(input: InputStream, maxBytes: Int): String? {
+            if (maxBytes <= 0) return null
+            val output = ByteArrayOutputStream(minOf(maxBytes, 16 * 1024))
+            val chunk = ByteArray(8 * 1024)
+            var total = 0
+            while (true) {
+                val read = input.read(chunk)
+                if (read < 0) break
+                total += read
+                if (total > maxBytes) return null
+                output.write(chunk, 0, read)
+            }
+            return output.toString(Charsets.UTF_8.name())
+        }
+
         private val TEXT_EXTENSIONS = setOf(
             "html", "htm", "css", "js", "ts", "json", "xml", "md", "txt",
             "java", "kt", "kts", "c", "h", "cpp", "cc", "hpp", "cmake",

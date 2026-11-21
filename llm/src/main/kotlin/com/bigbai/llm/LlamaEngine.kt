@@ -212,7 +212,7 @@ class LlamaEngine(
 
         val decoder = Utf8Stream()
         var tokens = 0
-        var firstTokenMs = 0L
+        var firstTokenAt = 0L
         var peakRam = memorySampler.current()
         var stoppedByUser = false
 
@@ -222,8 +222,8 @@ class LlamaEngine(
                 stoppedByUser = cancelled.get()
                 break
             }
-            if (firstTokenMs == 0L) {
-                firstTokenMs = SystemClock.elapsedRealtime() - promptStarted
+            if (firstTokenAt == 0L) {
+                firstTokenAt = SystemClock.elapsedRealtime()
             }
             val text = decoder.feed(bytes)
             if (text.isNotEmpty()) onToken(text)
@@ -236,24 +236,25 @@ class LlamaEngine(
         if (tail.isNotEmpty()) onToken(tail)
 
         val finished = SystemClock.elapsedRealtime()
-        val perf = NativeLlama.nativePerf(handle)
-        val promptTokens = perf?.getOrNull(2)?.toInt() ?: 0
-        val completionTokens = perf?.getOrNull(3)?.toInt() ?: tokens
-        val generationMs = (finished - promptStarted - firstTokenMs).coerceAtLeast(1)
-        val measuredTps = if (tokens > 0 && finished > promptStarted + firstTokenMs) {
-            tokens.toDouble() * 1000.0 / generationMs
-        } else {
-            0.0
-        }
+        // llama.cpp's own counters are authoritative for prompt evaluation and
+        // decode speed; wall-clock is only the fallback. promptMs used to be
+        // filled with TTFT, which reported prompt evaluation as something else.
+        val timing = GenerationTiming.compute(
+            promptStartedMs = promptStarted,
+            firstTokenAtMs = firstTokenAt,
+            finishedMs = finished,
+            streamedTokens = tokens,
+            perf = NativeLlama.nativePerf(handle),
+        )
 
         Result.success(
             GenerationMetrics(
-                promptTokens = promptTokens,
-                completionTokens = completionTokens,
-                promptMs = firstTokenMs,
-                generationMs = generationMs,
-                firstTokenMs = firstTokenMs,
-                tokensPerSecond = measuredTps,
+                promptTokens = timing.promptTokens,
+                completionTokens = timing.completionTokens,
+                promptMs = timing.promptMs,
+                generationMs = timing.generationMs,
+                firstTokenMs = timing.firstTokenMs,
+                tokensPerSecond = timing.tokensPerSecond,
                 peakRamBytes = peakRam,
                 modelId = model.variant.id,
             ),

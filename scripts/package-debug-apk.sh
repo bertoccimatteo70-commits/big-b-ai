@@ -51,7 +51,8 @@ Firma:         chiave DEBUG Android (CN=Android Debug)
 Package:       com.bigbai.app.debug (suffisso .debug, convive con la release)
 Motore AI:     llama.cpp v1.0.0, CPU only (nessuna accelerazione GPU in questa build)
 Modelli:       NON inclusi nell'APK; si scaricano dall'app e sono verificati con SHA-256.
-Test eseguiti: 62 test unitari JVM + build debug. Nessun test su dispositivo fisico o emulatore.
+Test eseguiti: 71 test unitari JVM (0 falliti) + build debug. Nessun test su dispositivo fisico o emulatore.
+Copertura:     JaCoCo JVM, 7,2% delle linee (UI e Room non coperte).
 Audit:         docs/AUDIT-1.2.md
 EOF
 

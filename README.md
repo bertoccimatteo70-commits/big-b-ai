@@ -14,7 +14,8 @@ viene da calcoli reali, dal database locale o dal motore di inferenza.
 | Area | Stato |
 |---|---|
 | Compilazione debug | ✅ verificata (`assembleDebug`); APK generato, firmato e ispezionato |
-| Test unitari JVM | ✅ 39 test, tutti superati (`:core`, `:code`) |
+| Test unitari JVM | ✅ 71 test, 0 falliti (`:core`, `:code`, `:llm`, `:app`) |
+| Copertura JVM (JaCoCo) | ✅ misurata: **7,2%** delle linee complessive; logica pura coperta (core/chat 94,7%, core/lang 99,1%, code 33,0%, llm 18,4%), UI e Room non coperte da test JVM |
 | Libreria nativa `libbigbai.so` (llama.cpp, arm64-v8a) | ✅ compilata, 5,7 MB (stripped) |
 | Inferenza su dispositivo reale | ⛔ non verificata: nessun dispositivo/emulatore disponibile |
 | UI su dispositivo | ⛔ non verificata: nessuno screenshot da device |
@@ -30,7 +31,7 @@ ambiente di build. I dettagli sono in [docs/LIMITATIONS.md](docs/LIMITATIONS.md)
 | File | `BIG-B-AI-debug-1.2.0.apk` |
 | Versione | 1.2.0-debug (versionCode 3) |
 | Dimensione | 92.821.934 byte (88,5 MiB) |
-| SHA-256 | `7b8a5a390d05034ef4bb0534657e78fb959e8b2a79128ef3768fe68598d5d808` |
+| SHA-256 | `26cc238baf4e92b664d050b0660f6ad9cd03cdbf9b6f78b11eeef9117106436a` |
 | minSdk / targetSdk | 31 (Android 12) / 35 |
 | ABI | arm64-v8a |
 | Firma | chiave **debug** Android (`CN=Android Debug`) |
@@ -124,6 +125,7 @@ Requisiti: JDK 17, Android SDK 35, NDK 27.2.12479018, CMake 3.22.1, Gradle 8.11.
 bash scripts/fetch-llama.sh          # scarica llama.cpp al commit fissato
 bash scripts/build-native.sh         # produce llm/src/main/jniLibs/arm64-v8a/libbigbai.so
 ./gradlew :core:testDebugUnitTest :code:testDebugUnitTest :llm:testDebugUnitTest :app:testDebugUnitTest
+./gradlew jacocoTestReport           # copertura JVM aggregata (build/reports/jacoco)
 ./gradlew assembleDebug              # APK di debug
 bash scripts/package-debug-apk.sh    # dist/ + SHA-256 + metadata
 ```
@@ -146,7 +148,7 @@ motivato in [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
 ## CI
 
 [`.github/workflows/android.yml`](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/workflows/android.yml)
-compila la libreria nativa, esegue i test JVM, produce l'APK debug
+compila la libreria nativa, esegue i 71 test JVM dei quattro moduli, produce l'APK debug
 e lo pubblica come artifact **BIG-B-AI-Debug-APK** (APK + SHA-256, retention 30 giorni). Il setup
 dell'SDK usa `android-actions/setup-android@v4`, che non richiede più il pacchetto `tools` rimosso
 da Google (causa del precedente errore "Failed to find package 'tools'").

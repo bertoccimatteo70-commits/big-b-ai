@@ -8,7 +8,8 @@ L'obiettivo è che nessuno scopra un limite solo dopo aver installato l'APK.
 | Cosa | Stato |
 |---|---|
 | Compilazione debug | Verificata in questo ambiente |
-| Test unitari JVM (39) | Verificati |
+| Test unitari JVM (71) | Verificati, 0 falliti |
+| Copertura JVM (JaCoCo) | Misurata: 7,2% delle linee; UI, Room, PDF e backup non coperti |
 | Libreria nativa arm64 | Compilata e strippata |
 | Avvio dell'app su dispositivo | **Non verificato** |
 | Inferenza reale (testo) | **Non verificata** su device |
@@ -44,6 +45,10 @@ implementate e compilano, ma non sono state eseguite: non vengono dichiarate "fu
   regole di offuscamento non rompessero JGit, Room o il ponte JNI. Meglio un APK più grande che un
   crash non diagnosticabile.
 - **Nessun test strumentale.** Non ci sono test Android (`androidTest`) eseguiti.
+- **Copertura JVM bassa e parziale.** JaCoCo misura 7,2% delle linee complessive. La logica pura è
+  coperta bene (`core/chat` 94,7%, `core/lang` 99,1%, `code` 33,0%, `llm` 18,4%), ma UI Compose,
+  Room, PDF, backup, Keystore e sandbox non hanno test eseguibili sulla JVM. Il numero è misurato,
+  non stimato, e non sostituisce i test su device.
 - **Paging non introdotto.** La lista è lazy e il prompt è limitato, ma una conversazione con
   migliaia di messaggi carica tutte le righe della chat aperta.
 - **Limiti allegati.** Immagini fino a 24 MB (poi ridimensionate a 896 px lato massimo), PDF fino a

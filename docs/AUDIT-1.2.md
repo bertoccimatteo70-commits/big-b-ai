@@ -155,3 +155,65 @@ verifica la presenza di `libbigbai.so`, calcola lo SHA-256 e carica l'artifact.
 
 Lo stato della run e il link all'artifact sono riportati nel messaggio di consegna
 solo dopo la pubblicazione effettiva su GitHub.
+
+## 10. Intervento finale e nuova build APK
+
+Questo passaggio è stato eseguito dopo la prima consegna 1.2.0, con priorità al ripristino di un
+APK scaricabile. La run di ripristino (#15, `workflow_dispatch` su `main`) ha prodotto un artifact
+`BIG-B-AI-Debug-APK` valido (APK 92.251.532 byte, SHA-256
+`d4c2a98613ea15e0c8cff104180f6885b7a07498430e01ae15b7c4c181548335`, checksum interno verificato).
+Il commit di questo intervento genera una nuova run; i riferimenti finali sono nel report di
+consegna.
+
+### 10.1 Difetti trovati e corretti
+
+| # | Difetto | Effetto | Correzione |
+|---|---|---|---|
+| 12 | `GenerationMetrics.promptMs` conteneva il tempo al primo token (TTFT), non il tempo di valutazione del prompt; i token/s usavano il wall-clock e includevano il primo token nel numeratore | Metriche di inferenza fuorvianti, velocità sovrastimata | Nuovo `GenerationTiming`: usa i contatori `llama_perf_context` (`t_p_eval_ms`, `t_eval_ms`, `n_p_eval`, `n_eval`), con fallback wall-clock solo se assenti; 5 test JVM |
+| 13 | `ProjectFiles.readText`/`snapshot` si fidavano di `DocumentFile.length()` e usavano `readBytes()` senza limite | Un provider SAF che riporta 0 poteva far leggere un file arbitrariamente grande in RAM | Lettura bounded durante lo stream (`readBounded`), rifiuto oltre il limite; 4 test JVM |
+| 14 | `ProjectFiles.sanitize` conteneva una condizione ridondante (`!startsWith(".").not()`) | Codice illeggibile, comportamento nascosto | Rifiuto esplicito dei file nascosti, stesso comportamento |
+| 15 | README, BUILD e LIMITATIONS indicavano 39 o 62 test | Documentazione incoerente con la suite reale | Aggiornati a 71 test e alle nuove classi di test |
+| 16 | Icona adattiva senza layer `monochrome`; `app_name` duplicato in `values-it` pur essendo `translatable="false"` | Icone a tema assenti; warning lint | Aggiunto `<monochrome>` a icona e roundIcon; rimossa la stringa ridondante |
+| 17 | Copertura JaCoCo non configurata | Nessun dato di copertura verificabile | Plugin e task aggregato `jacocoTestReport` su core/code/llm/app |
+
+### 10.2 Verifiche eseguite
+
+| Voce | Risultato |
+|---|---|
+| Test JVM | **71, 0 falliti** (core 26, code 22, llm 18, app 5) |
+| Copertura JaCoCo | **7,2% linee** (672/9.304), 5,7% branch, 3,5% classi |
+| Lint debug | **0 errori, 67 warning** |
+| `assembleDebug` | **BUILD SUCCESSFUL** |
+| APK locale | 92.821.934 byte, SHA-256 `26cc238baf4e92b664d050b0660f6ad9cd03cdbf9b6f78b11eeef9117106436a` |
+| Contenuto APK | `lib/arm64-v8a/libbigbai.so` presente; `GenerationTiming` presente nel DEX |
+| Tempi host | test + copertura 40 s; lint + assemble 1 min 01 s |
+
+La copertura è bassa e viene riportata senza arrotondamenti: la logica pura è coperta
+(`core/chat` 94,7%, `core/lang` 99,1%, `code` 33,0%, `llm` 18,4%), mentre UI Compose, Room, PDF,
+backup, Keystore e sandbox non hanno test eseguibili sulla JVM. Non esistono test strumentali.
+
+### 10.3 Triage dei warning
+
+| Categoria | N. | Giudizio |
+|---|---:|---|
+| `GradleDependency` | 54 | Versioni disponibili più recenti; aggiornamento rimandato per non cambiare toolchain senza device |
+| `AndroidGradlePluginVersion` | 6 | AGP 8.7.3 vs 9.5.2; upgrade maggiore, fuori da questo intervento |
+| `TrustAllX509TrustManager` | 5 | Dentro jar di terze parti (BouncyCastle/JGit); nessun trust-all nel codice dell'app |
+| `ObsoleteSdkInt` | 1 | Cartella `mipmap-anydpi-v26`; AAPT2 richiede il qualificatore `-v26` per `<adaptive-icon>`, quindi resta |
+| `ChromeOsABISupport` | 1 | Atteso: l'APK è solo arm64-v8a |
+
+I warning di codice dell'app sono stati azzerati; restano solo quelli di toolchain, terze parti e
+piattaforma, documentati singolarmente.
+
+### 10.4 Metriche runtime
+
+Restano **NON MISURATE**: avvio, TTFT, token/s reali, RAM durante inferenza, CPU, GPU, frame time,
+batteria, temperatura, crash/ANR, tempi DB. In questo ambiente non esiste un dispositivo o un
+emulatore arm64; i valori riportati sopra sono misure di build host e di copertura, non di runtime.
+
+### 10.5 Cosa resta
+
+- Test su dispositivo fisico per avvio, inferenza, Vision, SAF, Keystore, notifiche e WebView.
+- Copertura strumentale per UI, Room, PDF, backup e sandbox.
+- Aggiornamento dipendenze e AGP con una matrice di test su device.
+- GPU/Vulkan, OCR e compilatori Java/C++ restano fuori: non sono stati dichiarati come presenti.

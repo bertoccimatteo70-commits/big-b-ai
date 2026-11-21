@@ -49,7 +49,9 @@ impostazioni. Il percorso CPU è compilato e verificato.
 ## 2. Build Gradle
 
 ```bash
-./gradlew --no-daemon :core:testDebugUnitTest :code:testDebugUnitTest
+./gradlew --no-daemon :core:testDebugUnitTest :code:testDebugUnitTest \
+  :llm:testDebugUnitTest :app:testDebugUnitTest
+./gradlew --no-daemon jacocoTestReport
 ./gradlew --no-daemon assembleDebug
 bash scripts/package-debug-apk.sh
 ```
@@ -97,12 +99,27 @@ I test unitari JVM coprono la logica pura, senza Android framework:
 - `PromptTemplatesTest` (7 test): prompt multilingua, Vision, fonti, tutor e BIG B Code.
 - `AttachmentPolicyTest` (5 test): classificazione MIME/estensione e limiti di dimensione.
 
-Totale attuale: **62 test JVM**, eseguiti anche dalla pipeline CI.
+- `GenerationTimingTest` (5 test): token/s e tempi prompt/TTFT dai contatori llama.cpp e fallback wall-clock.
+- `ProjectFilesReadTest` (4 test): limite byte applicato durante la lettura, UTF-8 multi-byte.
 - `PatchEngineTest` (8 test): parsing del protocollo patch, path, blocchi non chiusi, diff e statistiche.
 - `StaticAnalyzersTest` (10 test): HTML, Java, C++, CSS.
 - `HtmlTextTest` (4 test): rimozione script/style, entità, spazi.
 
-Totale: **39 test, tutti superati**. Non esistono test strumentali: richiederebbero un device.
+Totale: **71 test JVM, 0 falliti** (core 26, code 22, llm 18, app 5), eseguiti anche dalla pipeline CI.
+Non esistono test strumentali: richiederebbero un device.
+
+## 4.1 Copertura
+
+```bash
+./gradlew --no-daemon jacocoTestReport
+```
+
+Report aggregato in `build/reports/jacoco/jacocoTestReport/html` (XML e CSV accanto). Misurazione
+corrente: **7,2% delle linee** (672 coperte, 8.632 mancanti) e 5,7% dei branch. La copertura è
+concentrata sulla logica pura verificabile senza device: `core/chat` 94,7%, `core/lang` 99,1%,
+`code` 33,0%, `llm` 18,4%. UI Compose, Room, PDF, backup e Keystore richiedono test strumentali e
+non sono coperti. Il dato è basso ed è riportato così com'è: non viene presentato come obiettivo
+raggiunto.
 
 ## 5. CI
 
@@ -111,10 +128,13 @@ Totale: **39 test, tutti superati**. Non esistono test strumentali: richiederebb
 1. JDK 17, Android SDK con `android-actions/setup-android@v4` (niente pacchetto `tools`, rimosso da
    Google), NDK 27.2.12479018 e CMake 3.22.1;
 2. `fetch-llama.sh` e `build-native.sh`;
-3. test JVM (`:core`, `:code`);
+3. test JVM dei quattro moduli (`:core`, `:code`, `:llm`, `:app`);
 4. `./gradlew assembleDebug`;
 5. `package-debug-apk.sh` e upload dell'artifact **BIG-B-AI-Debug-APK** (APK + `.sha256`,
    retention 30 giorni).
+
+La copertura JaCoCo è riproducibile in locale con `./gradlew jacocoTestReport`; la pipeline non
+carica un artifact di copertura separato, per non affiancare un secondo artifact a quello APK.
 
 ## Problemi comuni
 
