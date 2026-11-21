@@ -236,4 +236,25 @@ in Diagnostica. **Non verificata visivamente**: nessun dispositivo o emulatore d
 
 ## 12. APK e pipeline
 
-_(compilato dopo la pubblicazione: dimensione APK, SHA-256, ABI, firma, artifact, run CI)_
+APK scaricato dall'artifact della run CI
+[44907676537](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44907676537)
+(commit `ced8116`) e verificato dopo il download:
+
+| Voce | Valore |
+|---|---|
+| File | `BIG-B-AI-debug-1.5.1.apk` |
+| Versione | 1.5.1-debug, versionCode 7 |
+| Dimensione APK | **248.141.501 byte (236,65 MiB)** |
+| Requisito 200 MiB | soddisfatto (209.715.200 richiesti) |
+| SHA-256 APK | `3935bbedf2b035e90b4cda5f9a531b679f18b7b448677060170f537609098ada` |
+| ABI | arm64-v8a, armeabi-v7a, x86_64 |
+| Firma | valida (`CN=Android Debug`), `apksigner` exit 0 |
+| Manifest | `com.bigbai.app.debug`, versionCode 7, minSdk 31, targetSdk 35 |
+| Modello incluso | `assets/models/multilingual-e5-small-q8_0.gguf`, SHA-256 `e011debc…877c93` |
+| Artifact ZIP | 167.725.123 byte, SHA-256 `2522dc75…3488` |
+
+La build locale ha la stessa dimensione (248.141.501 byte) ma SHA-256
+`ef820ffa…36f6`: cambiano i timestamp di firma, non il contenuto funzionale.
+Il workflow `android.yml` esegue test, lint, build nativa delle tre ABI, `assembleDebug`,
+packaging, verifica di firma/manifest/ABI/modello e fallisce se l'APK è sotto 200 MiB.
+L'artifact si chiama `BIG-B-AI-Debug-APK` ed è conservato 30 giorni.

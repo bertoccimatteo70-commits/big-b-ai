@@ -33,8 +33,8 @@ ambiente di build. I dettagli sono in [docs/LIMITATIONS.md](docs/LIMITATIONS.md)
 |---|---|
 | File | `BIG-B-AI-debug-1.5.1.apk` |
 | Versione | 1.5.1-debug (versionCode 7) |
-| Dimensione (build locale) | **248.141.501 byte (236,65 MiB / 248,14 MB)** |
-| SHA-256 (build locale) | `ef820ffa7b79308c81318cb897d8fe76142f37b40f2637bedbc28ddab06436f6` |
+| Dimensione | **248.141.501 byte (236,65 MiB / 248,14 MB)** |
+| SHA-256 | `3935bbedf2b035e90b4cda5f9a531b679f18b7b448677060170f537609098ada` |
 | minSdk / targetSdk | 31 (Android 12) / 35 |
 | ABI | **arm64-v8a, armeabi-v7a, x86_64** (APK universale) |
 | Firma | chiave **debug** Android (`CN=Android Debug`) |
@@ -42,11 +42,12 @@ ambiente di build. I dettagli sono in [docs/LIMITATIONS.md](docs/LIMITATIONS.md)
 
 L'APK è installabile su Android 12+ con architettura ARM 64-bit, ARM 32-bit o x86_64 (emulatore).
 È la variante **debug** (`com.bigbai.app.debug`), firmata con la chiave debug Android
-(`CN=Android Debug`): è dichiarato, non nascosto. I valori qui sopra sono la **build locale**
-1.5.1, verificata con `apksigner`, `aapt2` e il confronto SHA-256 del modello dentro l'APK.
-L'APK pubblicato dalla CI è nell'artifact `BIG-B-AI-Debug-APK` della run più recente del
-workflow `android.yml`; la dimensione può variare di poche centinaia di KB per l'ordinamento
-del dex e i timestamp di firma. L'hash cambia a ogni ricostruzione.
+(`CN=Android Debug`): è dichiarato, non nascosto. I valori qui sopra sono l'APK scaricato
+dall'artifact `BIG-B-AI-Debug-APK` della run CI
+[44907676537](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44907676537) sul
+commit `ced8116`; dimensione, SHA-256, firma, manifest, ABI e SHA-256 del modello dentro l'APK
+sono stati ricontrollati dopo il download. La build locale ha la stessa dimensione
+(248.141.501 byte) ma hash `ef820ffa…36f6`, perché cambiano i timestamp di firma.
 
 La dimensione supera i 200 MiB perché l'APK contiene il motore nativo reale per **tre** ABI e il
 modello di embedding **multilingual-e5-small Q8_0** (132.439.008 byte) usato per il retrieval
@@ -232,7 +233,7 @@ motivato in [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
 
 [`.github/workflows/android.yml`](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/workflows/android.yml)
 compila la libreria nativa per le tre ABI, scarica e verifica il modello di embedding, esegue i
-165 test JVM dei quattro moduli, esegue il lint, produce l'APK debug, ne verifica firma, manifest,
+212 test JVM dei quattro moduli, esegue il lint, produce l'APK debug, ne verifica firma, manifest,
 ABI e dimensione minima di 200 MiB e lo pubblica come artifact **BIG-B-AI-Debug-APK** (APK +
 SHA-256 + metadata, retention 30 giorni). Il setup
 dell'SDK usa `android-actions/setup-android@v4`, che non richiede più il pacchetto `tools` rimosso
