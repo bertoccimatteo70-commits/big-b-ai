@@ -8,11 +8,11 @@ L'obiettivo è che nessuno scopra un limite solo dopo aver installato l'APK.
 | Cosa | Stato |
 |---|---|
 | Compilazione debug | Verificata in questo ambiente |
-| Test unitari JVM (200) | Verificati, 0 falliti |
+| Test unitari JVM (214) | Verificati, 0 falliti |
 | Agente ITAGPT Code (parsing, limiti, quota) | Verificato con test JVM |
 | Quota giornaliera su dispositivo reale | **Non verificata**: logica e persistenza testate, ciclo su device no |
 | Lint debug | 0 errori, 66 warning |
-| Copertura JVM (JaCoCo) | Misurata in 1.5.1: **14,7%** delle linee (1.955 coperte, 11.365 mancanti); UI, Room, PDF e backup non coperti |
+| Copertura JVM (JaCoCo) | Misurata in 2.0.0: **16,1%** delle linee (2.149 coperte, 11.226 mancanti) e 11,3% dei branch; UI, Room, PDF e backup non coperti |
 | Librerie native arm64-v8a, armeabi-v7a, x86_64 | Compilate e strippate, presenti nell'APK |
 | Modello di embedding incluso | Verificato per dimensione e SHA-256 (script, APK, host); **non caricato su device** |
 | Retrieval semantico su device | **Non verificato**: soglia e qualità misurate solo su host |
@@ -45,7 +45,7 @@ implementate e compilano, ma non sono state eseguite: non vengono dichiarate "fu
 - **Modelli piccoli e protocollo a strumenti.** Sotto ~1 B parametri il modello può sbagliare la
   sintassi degli strumenti: l'azione viene rifiutata con un errore nell'activity log, senza
   scrivere file parziali. Il ciclo è limitato a 5 passi per evitare loop.
-- **Il retrieval non è una garanzia.** La soglia di similarità è 0,80, misurata su coppie di
+- **Il retrieval non è una garanzia.** La soglia di similarità è 0,83, misurata su coppie di
   controllo (correlate 0,90–0,91, non correlate 0,71–0,77). Documenti formulati in modo molto
   diverso dalla domanda possono non essere recuperati; il margine non è ampio. Non è stato
   possibile misurare la qualità su documenti reali né su dispositivo.
@@ -61,13 +61,19 @@ implementate e compilano, ma non sono state eseguite: non vengono dichiarate "fu
   risposta viene mostrata con la nota: non c'è un ciclo illimitato.
 - **Times New Roman non è incluso.** È un font proprietario: l'app usa Tinos (Apache-2.0),
   metricamente compatibile. La resa non è stata confrontata a schermo con Times New Roman.
-- **Android 12+ (minSdk 31).** Richiesto per il comportamento delle foreground service e delle
-  API di sicurezza usate.
+- **Android 12+ (minSdk 31).** Non è stato declassato ad API 26: l'app usa
+  `MediaStore.Downloads` (API 29) e comportamenti di foreground service introdotti con API 31.
+  Servono un fallback di storage, permessi legacy e test su API 26–30 prima di dichiarare
+  Android 8 supportato.
 - **GPU non disponibile.** Il backend Vulkan è escluso: la build di llama.cpp usata non include
   gli shader SPIR-V precompilati. Tutta l'inferenza è su CPU.
 - **Nessun compilatore Java/C++ sul dispositivo.** Android non include `javac` né `clang`.
   ITAGPT Code offre analisi statica reale, non compilazione: l'interfaccia lo dichiara.
-- **Nessun OCR.** I PDF scansionati non sono leggibili.
+- **Nessun OCR.** I PDF scansionati non sono leggibili; le immagini possono essere descritte
+  solo da un modello multimodale scaricato, non lette come testo.
+- **Voce parziale.** Sono disponibili TTS di sistema e dettatura tramite il recognizer del
+  dispositivo. Non esistono conversazione vocale continua, selezione della voce o cronologia
+  vocale. L'app non registra audio e non richiede il permesso microfono.
 - **Nessun modello di chat incluso.** L'APK contiene il motore e il modello di embedding
   multilingual-e5-small Q8_0 (132.439.008 byte, licenza MIT), usato per il retrieval locale. I
   modelli di chat si scaricano dall'app (centinaia di MB) e sono verificati con SHA-256. Il modello
@@ -75,19 +81,19 @@ implementate e compilano, ma non sono state eseguite: non vengono dichiarate "fu
 
 ## Consegna
 
-- **Solo APK di debug.** La consegna è `ITAGPT-debug-1.5.0.apk`, firmato con `CN=Android Debug`:
+- **Solo APK di debug.** La consegna è `ITAGPT-debug-2.0.0.apk`, firmato con `CN=Android Debug`:
   installabile, ma non adatto a Play Store né a una distribuzione "ufficiale". Non vengono
   prodotti AAB né release firmate.
-- **APK da 237 MiB.** Il requisito di 200 MiB è soddisfatto con componenti reali (tre ABI e modello
-  di embedding). Il peso maggiore non migliora da solo la qualità delle risposte: la precisione
-  dipende da prompt, retrieval, sampler e verifiche, non dalla dimensione del file.
+- **Nessun limite di dimensione imposto.** L'APK contiene tre ABI reali e il modello di embedding;
+  lo script di packaging verifica i componenti, non una soglia in MiB. Il peso non migliora da
+  solo la qualità delle risposte: la precisione dipende da prompt, retrieval, sampler e verifiche.
 - **R8/minify disattivato.** Scelta deliberata: non è stato possibile verificare su device che le
   regole di offuscamento non rompessero JGit, Room o il ponte JNI. Meglio un APK più grande che un
   crash non diagnosticabile.
 - **Nessun test strumentale.** Non ci sono test Android (`androidTest`) eseguiti.
-- **Copertura JVM bassa e parziale.** JaCoCo misura 8,0% delle linee complessive. La logica pura è
-  coperta bene (`core/chat` 94,7%, `core/lang` 99,1%, `code` 33,7%, `llm` 23,5%), ma UI Compose,
-  Room, PDF, backup, Keystore e sandbox non hanno test eseguibili sulla JVM. Il numero è misurato,
+- **Copertura JVM parziale.** JaCoCo misura **16,1% delle linee** (2.149 coperte, 11.226
+  mancanti) e 11,3% dei branch. La logica pura è coperta meglio della media, ma UI Compose, Room,
+  PDF, backup, Keystore, voce e sandbox non hanno test eseguibili sulla JVM. Il numero è misurato,
   non stimato, e non sostituisce i test su device.
 - **Paging non introdotto.** La lista è lazy e il prompt è limitato, ma una conversazione con
   migliaia di messaggi carica tutte le righe della chat aperta.

@@ -1,240 +1,172 @@
 # ITAGPT
 
 Assistente AI locale per Android: chat con memoria persistente, modelli GGUF eseguiti sul
-dispositivo tramite llama.cpp, e un ambiente di sviluppo integrato (**ITAGPT Code**) per lavorare
-su progetti HTML, Java e C++ senza inviare codice a servizi esterni.
+dispositivo tramite llama.cpp e un ambiente di sviluppo integrato (**ITAGPT Code**) per lavorare su
+progetti HTML, Java e C++ senza inviare codice a servizi esterni.
 
-Nessun account, nessun cloud obbligatorio, nessun dato finto: tutto ciò che l'interfaccia mostra
-viene da calcoli reali, dal database locale o dal motore di inferenza.
+Nessun account, nessun cloud obbligatorio, nessuna risposta preimpostata: ciò che l'interfaccia
+mostra viene dal database locale, dal motore di inferenza o da un controllo deterministico
+eseguito dall'app.
+
+> **ITAGPT 2.0.0** è l'aggiornamento di branding e prodotto di BIG B AI 1.5.1. L'`applicationId`
+> resta `com.bigbai.app` **di proposito**: cambiarlo avrebbe creato una seconda app e perso
+> conversazioni, progetti e impostazioni già installati. Il nome visibile, l'icona, le schermate,
+> la documentazione e gli artifact sono ITAGPT.
 
 ---
 
-## Stato del progetto
+## Stato verificato di questa release
 
-| Area | Stato |
-|---|---|
-| Compilazione debug | ✅ verificata (`assembleDebug`); APK generato, firmato e ispezionato |
-| Test unitari JVM | ✅ 212 test, 0 falliti (`:core` 42, `:code` 48, `:llm` 106, `:app` 16) |
-| Lint debug | ✅ 0 errori, 66 warning (dipendenze/AGP non aggiornate) |
-| Copertura JVM (JaCoCo) | ✅ **16,0%** delle linee (2.127 coperte, 11.202 mancanti); nuove logiche critiche al 91–100% |
-| Librerie native `libbigbai.so` (llama.cpp) | ✅ compilate e strippate per **arm64-v8a, armeabi-v7a e x86_64** (4,2–6,6 MB ciascuna) |
-| Modello di embedding incluso | ✅ multilingual-e5-small Q8_0, 132.439.008 byte, SHA-256 verificato nello script, nell'APK e a runtime |
-| Embedding su host | ✅ caricamento e vettori a 384 dimensioni verificati su x86_64; su dispositivo **non verificato** |
-| Inferenza su dispositivo reale | ⛔ non verificata: nessun dispositivo/emulatore disponibile |
-| UI su dispositivo | ⛔ non verificata: nessuno screenshot da device |
-| Download modelli, SAF, Keystore, sandbox WebView | ⛔ non verificati a runtime |
+| Area | Stato | Verifica |
+|---|---|---|
+| Compilazione debug | ✅ verde | `assembleDebug` eseguito in locale (JDK 17, SDK 35) |
+| Test unitari JVM | ✅ **214 test, 0 falliti** | `:core`, `:code`, `:llm`, `:app`; report JUnit in CI |
+| Rebranding ITAGPT | ✅ completo | nome, icona adattiva, temi, stringhe, drawer, About, README, docs, script, CI |
+| Chat: modifica e rigenerazione | ✅ implementate | compilano; regressione non eseguita su dispositivo |
+| Chat: export Markdown/TXT/PDF | ✅ implementati | Markdown/TXT coperti da test JVM; PDF generato con `PdfDocument` (solo compilazione) |
+| Voce: TTS e dettatura | 🟡 parziale | TTS di sistema e recognizer di sistema; nessun test su device |
+| Dimensione testo | ✅ impostazione reale | scala applicata a tutta la UI con `LocalDensity` |
+| Lint Android | ✅ 0 errori, 66 warning | `:app:lintDebug` eseguito in locale e in CI |
+| APK da GitHub Actions | ✅ verificato | artifact scaricato, `sha256sum -c` OK, firma v2 valida, ABI e modello presenti; run [44922648963](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44922648963) |
+| Inferenza su dispositivo reale | ⛔ non verificata | nessun dispositivo/emulatore disponibile |
+| OCR, DOCX/XLSX/CSV, compilatori Java/C++ | ⛔ non implementati | motivazioni e alternative in [docs/LIMITATIONS.md](docs/LIMITATIONS.md) |
 
-Le voci ⛔ non sono "funzioni mancanti": sono parti implementate ma **non eseguite** in questo
-ambiente di build. I dettagli sono in [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
+Le voci ⛔ non sono funzioni dichiarate e nascoste: sono requisiti **non realizzati** in questa
+release. La tabella finale con stato, verifica e problemi residui è in
+[docs/RELEASE-2.0.0.md](docs/RELEASE-2.0.0.md).
 
 ## APK
 
+L'APK è pubblicato nell'artifact **ITAGPT-Debug-APK** della run
+[44922648963](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44922648963)
+(artifactId 14714403936) insieme al checksum `.sha256` e al report `.txt`; test e lint sono
+nell'artifact **ITAGPT-CI-Reports**. I valori sotto sono stati ricontrollati dopo il download.
+
 | Campo | Valore |
 |---|---|
-| File | `ITAGPT-debug-1.5.1.apk` |
-| Versione | 1.5.1-debug (versionCode 7) |
-| Dimensione | **248.141.501 byte (236,65 MiB / 248,14 MB)** |
-| SHA-256 | `3935bbedf2b035e90b4cda5f9a531b679f18b7b448677060170f537609098ada` |
+| File | `ITAGPT-debug-2.0.0.apk` |
+| Versione | 2.0.0 (versionCode 8), variante debug, package `com.bigbai.app.debug` |
+| Dimensione | **248.208.583 byte (236,71 MiB)** |
+| SHA-256 | `fcafa35be77015db7dc14f2d6aeae578629489985028a3690c3cbbec490af292` |
 | minSdk / targetSdk | 31 (Android 12) / 35 |
-| ABI | **arm64-v8a, armeabi-v7a, x86_64** (APK universale) |
-| Firma | chiave **debug** Android (`CN=Android Debug`) |
-| Requisito 200 MiB | **soddisfatto**: 209.715.200 byte richiesti, 248.141.501 presenti |
+| ABI | arm64-v8a, armeabi-v7a, x86_64 |
+| Firma | schema v2, chiave debug `C=US, O=Android, CN=Android Debug` |
+| Motore | `libbigbai.so` + `libsqlcipher.so` per ogni ABI |
+| Embedding | multilingual-e5-small Q8_0, 132.439.008 byte, SHA-256 verificato |
+| Label | `ITAGPT` |
 
-L'APK è installabile su Android 12+ con architettura ARM 64-bit, ARM 32-bit o x86_64 (emulatore).
-È la variante **debug** (`com.bigbai.app.debug`), firmata con la chiave debug Android
-(`CN=Android Debug`): è dichiarato, non nascosto. I valori qui sopra sono l'APK scaricato
-dall'artifact `ITAGPT-Debug-APK` della run CI
-[44907676537](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44907676537) sul
-commit `ced8116`; dimensione, SHA-256, firma, manifest, ABI e SHA-256 del modello dentro l'APK
-sono stati ricontrollati dopo il download. La build locale ha la stessa dimensione
-(248.141.501 byte) ma hash `ef820ffa…36f6`, perché cambiano i timestamp di firma.
+I modelli di **chat** non sono inclusi: si scaricano dall'app con ripresa e verifica SHA-256. Non
+esiste alcun limite minimo o massimo artificiale di dimensione: lo script di packaging verifica i
+componenti reali, non un numero imposto. L'APK non è stato installato né avviato su un dispositivo:
+la verifica è di build, contenuto, firma e artefatto.
 
-La dimensione supera i 200 MiB perché l'APK contiene il motore nativo reale per **tre** ABI e il
-modello di embedding **multilingual-e5-small Q8_0** (132.439.008 byte) usato per il retrieval
-locale: non c'è alcun file aggiunto per gonfiarlo. `scripts/package-debug-apk.sh` verifica la
-presenza di `libbigbai.so` e `libsqlcipher.so` in ogni ABI, l'integrità del modello dentro l'APK,
-firma e manifest, e **rifiuta un APK sotto i 200 MiB**.
+## Novità 2.0.0
 
-I modelli di **chat** non sono inclusi nell'APK: si scaricano dall'app, con ripresa del download e
-verifica SHA-256. L'APK contiene il motore e il modello di embedding.
-
-## Novità 1.5.1
-
-- **Nessun use-after-free nell'embedder.** Caricamento, inferenza e scaricamento passano da un
-  unico lock (`EmbedderSession`): `close()` attende l'embedding in corso e non libera più il
-  modello sotto una chiamata nativa. 8 test di concorrenza e ciclo di vita.
-- **Indice semantico persistito davvero.** Scrittura `.part`, `fsync`, rilettura e confronto,
-  backup, move atomico, quarantena dei file corrotti. Un salvataggio fallito non viene più
-  mostrato come riuscito; l'indice in memoria cambia solo dopo la verifica.
-- **Marker di installazione v2.** Il modello è valido solo se hash, dimensione **e** mtime
-  coincidono; un marker legacy o un file sostituito forza un hash reale una volta sola.
-- **Quality gate corretto.** Il motore espone il motivo di fine (EOS, lunghezza, annullato):
-  una risposta tagliata dal limite viene ritentata una volta con più token, una risposta
-  terminata con EOS non viene più riscritta. La prima risposta viene conservata se la
-  riscrittura è peggiore.
-- **Soglia di retrieval misurata.** Da 0,80 a **0,83** sulla base di precision/recall reali:
-  a 0,80 la precision era 0,769 con 3 falsi positivi, a 0,83 è 1,000 con recall 1,000.
-- **RAM più ragionevole.** La richiesta scende da 550 MiB a 236.439.008 byte (modello + 48 MiB
-  di runtime + 56 MiB di margine), con extra per dispositivi low-RAM e pressione memoria.
-- **Documentazione corretta**: modello di embedding incluso e licenza MIT, distinzione tra APK,
-  ZIP dell'artifact e build locale.
-
-## Novità 1.5.0
-
-- **Retrieval semantico locale.** Il modello di embedding multilingual-e5-small Q8_0 è incluso
-  nell'APK: documenti e memorie vengono indicizzati e i passaggi pertinenti entrano nel prompt,
-  filtrati per conversazione. Soglia alta (oggi 0,83, misurata) per non iniettare testo fuorviante.
-- **Controlli deterministici.** Le espressioni aritmetiche vengono calcolate dall'app e il
-  risultato verificato entra nel prompt; un controllo italiano segnala spazi, duplicati,
-  punteggiatura e bilanciamento; un quality gate riscrive una sola volta le risposte ripetitive
-  o con codice non chiuso.
-- **Sampler più fine.** Repetition penalty e min-p sono parametri nativi, con valori per famiglia
-  di modello e regolazione manuale nelle impostazioni avanzate.
-- **ITAGPT Code più concreto.** Analisi multi-file con duplicati, dipendenze mancanti, TODO e file
-  grandi; report delle modifiche; sandbox automatica per l'HTML; generazione di test; azioni
-  rapide nella chat.
-- **Diagnostica.** Motore, ABI, modello attivo, RAM, CPU, token/s, tempo al primo token, stato e
-  integrità del modello di embedding, passaggi indicizzati, ultimo errore.
-- **Memoria semantica** con interruttore nelle impostazioni; la cancellazione di un ricordo
-  cancella anche i suoi vettori.
-- **APK universale da 237,14 MiB**, sopra il requisito di 200 MiB, con tre ABI reali e il modello
-  di embedding verificato.
-
-Dettagli e misure in [docs/AUDIT-1.5.md](docs/AUDIT-1.5.md); audit precedenti:
-[docs/AUDIT-1.4.md](docs/AUDIT-1.4.md), [docs/AUDIT-1.3.md](docs/AUDIT-1.3.md).
+- **Rebranding completo ITAGPT** con nuova icona adattiva (bolla + “i”, variante monocromatica),
+  palette aggiornata, splash, drawer, About, documentazione e nomi degli artifact.
+- **Modifica e rigenerazione dei messaggi.** La modifica riscrive il messaggio nel database,
+  elimina le risposte successive e rigenera dal nuovo testo; la rigenerazione elimina l'ultima
+  risposta e riesegue il turno senza duplicare il messaggio utente.
+- **Export TXT e PDF** oltre al Markdown già presente. Il PDF è un documento reale, impaginato e
+  selezionabile, scritto localmente con `android.graphics.pdf.PdfDocument`.
+- **Voce di base reale:** lettura ad alta voce delle risposte con il motore TTS di sistema
+  (interrompibile) e dettatura con il recognizer di sistema, senza aggiungere il permesso
+  microfono all'app.
+- **Dimensione del testo** impostabile dall'85% al 130%, applicata a tutte le schermate.
+- **CI più verificabile:** nessun limite di 200 MiB, checksum ricontrollato, report di build,
+  test JUnit e lint caricati come artifact separati.
+- Restano dalla 1.5.1: retrieval semantico locale, quality gate, tutor di lingua, backup cifrato,
+  ITAGPT Code con sandbox HTML e agente AI, Git locale, diagnostica.
 
 ## Funzionalità
 
 **Chat**
-- Menu laterale unico con dieci destinazioni (nuova chat, cronologia, ricerca, ITAGPT Code,
-  libreria/download/installati, plugin, impostazioni, informazioni) e conversazioni recenti.
-- Ogni nuova chat parte da zero: nessun messaggio, allegato, bozza, metrica o errore ereditato;
-  anche il passaggio tra conversazioni azzera lo stato e riporta la lista in cima.
-- Bolle bianche `#FFFFFF` con testo nero e font Tinos (metricamente compatibile con Times New
-  Roman) in entrambi i temi; il codice resta monospaziato.
-- Risposta generata in background e mostrata **completa**, con indicatore animato, annullamento,
-  timeout e metriche misurate (token/s, tempo al primo token, RAM di processo).
-- **Retrieval locale**: i passaggi pertinenti di documenti e memorie vengono recuperati per
-  similarità e citati nel prompt; la barra mostra quanti sono stati usati.
-- Salvataggio automatico di una risposta come file (nome generato, estensione dal linguaggio del
-  blocco di codice) in `Download/ITAGPT`, condivisione e esportazione dell'intera conversazione
-  in Markdown.
-- La conversazione resta aperta tra un messaggio e l'altro, conserva cronologia, bozza e stato anche
-  dopo rotazione o morte del processo; interruzione della generazione senza perdere il testo.
-- Cronologia persistente con cartelle, ricerca, preferiti, rinomina.
-- Eliminazione conversazione con avviso, codice numerico casuale a 6 cifre e inserimento esatto:
-  nessun cestino, l'eliminazione è definitiva.
-- Stop della generazione sicuro (annullamento della sessione nativa, non kill del processo).
+- Nuova conversazione, invio, stop, modifica, rigenerazione, copia, condivisione, salvataggio come
+  file, eliminazione con codice di conferma, rinomina, ricerca, archiviazione, preferiti, cartelle.
+- Rendering Markdown, blocchi di codice, tabelle, elenchi; scroll automatico solo quando l'utente è
+  in fondo; conservazione di bozza e posizione dopo rotazione o morte del processo.
+- Export conversazione in **Markdown**, **TXT** e **PDF**; salvataggio in `Download/ITAGPT`.
+- Allegati immagine e PDF (testo estratto con PDFBox); immagini analizzabili solo con un modello
+  multimodale installato.
 
-**Memoria**
-- Ricordi durevoli organizzati per categoria, con ricerca e modifica.
-- Salvataggio solo con conferma dell'utente; la memoria viene iniettata nel prompt di sistema.
-- **Indice semantico** dei ricordi: recupero per similarità, pulizia automatica alla cancellazione,
-  interruttore nelle impostazioni.
-
-**Tutor di lingua**
-- Lezioni italiano → inglese, spagnolo, francese, tedesco, portoghese, con tre livelli.
-- Glossario curato iniettato nel prompt e lessico personale salvato nel database cifrato
-  (categoria `Lingua:<CODICE>`), reiniettato nelle lezioni successive.
-- Non riaddestra i pesi del modello: è apprendimento in-context persistente, dichiarato nell'app.
-
-**Modelli**
-- Tre schede: **Libreria** (catalogo e profili), **Download** (progresso, pausa, ripresa,
-  annullamento con rimozione dei file parziali) e **Installati** (modello attivo, verifica,
-  eliminazione).
-- Catalogo con 7 famiglie Qwen2.5 (Instruct, Coder, VL) e quantizzazioni Q2–Q6/Q8.
-- Quattro profili: Veloce, Equilibrato, Intelligente, Massimo.
-- Download riprendibile, verifica SHA-256 del file completo, installazione atomica.
-- Budget RAM al 50% (Normale) o 70% (Avanzato), sempre subordinato alla memoria disponibile.
-- Context length adattiva in base a RAM, parametri del modello e KV cache.
-
-**Contenuti**
-- PDF: estrazione testo reale con PDFBox-Android (nessun OCR: i PDF scansionati non sono leggibili).
-- Immagini: solo con un modello multimodale reale (Qwen2.5-VL + proiettore `mmproj` via `libmtmd`).
-- Ricerca web opzionale (SearXNG o Brave), disattivata per default.
-
-**Backup**
-- File `.bkb` cifrato con password: PBKDF2-HMAC-SHA256 (150.000 iterazioni) + AES-256-GCM.
-- Ripristinabile su un altro dispositivo; deduplica tramite hash del contenuto.
+**AI locale**
+- Motore llama.cpp compilato per tre ABI, inferenza CPU con contesto adattivo, token/s e tempo al
+  primo token misurati.
+- Modello di embedding locale per il retrieval di memorie e documenti, con soglia misurata.
+- Quality gate e controlli deterministici (calcolatrice, controllo italiano) mostrati all'utente.
+- Prompt con memoria, documenti, fonti web opzionali, lessico del tutor e calcoli verificati.
 
 **ITAGPT Code**
-- «Nuovo progetto» crea cartella e `index.html` automaticamente, senza selettori né percorsi da
-  inventare; resta disponibile l'apertura di una cartella esistente via SAF.
-- Editor, file explorer, creazione/rinomina/eliminazione file, salvataggio, esportazione in
-  Download e condivisione del file aperto.
+- Editor, file explorer, creazione/rinomina/eliminazione, salvataggio, condivisione.
 - Analisi statica reale per HTML, CSS, Java e C++ (bilanciamento, regole strutturali, include guard).
-- **Analisi del progetto** su più file: blocchi duplicati, dipendenze importate ma non dichiarate,
-  `TODO`/`FIXME`, file molto grandi, pattern a rischio; report delle modifiche con esito dei
-  controlli e sandbox automatica per l'HTML; generazione di test.
-- Agente AI con strumenti reali: crea, legge, elenca ed elimina file del progetto, fino a 5 passi
-  autonomi, con activity log, checkpoint Git prima della prima scrittura e conferma obbligatoria
-  per le eliminazioni. Massimo 5 richieste al giorno, visibili e persistenti.
-- Git locale (JGit): commit snapshot, cronologia, diff, ripristino, branch.
-- Sandbox HTML in WebView usa-e-getta: rete bloccata per default, timeout 8 s, nessun accesso ai file.
-- Memoria di progetto separata (obiettivi, decisioni, errori, stato).
+- Analisi multi-file, report delle modifiche, generazione di test, agente con strumenti e checkpoint
+  Git, sandbox HTML con rete bloccata per default.
+- **Non compila né esegue Java/C++**: Android non include `javac`/`clang` e in questa release non è
+  stato integrato un toolchain. L'interfaccia non lo dichiara disponibile.
 
-## Interfaccia
+**Voce (parziale)**
+- TTS di sistema per leggere una risposta, con stop esplicito.
+- Dettatura tramite l'activity di riconoscimento vocale del dispositivo; il testo viene inserito
+  nella casella e inviato solo dall'utente.
+- Non sono implementati: conversazione vocale continua, selezione della voce, cronologia vocale.
+  L'audio non viene registrato né conservato dall'app.
 
-Design system indigo/ciano, tema chiaro/scuro/sistema, tipografia Tinos e forme coerenti,
-transizioni brevi disattivabili con «Riduci animazioni» o con l'opzione di sistema Android. Primo avvio in 5 schermate. Navigazione a menu
-laterale, con le funzioni principali a un tocco. Le bolle della chat sono bianche con testo nero
-e font serif per scelta esplicita di leggibilità, anche in modalità scura. L'interfaccia è
-tradotta in italiano; il selettore lingua imposta la lingua delle risposte del modello (la
-localizzazione completa delle stringhe è nella tabella dei limiti). Il tutor di lingua si
-configura dalle impostazioni e si usa dalla chat.
+**Privacy e sicurezza**
+- Room + SQLCipher, passphrase casuale protetta da Android Keystore.
+- Backup `.bkb` con PBKDF2-HMAC-SHA256 (150.000 iterazioni) e AES-256-GCM.
+- Nessuna telemetria, nessun account, nessun upload automatico.
+- Rete usata solo per download modelli e ricerca web se abilitata; sandbox HTML senza rete salvo
+  autorizzazione.
+
+**Memoria e lingua**
+- Ricordi durevoli con conferma, indice semantico e cancellazione coerente dei vettori.
+- Tutor italiano → inglese/spagnolo/francese/tedesco/portoghese; il lessico è in-context persistente,
+  non addestramento dei pesi.
 
 ## Struttura
 
 ```
-app/    UI Compose, navigazione, ViewModel, servizi (download, notifiche), onboarding
-core/   modelli, Room + SQLCipher, crypto/Keystore, impostazioni, profilo dispositivo,
-        repository chat/memoria, PDF, ricerca web, backup
-llm/    JNI C++ su llama.cpp, LlamaEngine, catalogo e download modelli, prompt
-code/   file SAF, analisi statica, patch engine, repository progetti, Git, sandbox
+app/    UI Compose, navigazione, ViewModel, servizi (download, notifiche), voce, export
+core/   modelli, Room + SQLCipher, crypto/Keystore, impostazioni, repository, PDF, backup
+llm/    JNI C++ su llama.cpp/mtmd, LlamaEngine, catalogo e download modelli, embedding
+code/   file SAF, analisi statica, patch engine, repository progetti, Git, sandbox HTML
 scripts/ fetch-llama.sh, build-native.sh, package-debug-apk.sh
-docs/    architettura, build, modelli, limiti
+docs/    architettura, build, modelli, limiti, audit e release note
 ```
 
-Dettagli: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Audit 1.3.0 con cause, correzioni,
-metriche e limiti verificati: [docs/AUDIT-1.3.md](docs/AUDIT-1.3.md); audit precedenti:
-[docs/AUDIT-1.2.md](docs/AUDIT-1.2.md), [docs/AUDIT-1.1.md](docs/AUDIT-1.1.md).
+Dettagli: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-## Build rapida
+## Build
 
 Requisiti: JDK 17, Android SDK 35, NDK 27.2.12479018, CMake 3.22.1, Gradle 8.11.1.
 
 ```bash
-bash scripts/fetch-llama.sh          # scarica llama.cpp al commit fissato
-bash scripts/fetch-bundled-model.sh  # scarica e verifica il modello di embedding (132 MB)
-bash scripts/build-native.sh         # produce libbigbai.so per arm64-v8a, armeabi-v7a, x86_64
+bash scripts/fetch-llama.sh          # llama.cpp al commit fissato
+bash scripts/fetch-bundled-model.sh  # modello di embedding (132 MB), SHA-256 verificato
+bash scripts/build-native.sh         # libbigbai.so per arm64-v8a, armeabi-v7a, x86_64
+
 ./gradlew :core:testDebugUnitTest :code:testDebugUnitTest :llm:testDebugUnitTest :app:testDebugUnitTest
-./gradlew :app:lintDebug             # lint (0 errori attesi)
-./gradlew jacocoTestReport           # copertura JVM aggregata (build/reports/jacoco)
-./gradlew assembleDebug              # APK di debug
-bash scripts/package-debug-apk.sh    # verifica ABI, modello, firma, manifest e >=200 MiB
+./gradlew :app:lintDebug
+./gradlew assembleDebug
+bash scripts/package-debug-apk.sh    # verifica ABI, modello, firma, manifest, checksum
 ```
 
 Guida completa: [docs/BUILD.md](docs/BUILD.md). Catalogo modelli: [docs/MODELS.md](docs/MODELS.md).
 
-## Privacy
-
-- Il database è cifrato con SQLCipher; la passphrase è casuale (32 byte) e protetta da Android Keystore.
-- Nessuna telemetria, nessun account, nessun upload automatico di conversazioni o codice.
-- Le uniche connessioni di rete sono: download dei modelli scelti e ricerca web se configurata.
-- La sandbox dei progetti non ha rete salvo autorizzazione esplicita.
-
 ## Limiti noti
 
-Nessun test su dispositivo fisico o emulatore; accelerazione GPU non inclusa; nessun compilatore
-Java/C++ sul dispositivo; nessun OCR; il tutor linguistico non addestra i pesi. Elenco completo e
-motivato in [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
+Nessun test su dispositivo fisico o emulatore; accelerazione GPU non inclusa; nessun OCR; nessun
+compilatore Java/C++ sul dispositivo; API minima **31 (Android 12)**; voce solo TTS/dettatura.
+Elenco completo, con motivazione e alternativa per ogni voce:
+[docs/LIMITATIONS.md](docs/LIMITATIONS.md).
 
 ## CI
 
-[`.github/workflows/android.yml`](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/workflows/android.yml)
-compila la libreria nativa per le tre ABI, scarica e verifica il modello di embedding, esegue i
-212 test JVM dei quattro moduli, esegue il lint, produce l'APK debug, ne verifica firma, manifest,
-ABI e dimensione minima di 200 MiB e lo pubblica come artifact **ITAGPT-Debug-APK** (APK +
-SHA-256 + metadata, retention 30 giorni). Il setup
-dell'SDK usa `android-actions/setup-android@v4`, che non richiede più il pacchetto `tools` rimosso
-da Google (causa del precedente errore "Failed to find package 'tools'").
+[`.github/workflows/android.yml`](.github/workflows/android.yml) compila la libreria nativa per le
+tre ABI, scarica e verifica il modello di embedding, esegue i 214 test JVM, il lint e l'APK debug,
+verifica firma, manifest, ABI, modello e checksum, e pubblica:
+
+- **ITAGPT-Debug-APK** — APK + `.sha256` + report `.txt` (30 giorni);
+- **ITAGPT-CI-Reports** — risultati JUnit e lint (30 giorni).
+
+Il workflow è avviabile manualmente (`workflow_dispatch`) e non impone soglie di dimensione.

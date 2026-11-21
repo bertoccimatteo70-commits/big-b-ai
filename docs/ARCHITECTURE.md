@@ -133,14 +133,37 @@ quindi il backup non le usa: per questo serve una password.
 - **JsSandbox** — WebView usa-e-getta con JavaScript abilitato, accesso file disabilitato, rete
   intercettata e bloccata salvo autorizzazione, timeout e raccolta di log/errori.
 
+## Chat: modifica, rigenerazione, export
+
+Una modifica utente passa da `ChatRepository.editUserMessage`: aggiorna il testo e cancella in una
+sola transazione logica tutte le righe con id successivo nella stessa conversazione. Il ViewModel
+chiama poi `startSend(Reuse(...))`, che riusa il messaggio già persistito invece di inserirne un
+secondo. La rigenerazione elimina le risposte dopo l'ultimo messaggio utente e riparte dallo stesso
+testo; il prompt legge la cronologia dal database escludendo il messaggio riusato, quindi il modello
+non vede la risposta che sta sostituendo.
+
+`FileExport` produce Markdown, testo semplice e un PDF reale con `android.graphics.pdf.PdfDocument`:
+impaginazione a righe misurate dal `Paint`, più pagine, numero di pagina e nessuna dipendenza
+esterna. Il salvataggio usa MediaStore in `Download/ITAGPT`; la condivisione usa il FileProvider.
+
+## Voce
+
+`SpeechPlayer` incapsula `TextToSpeech` del sistema: inizializzazione asincrona, accodamento di una
+sola frase prima della connessione, fallback alla lingua di sistema se il locale richiesto non è
+installato, stop esplicito e `shutdown` nel `DisposableEffect`. La dettatura usa
+`RecognizerIntent.ACTION_RECOGNIZE_SPEECH`: l'app non dichiara il permesso microfono e non registra
+audio; il recognizer di sistema restituisce il testo e l'utente decide se inviarlo.
+
 ## UI
 
-Compose Material 3 con design system indigo/ciano, tipografia e forme condivise, light/dark/system.
-Navigazione con `NavHost` e cinque route: chat, modelli, memoria, impostazioni, codice, con
-transizioni brevi disattivabili ("Riduci animazioni"). I ViewModel sono creati da
-`AppViewModelFactory` (la chat usa `SavedStateHandle` per ripristinare id e bozza); lo stato è
-esposto con `StateFlow` e collezionato con `collectAsState`. Il pulsante Indietro chiude prima il
-drawer della cronologia.
+Compose Material 3 con design system ITAGPT indigo/ciano, tipografia e forme condivise,
+light/dark/system. Navigazione con `NavHost` e le route chat, cronologia, ricerca, modelli (libreria,
+download, installati), memoria, impostazioni, codice, diagnostica, plugin e informazioni; le
+transizioni sono disattivabili ("Riduci animazioni"). La scala del testo è un'impostazione
+persistita e viene applicata con `LocalDensity` sopra l'intero albero Compose. I ViewModel sono
+creati da `AppViewModelFactory` (la chat usa `SavedStateHandle` per ripristinare id e bozza); lo
+stato è esposto con `StateFlow` e collezionato con `collectAsState`. Il pulsante Indietro chiude
+prima il drawer della cronologia.
 
 L'onboarding (5 schermate) configura tema, lingua, profilo RAM, primo modello e memoria.
 

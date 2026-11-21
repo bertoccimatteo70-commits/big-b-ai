@@ -102,10 +102,10 @@ nativo, o con un'ABI incompleta, non deve mai essere pubblicato), verifica che i
 embedding dentro l'APK abbia dimensione e SHA-256 attesi, controlla firma (`apksigner`) e manifest
 (`aapt2`: package, versionCode, versionName, ABI), confronta l'hash della copia con quello
 dell'APK appena compilato, calcola lo SHA-256 e scrive `dist/ITAGPT-debug-<versione>.txt` con
-dimensione, data, package e firma. Lo script **fallisce** se l'APK è sotto i **200 MiB**
-(209.715.200 byte) richiesti dal progetto.
+dimensione, data, package e firma. Non esiste alcuna soglia minima o massima di dimensione: lo
+script fallisce solo se un componente reale (ABI, modello, firma, manifest o checksum) è sbagliato.
 
-La variante debug usa `applicationId` `com.bigbai.app.debug` e `versionName` `1.5.0-debug`, quindi
+La variante debug usa `applicationId` `com.bigbai.app.debug` e `versionName` `2.0.0-debug`, quindi
 convive con una eventuale build di release sullo stesso dispositivo.
 
 `app/build.gradle.kts` supporta ancora la firma di release (`keystore.properties` o variabili
@@ -131,7 +131,8 @@ I test unitari JVM coprono la logica pura, senza Android framework:
 - `HtmlTextTest` (4 test): rimozione script/style, entità, spazi.
 - `AnswerSanitizerTest` (5 test): stop marker completi e spezzati, testo trattenuto, casi vuoti.
 - `ChatStateTransitionsTest` (3 test): nuova chat e cambio conversazione senza stato ereditato.
-- `FileExportTest` (8 test): slug, timestamp, estensioni dal blocco di codice, MIME.
+- `FileExportTest` (10 test): slug, timestamp, estensioni dal blocco di codice, MIME, export
+  Markdown e TXT.
 - `ProjectNamingTest` (4 test): nome cartella, HTML iniziale, escaping del titolo.
 
 - `CodeAgentTest` (10), `CodeQuotaTest` (6): protocollo dell'agente, percorsi, limiti, quota.
@@ -148,8 +149,8 @@ Nuovi in 1.5.0:
 - `ProjectInsightsTest` (6): duplicati, dipendenze mancanti, `package.json`, report delle modifiche.
 - `PromptContextTest` (2): iniezione di passaggi recuperati e calcoli verificati nel prompt.
 
-Totale: **165 test JVM, 0 falliti** (core 42, code 48, llm 59, app 16), eseguiti anche dalla pipeline CI.
-Non esistono test strumentali: richiederebbero un device.
+Totale: **214 test JVM, 0 falliti**, eseguiti anche dalla pipeline CI. Non esistono test
+strumentali: richiederebbero un device.
 
 ## 4.1 Copertura
 
@@ -158,10 +159,10 @@ Non esistono test strumentali: richiederebbero un device.
 ```
 
 Report aggregato in `build/reports/jacoco/jacocoTestReport/html` (XML e CSV accanto). Misurazione
-corrente: **8,0% delle linee** (838 coperte, 9.596 mancanti) e 5,4% dei branch. La copertura è
-concentrata sulla logica pura verificabile senza device: `core/chat` 94,7%, `core/lang` 99,1%,
-`code` 33,7%, `llm` 23,5%, `app/files` 29,6%. UI Compose, Room, PDF, backup e Keystore richiedono test strumentali e
-non sono coperti. Il dato è basso ed è riportato così com'è: non viene presentato come obiettivo
+corrente in 2.0.0: **16,1% delle linee** (2.149 coperte, 11.226 mancanti) e **11,3% dei branch**
+(1.051 coperti, 8.236 mancanti). La copertura è concentrata sulla logica pura verificabile senza
+device; UI Compose, Room, PDF, backup, Keystore, voce e sandbox richiedono test strumentali e non
+sono coperti. Il dato è basso ed è riportato così com'è: non viene presentato come obiettivo
 raggiunto.
 
 ## Font
@@ -183,11 +184,13 @@ incluso nell'APK: non sostituirlo con un file scaricato da fonti non autorizzate
 3. test JVM dei quattro moduli (`:core`, `:code`, `:llm`, `:app`);
 4. `:app:lintDebug`;
 5. `./gradlew assembleDebug`;
-6. `package-debug-apk.sh` (verifica ABI, modello, firma, manifest e dimensione ≥ 200 MiB) e upload
-   dell'artifact **ITAGPT-Debug-APK** (APK + `.sha256` + `.txt`, retention 30 giorni).
+6. `package-debug-apk.sh` (verifica ABI, modello, firma, manifest e checksum) e upload
+   dell'artifact **ITAGPT-Debug-APK** (APK + `.sha256` + `.txt`, retention 30 giorni);
+7. `sha256sum -c` esplicito sull'artifact e riepilogo nella pagina della run;
+8. upload dell'artifact **ITAGPT-CI-Reports** con risultati JUnit e lint.
 
 La copertura JaCoCo è riproducibile in locale con `./gradlew jacocoTestReport`; la pipeline non
-carica un artifact di copertura separato, per non affiancare un secondo artifact a quello APK.
+carica un artifact di copertura separato, per non affiancare un terzo artifact a quello APK.
 
 ## Problemi comuni
 

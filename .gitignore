@@ -39,3 +39,4 @@ keystore.properties
 # scripts/fetch-bundled-model.sh, never committed (132 MB).
 /models/
 /app/src/main/assets/models/*.gguf
+/artifacts/
