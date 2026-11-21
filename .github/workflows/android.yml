@@ -3,6 +3,8 @@ name: Android CI - ITAGPT debug and release
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**/*.md'
   pull_request:
   workflow_dispatch:
 
@@ -87,10 +89,10 @@ jobs:
           SIGNING_KEY_PASSWORD: ${{ secrets.ITAGPT_KEY_PASSWORD }}
         run: ./gradlew --no-daemon assembleRelease
 
-      - name: Verify debug APK, ABIs, bundled models and write report
+      - name: Verify debug APK, ABIs, absence of models and write report
         run: bash scripts/package-debug-apk.sh
 
-      - name: Verify release APK, signature and bundled models
+      - name: Verify release APK, signature and absence of models
         run: bash scripts/package-release-apk.sh
 
       - name: Confirm every APK and checksum is readable

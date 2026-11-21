@@ -547,7 +547,7 @@ class ChatViewModel(
                 ) {
                     _state.update {
                         it.copy(
-                            status = "Ricerca web in corso…",
+                            status = null,
                             searchingWeb = true,
                             searchProvider = null,
                             searchSummary = null,

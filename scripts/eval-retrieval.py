@@ -132,7 +132,10 @@ def main():
     args = parser.parse_args()
 
     if not os.path.isfile(MODEL):
-        sys.exit("Modello assente: esegui prima scripts/fetch-bundled-model.sh")
+        sys.exit(
+            "Modello assente: scarica multilingual-e5-small-q8_0.gguf dal publisher e "
+            "mettilo nel percorso indicato in cima a questo script (non è più incluso nel repo)."
+        )
     if not os.access(BINARY, os.X_OK):
         sys.exit("llama-embedding assente: compila il motore host in build/llama-host")
 

@@ -584,7 +584,18 @@ object SearchParsing {
 
     fun isHttpUrl(url: String): Boolean = runCatching {
         val uri = URI(url)
-        (uri.scheme == "http" || uri.scheme == "https") && !uri.host.isNullOrBlank()
+        val host = uri.host.orEmpty().lowercase()
+        if (uri.scheme != "http" && uri.scheme != "https") return@runCatching false
+        if (host.isBlank()) return@runCatching false
+        // Never fetch loopback or private-network addresses from search results:
+        // a malicious result must not turn the assistant into an SSRF probe.
+        if (host == "localhost" || host == "::1" || host.endsWith(".local")) return@runCatching false
+        if (host.startsWith("127.") || host.startsWith("10.") || host.startsWith("192.168.") ||
+            host.startsWith("169.254.") || Regex("^172\\.(1[6-9]|2[0-9]|3[01])\\.").containsMatchIn(host)
+        ) {
+            return@runCatching false
+        }
+        true
     }.getOrDefault(false)
 
     fun providerOf(sources: List<Source>, requested: String, braveKey: String, searx: String): String {

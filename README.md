@@ -1,208 +1,159 @@
-# ITAGPT
+# ITAGPT 2.1
 
-Assistente AI locale per Android: chat con memoria persistente, modello incluso nell'APK ed
-eseguito sul dispositivo tramite llama.cpp, OCR e importazione documenti, più un ambiente di
-sviluppo integrato (**ITAGPT Code**) per lavorare su progetti HTML, Java e C++ senza inviare codice
-a servizi esterni.
+Assistente AI locale per Android (Kotlin, Jetpack Compose, llama.cpp/JNI), con chat, OCR offline,
+import documenti, ricerca web automatica, memoria locale e ambiente di sviluppo ITAGPT Code.
 
-Nessun account, nessun cloud obbligatorio, nessuna risposta preimpostata: ciò che l'interfaccia
-mostra viene dal database locale, dal motore di inferenza o da un controllo deterministico
-eseguito dall'app.
+`applicationId com.bigbai.app` e namespace restano invariati per conservare installazioni e dati.
+La versione è **2.1.0** (`versionCode 10`).
 
-> **ITAGPT 2.0.0** mantiene `applicationId com.bigbai.app` **di proposito**: cambiarlo avrebbe
-> creato una seconda app e perso conversazioni, progetti e impostazioni già installati. Il nome
-> visibile, l'icona, le schermate, la documentazione e gli artifact sono ITAGPT.
+> **Cambio di architettura in 2.1:** nessun modello AI è incluso nell'APK. Qwen2.5 1.5B e il
+> modello di embedding sono stati rimossi dal pacchetto. L'app si installa e si avvia senza modelli,
+> senza download automatici e senza API key. La chat richiede un modello scelto e scaricato
+> esplicitamente dalla sezione Modelli; l'embedding è opzionale e si importa da un file locale.
 
----
+## Stato dichiarato
 
-## Stato verificato di questa release
+Stati usati: `COMPLETATO E VERIFICATO`, `IMPLEMENTATO NON VERIFICATO SU DISPOSITIVO`, `PARZIALE`,
+`NON IMPLEMENTATO`, `BLOCCATO`.
 
-| Area | Stato | Verifica |
+| Area | Stato | Prova / limite |
 |---|---|---|
-| Compilazione debug | COMPLETATO E VERIFICATO | `assembleDebug` eseguito in locale con JDK 17 e SDK 35 |
-| Compilazione release con R8 | COMPLETATO E VERIFICATO | `assembleRelease` con minificazione e resource shrinking completato in locale |
-| Test unitari JVM | COMPLETATO E VERIFICATO | **222 test, 0 falliti, 0 errori, 0 saltati** nei quattro moduli |
-| Modello chat incluso | IMPLEMENTATO NON VERIFICATO SU DISPOSITIVO | Qwen2.5 1.5B Q4_K_M negli asset, SHA-256 verificato nello script e nell'APK; mai caricato su Android |
-| OCR immagini e PDF scansionati | IMPLEMENTATO NON VERIFICATO SU DISPOSITIVO | ML Kit Latin incluso, OCR/rotazione/20 pagine compilano; nessuna immagine reale elaborata su device |
-| Import DOCX/XLSX/CSV/TXT | IMPLEMENTATO NON VERIFICATO SU DISPOSITIVO | Parser locali coperti da test JVM; picker e rendering non provati su device |
-| Voce | PARZIALE | TTS, lingua voce, auto-speak, stop e dettatura di sistema; nessuna conversazione continua |
-| Compilazione/esecuzione Java e C++ | BLOCCATO | Android non include `javac`/`clang`; nessun toolchain embedded nella release |
-| UI e restyle | IMPLEMENTATO NON VERIFICATO SU DISPOSITIVO | Compila; nessuno screenshot o test visivo su device |
-| Firma di release ufficiale | BLOCCATO | Nessun keystore nei GitHub Secrets; la release è debug-signed ed etichettata |
-| Test su dispositivo/emulatore | BLOCCATO | Nessun dispositivo o emulatore disponibile in questo ambiente |
-| APK pubblicati da CI | COMPLETATO E VERIFICATO | Debug e release costruiti dalla CI, con checksum, ABI, modelli e firma controllati |
+| Nessun modello nell'APK | **COMPLETATO E VERIFICATO** | 0 file `.gguf` nel pacchetto; gate CI che fallisce se ricompaiono |
+| Qwen rimosso dal pacchetto | **COMPLETATO E VERIFICATO** | asset e script di fetch eliminati; APK 2.1 molto più piccolo |
+| Supporto embedding mantenuto, non incluso | **IMPLEMENTATO NON VERIFICATO SU DISPOSITIVO** | import SAF + verifica SHA-256; test JVM; nessun caricamento su device |
+| Avvio e navigazione senza modelli | **IMPLEMENTATO NON VERIFICATO SU DISPOSITIVO** | nessun crash previsto, stato vuoto con CTA; non eseguito su Android |
+| Chat senza modello (messaggio chiaro, nessuna risposta finta) | **IMPLEMENTATO NON VERIFICATO SU DISPOSITIVO** | errore esplicito e nessuna generazione; non provato su device |
+| Ricerca Internet automatica | **IMPLEMENTATO NON VERIFICATO SU DISPOSITIVO** | provider reali e fallback; Google News RSS e Wikipedia verificati da host, DuckDuckGo bloccato dall'IP datacenter |
+| Fonti con titolo, sito, data, link | **IMPLEMENTATO NON VERIFICATO SU DISPOSITIVO** | modello `Source` esteso, parsing XML/HTML testato; UI non provata su device |
+| UI/UX e accessibilità | **PARZIALE** | pulsante web, stato ricerca, fonti, stato senza modello, layout adattivo; nessun test visivo su device |
+| Tablet, mouse, trackpad, tastiera fisica | **PARZIALE** | drawer permanente sotto 1200 dp, contenuto limitato in larghezza, Ctrl+N/Ctrl+K/Ctrl+L/Esc; non provati su hardware |
+| Prestazioni e rilevamento hardware | **PARZIALE** | profilo termico/batteria con test JVM; nessun benchmark su Xiaomi Pad 8 / realme 16 Pro |
+| AI Code | **PARZIALE** | limite portato da 5 a 12 passi, checkpoint e diff esistenti; nessun terminale o compilatore reale |
+| Voce | **PARZIALE** | dettatura di sistema e TTS; niente full-duplex |
+| OCR e documenti | **IMPLEMENTATO NON VERIFICATO SU DISPOSITIVO** | ML Kit Latin, PDF scansionati, DOCX/XLSX/CSV/TXT; parser testati, nessun file reale su device |
+| Localizzazione IT/EN | **PARZIALE** | molte schermate storiche hanno testo italiano inline; non è stata fatta una revisione completa |
+| Privacy e sicurezza | **PARZIALE** | database cifrato, nessun segreto nel repository, permessi invariati; audit runtime non eseguito |
+| Firma release ufficiale | **BLOCCATO** | i quattro GitHub Secrets del keystore non sono configurati |
+| Test su dispositivo fisico/emulatore | **BLOCCATO** | nessun dispositivo disponibile in questo ambiente |
 
-Le voci non verificate **non** sono funzioni dichiarate e nascoste: sono componenti reali che
-compilano e hanno test dove possibile, ma che non sono stati eseguiti su Android. La tabella
-completa con commit, dati degli APK e motivazioni è in
-[docs/RELEASE-2.0.0.md](docs/RELEASE-2.0.0.md).
+Il report completo, con comandi, dimensioni e limiti, è in
+[docs/RELEASE-2.1.0.md](docs/RELEASE-2.1.0.md).
 
-## APK
+## APK 2.1
 
-Gli APK sono pubblicati negli artifact della run CI di questa release:
-
-- **ITAGPT-Debug-APK** — `ITAGPT-debug-2.0.0.apk`, package `com.bigbai.app.debug`;
-- **ITAGPT-Release-APK** — release R8, firmata con la chiave debug e chiamata
-  `ITAGPT-release-debug-signed-2.0.0.apk` finché non vengono configurati i Secrets;
-- **ITAGPT-CI-Reports** — risultati JUnit e lint.
+La run CI di riferimento è la build del commit `f11f1b9` (workflow **Android CI - ITAGPT debug and
+release**). Gli APK sono negli artifact GitHub Actions, non nel repository.
 
 | APK | Dimensione | SHA-256 | Firma |
 |---|---|---|---|
-| `ITAGPT-debug-2.0.0.apk` | 1.399.047.913 byte (1334,24 MiB) | `f888d90527a9e35745c153dea342bdddbce8b8d33b69e8890aef19b4f502b44a` | valida, chiave debug |
-| `ITAGPT-release-debug-signed-2.0.0.apk` | 1.329.934.753 byte (1268,32 MiB) | `fcef47418a0e04aee5bca942855260b24d73b07f139faa520d102b3f40409fa0` | chiave debug, non ufficiale |
+| `ITAGPT-debug-2.1.0.apk` | `{{DEBUG_SIZE}}` | `{{DEBUG_SHA}}` | debug |
+| `ITAGPT-release-debug-signed-2.1.0.apk` | `{{RELEASE_SIZE}}` | `{{RELEASE_SHA}}` | chiave debug, **non ufficiale** |
 
 Ogni artifact contiene l'APK, il file `.sha256` e un report `.txt` con dimensione, data, ABI,
-modelli e firma. Download: [ITAGPT-Debug-APK](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44933207079/artifacts/14719151937) e
-[ITAGPT-Release-APK](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44933207079/artifacts/14719795927)
-(retention 30 giorni). La pagina della run e i dati esatti sono in
-[docs/RELEASE-2.0.0.md](docs/RELEASE-2.0.0.md).
+firma e conferma dell'assenza di modelli. I link agli artifact sono pubblicati nel report
+[docs/RELEASE-2.1.0.md](docs/RELEASE-2.1.0.md) appena la run è conclusa.
 
-Entrambi gli artifact sono stati scaricati in questo ambiente: `sha256sum -c` ha confermato i due
-checksum, `apksigner verify` la firma debug e `aapt2 dump badging` package e SDK; i due modelli
-dentro gli APK hanno lo SHA-256 atteso. Non sono stati installati né avviati su Android.
+L'APK è universale: `arm64-v8a`, `armeabi-v7a`, `x86_64`. Non ci sono split per ABI e non esiste un
+limite artificiale di dimensione.
 
-L'APK è **universale** (arm64-v8a, armeabi-v7a, x86_64), non ci sono split per ABI e non esiste
-alcun limite minimo o massimo artificiale di dimensione: lo script di packaging verifica i
-componenti reali, non un numero imposto. Include:
+## Cosa è cambiato in 2.1
 
-- il motore nativo `libbigbai.so` e `libsqlcipher.so` per ogni ABI;
-- **Qwen2.5 1.5B Instruct Q4_K_M** (1.117.320.736 byte, SHA-256
-  `6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e`, Apache-2.0);
-- l'embedder multilingue `multilingual-e5-small` Q8_0 (132.439.008 byte, MIT).
+### Modelli
 
-La chat funziona **subito dopo l'installazione**, senza download, account o API key. Al primo
-avvio il modello viene copiato dagli asset all'archivio privato e verificato: servono circa 3 GB
-liberi e almeno 4 GB di RAM per il caricamento. Non è un download di rete, ma l'estrazione iniziale
-non è istantanea e l'onboarding ne mostra l'avanzamento.
+- Rimossi `qwen2.5-1.5b-instruct-q4_k_m.gguf` e `multilingual-e5-small-q8_0.gguf` dagli asset.
+- Eliminati `BundledChatModel`, la copia automatica dagli asset e gli script
+  `fetch-bundled-chat.sh` / `fetch-bundled-model.sh`.
+- Nessun download parte da solo. La sezione Modelli mostra il catalogo e l'utente sceglie.
+- L'embedding è opzionale: **Impostazioni → Ricerca semantica → Importa .gguf**. Il file viene
+  copiato nella memoria privata e accettato solo se dimensione e SHA-256 corrispondono a
+  `multilingual-e5-small-q8_0.gguf`. Senza file, la ricerca semantica è disattivata e il resto
+  dell'app funziona.
+- Il gate di packaging rifiuta qualunque APK che contenga `assets/**/*.gguf`.
 
-## Novità 2.0.0
+### Ricerca Internet
 
-- **Modello conversazionale incluso.** Qwen2.5 1.5B Instruct Q4_K_M è dentro l'APK: la prima chat
-  non richiede di scaricare un modello. Il 0.5B è stato scartato dopo una valutazione reale perché
-  ripeteva frasi e produceva italiano inaffidabile; il report del 1.5B è in
-  `docs/ai-eval/`.
-- **OCR reale sul dispositivo.** ML Kit Latin Text Recognition legge immagini, screenshot, foto e
-  PDF scansionati (fino a 20 pagine), applica la rotazione EXIF, mostra un'anteprima con copia e
-  inserimento nel messaggio e segnala immagini senza testo. Italiano e inglese; nessuna immagine
-  inviata in rete.
-- **Import documenti.** DOCX (paragrafi e tabelle), XLSX (fogli e celle), CSV e TXT vengono letti
-  con parser ZIP/XML locali e allegati alla chat. `.doc` e `.xls` binari sono rifiutati con un
-  messaggio esplicito.
-- **Voce più completa.** Lingua della voce (`auto`/`it`/`en`) e lettura automatica delle nuove
-  risposte sono impostazioni persistenti; Stop interrompe anche la sintesi. Resta la dettatura di
-  sistema, senza permesso microfono e senza registrazione.
-- **Release vera, non solo debug.** R8, minificazione e resource shrinking sono attivi nella
-  release, con regole keep per JNI, Room, serializzazione, JGit, PDFBox, SQLCipher e ML Kit. La CI
-  produce sia l'APK debug sia quello release; la firma ufficiale è condizionata ai Secrets.
-- **Chat e prompt migliorati.** Prompt compatto per i modelli piccoli, sezione OCR/documenti,
-  sampler più stabile (temperatura 0,55, top-k 30, top-p 0,90, min-p 0,03, repetition penalty
-  1,15, massimo 640 token) e quality gate già presente.
-- **CI più verificabile.** Test, lint, build nativa per tre ABI, verifica SHA-256 dei due modelli
-  dentro gli APK, `apksigner`, `aapt2`, checksum e report caricati come artifact separati.
+- Default: **automatica**, senza provider, endpoint o chiave da scegliere.
+- Catena reale: Brave (solo se hai salvato una chiave) → SearXNG (solo se hai salvato un endpoint)
+  → Google News RSS per notizie e finestre temporali → DuckDuckGo → Wikipedia.
+- Deduplicazione per URL canonico, filtro temporale (`day`, `week`, `month`, `year`), lettura della
+  pagina per le prime tre fonti, metadati `article:published_time` / `og:site_name` quando presenti.
+- Pulsante globo nella chat con stato attivo/disattivo e indicatore di ricerca in corso.
+- Le fonti sono mostrate con titolo, sito, data (se dichiarata) e link apribile; il prompt vieta di
+  citare fonti assenti e di presentare conoscenze interne come verifiche online.
+- Google News RSS e Wikipedia sono stati interrogati realmente da questo ambiente. DuckDuckGo ha
+  risposto `202` (anti-bot) dall'IP datacenter: su rete mobile può funzionare, ma non è dichiarato
+  verificato qui.
 
-## Funzionalità
+### Prestazioni
 
-**Chat**
-- Nuova conversazione, invio, stop, modifica, rigenerazione, copia, condivisione, salvataggio come
-  file, eliminazione con codice di conferma, rinomina, ricerca, archiviazione, preferiti, cartelle.
-- Rendering Markdown, blocchi di codice, tabelle, elenchi; scroll automatico solo quando l'utente è
-  in fondo; conservazione di bozza e posizione dopo rotazione o morte del processo.
-- Export conversazione in **Markdown**, **TXT** e **PDF**; salvataggio in `Download/ITAGPT`.
-- Allegati immagine, PDF, DOCX, XLSX, CSV e TXT; OCR automatico sulle immagini e sui PDF
-  scansionati, con anteprima e inserimento del testo.
+- `PerformanceAdvisor` combina core, stato termico Android e risparmio energetico per ridurre thread
+  e contesto prima del throttling. È coperto da test JVM.
+- Il contesto adattivo e il budget RAM restano quelli esistenti; nessuna GPU è dichiarata.
+- Non sono state misurate latenze su dispositivo: nessun numero di tok/s viene inventato.
 
-**AI locale**
-- Motore llama.cpp compilato per tre ABI, inferenza CPU con contesto adattivo, token/s e tempo al
-  primo token misurati.
-- Modello di chat e modello di embedding inclusi nell'APK, verificati con SHA-256.
-- Quality gate e controlli deterministici (calcolatrice, controllo italiano) mostrati all'utente.
-- Prompt con memoria, documenti, OCR, fonti web opzionali, lessico del tutor e calcoli verificati.
-- Modelli più grandi scaricabili dal catalogo con ripresa e verifica SHA-256.
+### UI, tablet e tastiera
 
-**ITAGPT Code**
-- Editor, file explorer, creazione/rinomina/eliminazione, salvataggio, condivisione.
-- Analisi statica reale per HTML, CSS, Java e C++ (bilanciamento, regole strutturali, include guard).
-- Analisi multi-file, report delle modifiche, generazione di test, agente con strumenti e checkpoint
-  Git, sandbox HTML con rete bloccata per default.
-- **Non compila né esegue Java/C++**: Android non include `javac`/`clang` e in questa release non è
-  stato integrato un toolchain. L'interfaccia non lo dichiara disponibile.
+- Window size class: su tablet/foldable il drawer diventa un pannello permanente e il contenuto è
+  limitato a 1200 dp, invece di allargare il layout del telefono.
+- Scorciatoie: `Ctrl+N` nuova chat, `Ctrl+K` ricerca nella cronologia, `Ctrl+L` attiva/disattiva la
+  ricerca web, `Esc` interrompe la generazione.
+- Stato “nessun modello” con pulsante reale verso la libreria; nessun caricamento infinito.
+- Fonti compatte con sito e data; pannello fonti completo.
 
-**Voce (parziale)**
-- TTS di sistema per leggere una risposta, con stop esplicito e lettura automatica opzionale.
-- Dettatura tramite l'activity di riconoscimento vocale del dispositivo; il testo viene inserito
-  nella casella e inviato solo dall'utente.
-- Lingua voce configurabile; il dispositivo deve avere il pacchetto lingua installato.
-- Non sono implementati: conversazione vocale continua, selezione della voce, cronologia vocale.
-  L'audio non viene registrato né conservato dall'app.
+### ITAGPT Code
 
-**Privacy e sicurezza**
-- Room + SQLCipher, passphrase casuale protetta da Android Keystore.
-- Backup `.bkb` con PBKDF2-HMAC-SHA256 (150.000 iterazioni) e AES-256-GCM.
-- Nessuna telemetria, nessun account, nessun upload automatico.
-- Rete usata solo per download modelli e ricerca web se abilitata; OCR e chat non chiamano servizi
-  esterni. Sandbox HTML senza rete salvo autorizzazione.
+- Limite portato da 5 a 12 passi per attività, con tetti invariati su file e azioni.
+- Restano lettura/scrittura/eliminazione con conferma, checkpoint, diff, analisi statica e
+  continuazione con «continua».
+- Non esiste un terminale o un compilatore Android reale: non viene simulato.
 
-**Memoria e lingua**
-- Ricordi durevoli con conferma, indice semantico e cancellazione coerente dei vettori.
-- Tutor italiano → inglese/spagnolo/francese/tedesco/portoghese; il lessico è in-context
-  persistente, non addestramento dei pesi.
+## Verifiche eseguite
 
-## Struttura
+- Build Kotlin/Compose: `:app:compileDebugKotlin` riuscita.
+- Test JVM: **236 test, 0 falliti, 0 errori, 0 saltati** su `core`, `llm`, `code`, `app`.
+- Lint debug: **0 errori, 69 warning**.
+- Parser ricerca: test su DuckDuckGo HTML, Google News RSS, metadati pagina, deduplica URL.
+- Provider reali da host: Google News RSS (HTTP 200, 102 item) e Wikipedia API (HTTP 200).
+- APK debug/release, FIRMA, ABI, assenza modelli e checksum: verificati dalla CI e riportati nel
+  report 2.1.
 
-```
-app/    UI Compose, navigazione, ViewModel, servizi, OCR, voce, export
-core/   modelli, Room + SQLCipher, crypto/Keystore, impostazioni, repository, PDF, documenti, backup
-llm/    JNI C++ su llama.cpp/mtmd, LlamaEngine, catalogo, modelli inclusi e download
-code/   file SAF, analisi statica, patch engine, repository progetti, Git, sandbox HTML
-scripts/ fetch-llama.sh, fetch-bundled-model.sh, fetch-bundled-chat.sh, build-native.sh,
-         package-debug-apk.sh, package-release-apk.sh
-docs/    architettura, build, modelli, limiti, audit, valutazioni e release note
-```
-
-Dettagli: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Non sono stati eseguiti test strumentali, di rendering o su dispositivo: nessun dispositivo fisico
+o emulatore era disponibile. Le affermazioni “funziona su tablet / mouse / tastiera” non sono
+supportate da una prova e non vengono fatte.
 
 ## Build
 
-Requisiti: JDK 17, Android SDK 35, NDK 27.2.12479018, CMake 3.22.1, Gradle 8.11.1.
+Requisiti: JDK 17, Android SDK 35, build-tools 35.0.0, NDK 27.2.12479018, CMake 3.22.1.
 
 ```bash
-bash scripts/fetch-llama.sh          # llama.cpp al commit fissato
-bash scripts/fetch-bundled-model.sh  # embedding (132 MB), SHA-256 verificato
-bash scripts/fetch-bundled-chat.sh   # chat Qwen2.5 1.5B (1.117 GB), SHA-256 verificato
-bash scripts/build-native.sh         # libbigbai.so per arm64-v8a, armeabi-v7a, x86_64
-
+bash scripts/fetch-llama.sh
+ABIS="arm64-v8a armeabi-v7a x86_64" bash scripts/build-native.sh
 ./gradlew :core:testDebugUnitTest :code:testDebugUnitTest :llm:testDebugUnitTest :app:testDebugUnitTest
 ./gradlew :app:lintDebug
-./gradlew assembleDebug
-bash scripts/package-debug-apk.sh    # verifica ABI, modelli, firma, manifest, checksum
+./gradlew assembleDebug assembleRelease
+bash scripts/package-debug-apk.sh
+bash scripts/package-release-apk.sh
 ```
 
-Guida completa, release R8 e firma: [docs/BUILD.md](docs/BUILD.md). Catalogo e valutazione:
-[docs/MODELS.md](docs/MODELS.md).
+Nessuno script scarica modelli. Per la ricerca semantica in locale, importa il file dalla UI.
 
-## Limiti noti
+## Limiti principali
 
-Nessun test su dispositivo fisico o emulatore; accelerazione GPU non inclusa; compilatori Java/C++
-non disponibili sul dispositivo; API minima **31 (Android 12)**; voce solo TTS/dettatura; il modello
-1.5B può inventare fatti e richiede almeno 4 GB di RAM. La release ufficiale non è firmata perché
-mancano i Secrets. Elenco completo, con motivazione e alternativa per ogni voce:
-[docs/LIMITATIONS.md](docs/LIMITATIONS.md).
+- **Senza modello non c'è risposta generata.** È la conseguenza diretta di “nessun modello
+  nell'APK” e “nessun download automatico”; l'app lo dice e porta alla libreria.
+- **Qualità linguistica non misurabile qui.** Il modello non è più incluso; non è stato eseguito
+  alcun benchmark 2.1 su un LLM reale. I prompt sono stati rafforzati, ma non viene dichiarato un
+  miglioramento misurato.
+- **Nessun test su device.** OCR, voce, Keystore, SAF, rendering, tablet e periferiche restano non
+  verificati a runtime.
+- **Firma ufficiale bloccata** finché non vengono configurati i Secrets.
+- **CPU only.** `n_gpu_layers = 0`: la build non include un backend GPU verificato.
 
-## CI
-
-[`.github/workflows/android.yml`](.github/workflows/android.yml) compila la libreria nativa per le
-tre ABI, scarica e verifica i due modelli, esegue i 222 test JVM e il lint, costruisce debug e
-release R8, verifica firma, manifest, ABI, modelli e checksum, e pubblica:
-
-- **ITAGPT-Debug-APK** — APK + `.sha256` + report `.txt`;
-- **ITAGPT-Release-APK** — APK release + `.sha256` + report `.txt`;
-- **ITAGPT-CI-Reports** — risultati JUnit e lint.
-
-Il workflow è avviabile manualmente (`workflow_dispatch`) e non impone soglie di dimensione.
+Dettagli completi in [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
 
 ## Licenze
 
-Codice ITAGPT: vedere il repository. Componenti: llama.cpp e ggml (MIT), AndroidX e Jetpack
-Compose (Apache-2.0), Room (Apache-2.0), SQLCipher (BSD), OkHttp (Apache-2.0), PDFBox-Android
-(Apache-2.0), JGit (EPL-2.0), Tinos (Apache-2.0), ML Kit Text Recognition (Google), Qwen2.5 1.5B
-Instruct (Apache-2.0), multilingual-e5-small (MIT).
+Codice ITAGPT: vedere il repository. Componenti principali: llama.cpp (MIT), Kotlin/AndroidX
+(Apache-2.0), OkHttp (Apache-2.0), JGit (EPL-2.0), Tinos (Apache-2.0), ML Kit Text Recognition
+(Google), SQLCipher (BSD-style, Zetetic). I modelli scaricabili mantengono la licenza del publisher;
+`multilingual-e5-small` Q8_0 è MIT. Nessun modello è ridistribuito in questo repository o nell'APK.

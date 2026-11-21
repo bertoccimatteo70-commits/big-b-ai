@@ -17,21 +17,18 @@
 Il Gradle wrapper è committato (`gradlew`, `gradle/wrapper/`), quindi locale e CI usano la stessa
 versione senza dipendere da un Gradle installato nel `PATH`.
 
-## 1. Modelli inclusi
+## 1. Modelli
 
-```bash
-bash scripts/fetch-bundled-model.sh  # embedding multilingual-e5-small (132 MB)
-bash scripts/fetch-bundled-chat.sh   # chat Qwen2.5 1.5B Q4_K_M (1.117 MB)
-```
+ITAGPT 2.1 non include modelli. Non esiste alcuno script che scarichi pesi nella build:
 
-`fetch-bundled-chat.sh` scarica `qwen2.5-1.5b-instruct-q4_k_m.gguf` dal repository
-`Qwen/Qwen2.5-1.5B-Instruct-GGUF` (Apache-2.0) e verifica **dimensione e SHA-256**
-(`6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e`) prima di copiarlo in
-`app/src/main/assets/models/`. Se il file esiste già e l'hash coincide, non viene riscaricato.
+- nessun `.gguf` in `app/src/main/assets/`;
+- `package-debug-apk.sh` e `package-release-apk.sh` **falliscono** se trovano `assets/**/*.gguf`;
+- il catalogo (`llm/src/main/assets/model_catalog.json`) viene scaricato dall'app solo su richiesta
+  dell'utente, dopo l'installazione;
+- il modello di embedding è opzionale e si importa dalla UI, con verifica di dimensione e SHA-256.
 
-I due `.gguf` non sono versionati: sono grandi e riproducibili. Entrambi gli script falliscono se il
-file scaricato è corrotto; `package-debug-apk.sh` e `package-release-apk.sh` verificano poi
-dimensione e SHA-256 **dentro l'APK**. Senza uno dei due modelli l'APK viene rifiutato.
+Se in futuro servisse un modello di test locale, va tenuto fuori dal repository e dagli asset; la
+build non lo cerca e non lo richiede.
 
 ## 2. Libreria nativa
 
@@ -152,7 +149,7 @@ I test unitari JVM coprono la logica pura, senza Android framework:
 - Code: parsing patch, analisi HTML/Java/C++, progetto, quota e agente;
 - infrastruttura: timing di generazione, UTF-8, file, sicurezza.
 
-Totale in questa release: **222 test JVM, 0 falliti, 0 errori, 0 saltati**. La CI esegue gli stessi
+Totale in questa release: **236 test JVM, 0 falliti, 0 errori, 0 saltati**. La CI esegue gli stessi
 quattro moduli. Non esistono test strumentali: richiederebbero un device.
 
 ## 7. CI
@@ -160,14 +157,13 @@ quattro moduli. Non esistono test strumentali: richiederebbero un device.
 `.github/workflows/android.yml`:
 
 1. JDK 17, Android SDK 35, NDK 27.2.12479018 e CMake 3.22.1;
-2. `fetch-llama.sh`, `fetch-bundled-model.sh`, `fetch-bundled-chat.sh` e `build-native.sh` per
-   `arm64-v8a`, `armeabi-v7a` e `x86_64`;
+2. `fetch-llama.sh` e `build-native.sh` per `arm64-v8a`, `armeabi-v7a` e `x86_64`;
 3. test JVM dei quattro moduli (`:core`, `:code`, `:llm`, `:app`);
 4. `:app:lintDebug`;
 5. preparazione opzionale del keystore dai GitHub Secrets;
 6. `assembleDebug` e `assembleRelease` (R8 + resource shrinking);
-7. `package-debug-apk.sh` e `package-release-apk.sh`, con verifica di ABI, modelli, firma,
-   manifest e checksum;
+7. `package-debug-apk.sh` e `package-release-apk.sh`, con verifica di ABI, assenza di modelli,
+   firma, manifest e checksum;
 8. `sha256sum -c` esplicito sugli APK e riepilogo nella pagina della run;
 9. upload di **ITAGPT-Debug-APK**, **ITAGPT-Release-APK** (entrambi con `.sha256` e `.txt`) e
    **ITAGPT-CI-Reports** (JUnit e lint).

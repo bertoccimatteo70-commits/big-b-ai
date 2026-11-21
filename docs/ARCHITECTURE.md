@@ -80,9 +80,11 @@ llama.cpp è fissato al tag **v1.0.0** (commit `b1b770d90d94cad9e9ea5b993bdbc383
 SHA-256. Il catalogo è stato verificato contro l'API di Hugging Face (hash LFS reali).
 
 - `ModelStore` gestisce installazione, file parziali, spazio libero e record installati.
-- `BundledChatModel` e `BundledModelInstaller` copiano dagli asset il modello di chat incluso e
-  l'embedder, verificano dimensione e SHA-256 e scrivono il marker di installazione. Il modello di
-  chat è Qwen2.5 1.5B Instruct Q4_K_M; senza di esso la chat non parte, non c'è un fallback finto.
+- **Nessun modello è incluso nell'APK.** `EmbeddingModelInstaller` accetta solo un file scelto
+  dall'utente via SAF, verifica dimensione e SHA-256 e scrive il marker; `EmbeddingEngine` carica
+  quel file solo se è verificato. Senza embedding la ricerca semantica è disattivata. La chat usa i
+  modelli del catalogo scaricati esplicitamente: senza modello mostra un errore, non un fallback
+  finto.
 - `ModelDownloadManager` scarica con `Range` (ripresa), scrive su file temporaneo, verifica
   SHA-256 e sposta atomicamente il file nella posizione definitiva.
 - `ModelDownloadService` è un foreground service `dataSync` con notifiche di avanzamento.
@@ -182,8 +184,9 @@ creati da `AppViewModelFactory` (la chat usa `SavedStateHandle` per ripristinare
 stato è esposto con `StateFlow` e collezionato con `collectAsState`. Il pulsante Indietro chiude
 prima il drawer della cronologia.
 
-L'onboarding (5 schermate) configura tema, lingua, profilo RAM, modello incluso e memoria. Il
-modello di chat viene estratto dagli asset con avanzamento e verifica SHA-256, non scaricato.
+L'onboarding (5 schermate) configura tema, lingua, profilo RAM, download opzionale del modello e
+memoria. Nessun modello è incluso: l'utente può scaricarne uno o proseguire senza, e la chat mostra
+lo stato reale.
 
 ## Misurazione e I/O
 

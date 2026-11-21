@@ -62,6 +62,8 @@ class SearchParsingTest {
     fun `non http links are rejected`() {
         assertFalse(SearchParsing.isHttpUrl("javascript:alert(1)"))
         assertFalse(SearchParsing.isHttpUrl("file:///etc/passwd"))
+        assertFalse(SearchParsing.isHttpUrl("http://192.168.1.1/admin"))
+        assertFalse(SearchParsing.isHttpUrl("http://127.0.0.1:8080"))
         assertTrue(SearchParsing.isHttpUrl("https://example.com"))
     }
 
