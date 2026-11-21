@@ -5,7 +5,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 /**
- * Daily allowance for BIG B Code.
+ * Daily allowance for ITAGPT Code.
  *
  * One user task costs exactly one request: every internal step (reading files,
  * writing files, self-correction, checks) is part of that same task and is free.

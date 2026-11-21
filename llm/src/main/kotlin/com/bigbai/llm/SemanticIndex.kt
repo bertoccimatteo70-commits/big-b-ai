@@ -95,7 +95,7 @@ class SemanticIndex private constructor(
 
         /**
          * Reads an index written by [writeTo]. Returns an empty index when the
-         * stream is not a BIG B index, has an unknown version or is truncated:
+         * stream is not a ITAGPT index, has an unknown version or is truncated:
          * a damaged cache must never prevent the app from starting.
          */
         fun readFrom(input: InputStream): SemanticIndex = readFromOrNull(input) ?: empty()

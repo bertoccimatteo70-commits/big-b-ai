@@ -1,7 +1,7 @@
-# BIG B AI
+# ITAGPT
 
 Assistente AI locale per Android: chat con memoria persistente, modelli GGUF eseguiti sul
-dispositivo tramite llama.cpp, e un ambiente di sviluppo integrato (**BIG B Code**) per lavorare
+dispositivo tramite llama.cpp, e un ambiente di sviluppo integrato (**ITAGPT Code**) per lavorare
 su progetti HTML, Java e C++ senza inviare codice a servizi esterni.
 
 Nessun account, nessun cloud obbligatorio, nessun dato finto: tutto ciò che l'interfaccia mostra
@@ -31,7 +31,7 @@ ambiente di build. I dettagli sono in [docs/LIMITATIONS.md](docs/LIMITATIONS.md)
 
 | Campo | Valore |
 |---|---|
-| File | `BIG-B-AI-debug-1.5.1.apk` |
+| File | `ITAGPT-debug-1.5.1.apk` |
 | Versione | 1.5.1-debug (versionCode 7) |
 | Dimensione | **248.141.501 byte (236,65 MiB / 248,14 MB)** |
 | SHA-256 | `3935bbedf2b035e90b4cda5f9a531b679f18b7b448677060170f537609098ada` |
@@ -43,7 +43,7 @@ ambiente di build. I dettagli sono in [docs/LIMITATIONS.md](docs/LIMITATIONS.md)
 L'APK è installabile su Android 12+ con architettura ARM 64-bit, ARM 32-bit o x86_64 (emulatore).
 È la variante **debug** (`com.bigbai.app.debug`), firmata con la chiave debug Android
 (`CN=Android Debug`): è dichiarato, non nascosto. I valori qui sopra sono l'APK scaricato
-dall'artifact `BIG-B-AI-Debug-APK` della run CI
+dall'artifact `ITAGPT-Debug-APK` della run CI
 [44907676537](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44907676537) sul
 commit `ced8116`; dimensione, SHA-256, firma, manifest, ABI e SHA-256 del modello dentro l'APK
 sono stati ricontrollati dopo il download. La build locale ha la stessa dimensione
@@ -90,7 +90,7 @@ verifica SHA-256. L'APK contiene il motore e il modello di embedding.
   o con codice non chiuso.
 - **Sampler più fine.** Repetition penalty e min-p sono parametri nativi, con valori per famiglia
   di modello e regolazione manuale nelle impostazioni avanzate.
-- **BIG B Code più concreto.** Analisi multi-file con duplicati, dipendenze mancanti, TODO e file
+- **ITAGPT Code più concreto.** Analisi multi-file con duplicati, dipendenze mancanti, TODO e file
   grandi; report delle modifiche; sandbox automatica per l'HTML; generazione di test; azioni
   rapide nella chat.
 - **Diagnostica.** Motore, ABI, modello attivo, RAM, CPU, token/s, tempo al primo token, stato e
@@ -106,7 +106,7 @@ Dettagli e misure in [docs/AUDIT-1.5.md](docs/AUDIT-1.5.md); audit precedenti:
 ## Funzionalità
 
 **Chat**
-- Menu laterale unico con dieci destinazioni (nuova chat, cronologia, ricerca, BIG B Code,
+- Menu laterale unico con dieci destinazioni (nuova chat, cronologia, ricerca, ITAGPT Code,
   libreria/download/installati, plugin, impostazioni, informazioni) e conversazioni recenti.
 - Ogni nuova chat parte da zero: nessun messaggio, allegato, bozza, metrica o errore ereditato;
   anche il passaggio tra conversazioni azzera lo stato e riporta la lista in cima.
@@ -117,7 +117,7 @@ Dettagli e misure in [docs/AUDIT-1.5.md](docs/AUDIT-1.5.md); audit precedenti:
 - **Retrieval locale**: i passaggi pertinenti di documenti e memorie vengono recuperati per
   similarità e citati nel prompt; la barra mostra quanti sono stati usati.
 - Salvataggio automatico di una risposta come file (nome generato, estensione dal linguaggio del
-  blocco di codice) in `Download/BIG B AI`, condivisione e esportazione dell'intera conversazione
+  blocco di codice) in `Download/ITAGPT`, condivisione e esportazione dell'intera conversazione
   in Markdown.
 - La conversazione resta aperta tra un messaggio e l'altro, conserva cronologia, bozza e stato anche
   dopo rotazione o morte del processo; interruzione della generazione senza perdere il testo.
@@ -157,7 +157,7 @@ Dettagli e misure in [docs/AUDIT-1.5.md](docs/AUDIT-1.5.md); audit precedenti:
 - File `.bkb` cifrato con password: PBKDF2-HMAC-SHA256 (150.000 iterazioni) + AES-256-GCM.
 - Ripristinabile su un altro dispositivo; deduplica tramite hash del contenuto.
 
-**BIG B Code**
+**ITAGPT Code**
 - «Nuovo progetto» crea cartella e `index.html` automaticamente, senza selettori né percorsi da
   inventare; resta disponibile l'apertura di una cartella esistente via SAF.
 - Editor, file explorer, creazione/rinomina/eliminazione file, salvataggio, esportazione in
@@ -234,7 +234,7 @@ motivato in [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
 [`.github/workflows/android.yml`](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/workflows/android.yml)
 compila la libreria nativa per le tre ABI, scarica e verifica il modello di embedding, esegue i
 212 test JVM dei quattro moduli, esegue il lint, produce l'APK debug, ne verifica firma, manifest,
-ABI e dimensione minima di 200 MiB e lo pubblica come artifact **BIG-B-AI-Debug-APK** (APK +
+ABI e dimensione minima di 200 MiB e lo pubblica come artifact **ITAGPT-Debug-APK** (APK +
 SHA-256 + metadata, retention 30 giorni). Il setup
 dell'SDK usa `android-actions/setup-android@v4`, che non richiede più il pacchetto `tools` rimosso
 da Google (causa del precedente errore "Failed to find package 'tools'").

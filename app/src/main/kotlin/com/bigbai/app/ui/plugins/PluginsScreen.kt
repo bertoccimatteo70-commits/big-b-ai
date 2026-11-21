@@ -166,7 +166,7 @@ fun PluginsScreen(container: AppContainer, onBack: () -> Unit) {
             }
 
             IntegrationCard(
-                "Sandbox di BIG B Code",
+                "Sandbox di ITAGPT Code",
                 "L'anteprima HTML gira in una WebView usa-e-getta con rete bloccata.",
             ) {
                 SwitchRow(

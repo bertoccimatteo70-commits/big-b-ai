@@ -38,6 +38,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     val backup: StateFlow<BackupUi> = _backup.asStateFlow()
 
     fun setTheme(value: ThemeMode) = update { it.copy(theme = value) }
+    fun setFontScale(value: Float) = update { it.copy(fontScale = value.coerceIn(0.85f, 1.30f)) }
     fun setLanguage(value: String) = update { it.copy(language = value) }
     fun setMemoryEnabled(value: Boolean) = update { it.copy(memoryEnabled = value) }
     fun setConfirmMemory(value: Boolean) = update { it.copy(confirmMemoryWrites = value) }

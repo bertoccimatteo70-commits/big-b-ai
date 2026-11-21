@@ -1,4 +1,4 @@
-# Audit BIG B AI 1.5.1
+# Audit ITAGPT 1.5.1
 
 Versione di partenza: 1.5.0. Questo audit riguarda solo ciò che è stato realmente modificato,
 eseguito e misurato. Dove una verifica non era possibile nell'ambiente, è dichiarato.
@@ -173,7 +173,7 @@ rifiutava. Il caricamento resta su richiesta, lo scaricamento è esplicito e il 
 viene caricato se la policy rifiuta. `EmbeddingMemoryPolicyTest` (7) verifica soglie, extra,
 rifiuto a un byte in meno e rifiuto a pressione critica.
 
-## 8. BIG B Code
+## 8. ITAGPT Code
 
 Nessuna modifica funzionale in 1.5.1. Il modulo `:code` mantiene la distinzione già introdotta
 nella 1.5.0 tra analisi statica, compilazione (solo se il toolchain è presente) ed esecuzione;
@@ -242,7 +242,7 @@ APK scaricato dall'artifact della run CI
 
 | Voce | Valore |
 |---|---|
-| File | `BIG-B-AI-debug-1.5.1.apk` |
+| File | `ITAGPT-debug-1.5.1.apk` |
 | Versione | 1.5.1-debug, versionCode 7 |
 | Dimensione APK | **248.141.501 byte (236,65 MiB)** |
 | Requisito 200 MiB | soddisfatto (209.715.200 richiesti) |
@@ -257,4 +257,4 @@ La build locale ha la stessa dimensione (248.141.501 byte) ma SHA-256
 `ef820ffa…36f6`: cambiano i timestamp di firma, non il contenuto funzionale.
 Il workflow `android.yml` esegue test, lint, build nativa delle tre ABI, `assembleDebug`,
 packaging, verifica di firma/manifest/ABI/modello e fallisce se l'APK è sotto 200 MiB.
-L'artifact si chiama `BIG-B-AI-Debug-APK` ed è conservato 30 giorni.
+L'artifact si chiama `ITAGPT-Debug-APK` ed è conservato 30 giorni.

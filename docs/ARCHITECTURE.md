@@ -12,10 +12,10 @@ app  ->  code  ->  core
 
 - **core** — modello dati, persistenza, sicurezza, servizi di dominio. Non conosce la UI.
 - **llm** — motore di inferenza e gestione dei modelli. Contiene il codice C++ e il catalogo.
-- **code** — dominio di BIG B Code: file, analisi, patch, Git, sandbox.
+- **code** — dominio di ITAGPT Code: file, analisi, patch, Git, sandbox.
 - **app** — Compose, navigazione, ViewModel, servizi Android, onboarding.
 
-La dependency injection è manuale (`AppContainer`): un singleton creato in `BigBAiApplication`
+La dependency injection è manuale (`AppContainer`): un singleton creato in `ItaGptApplication`
 espone repository, motore, impostazioni e servizi. Niente Hilt, niente reflection, tempi di
 avvio prevedibili.
 
@@ -108,7 +108,7 @@ in-context persistente, non addestramento dei pesi.
 Formato `.bkb`:
 
 ```
-magic "BIGBAI1" | versione | salt(16) | iv(12) | ciphertext | tag GCM
+magic "ITAGPT1" | versione | salt(16) | iv(12) | ciphertext | tag GCM
 ```
 
 La chiave deriva dalla password con PBKDF2-HMAC-SHA256 (150.000 iterazioni, 256 bit). Il payload è
@@ -116,7 +116,7 @@ JSON compresso con chat, messaggi, ricordi e (opzionalmente) progetti. Il ripris
 e salta i record già presenti (deduplica per hash). Le chiavi Keystore sono legate al dispositivo,
 quindi il backup non le usa: per questo serve una password.
 
-## BIG B Code
+## ITAGPT Code
 
 - **ProjectFiles** — wrapper su `DocumentFile` con path relativi, lettura/scrittura testuale,
   snapshot ricorsivo e limiti di dimensione. Nessun path assoluto, nessuna risalita oltre la radice.

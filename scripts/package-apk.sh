@@ -16,7 +16,7 @@ if [ ! -f "$APK" ]; then
 fi
 
 mkdir -p dist
-OUT="dist/BIG-B-AI-${VERSION}.apk"
+OUT="dist/ITAGPT-${VERSION}.apk"
 cp "$APK" "$OUT"
 
 SHA="$(sha256sum "$OUT" | cut -d' ' -f1)"
@@ -24,10 +24,10 @@ SIZE="$(stat -c%s "$OUT")"
 SIZE_MB="$(awk -v b="$SIZE" 'BEGIN { printf "%.1f", b/1048576 }')"
 BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-echo "$SHA  $(basename "$OUT")" > "dist/BIG-B-AI-${VERSION}.apk.sha256"
+echo "$SHA  $(basename "$OUT")" > "dist/ITAGPT-${VERSION}.apk.sha256"
 
-cat > "dist/BIG-B-AI-${VERSION}.txt" <<EOF
-BIG B AI
+cat > "dist/ITAGPT-${VERSION}.txt" <<EOF
+ITAGPT
 ========
 File:          $(basename "$OUT")
 Versione:      ${VERSION} (versionCode ${VERSION_CODE})
@@ -47,4 +47,4 @@ EOF
 echo "APK:      $OUT"
 echo "Size:     ${SIZE} bytes (${SIZE_MB} MiB)"
 echo "SHA-256:  ${SHA}"
-echo "Metadata: dist/BIG-B-AI-${VERSION}.txt"
+echo "Metadata: dist/ITAGPT-${VERSION}.txt"

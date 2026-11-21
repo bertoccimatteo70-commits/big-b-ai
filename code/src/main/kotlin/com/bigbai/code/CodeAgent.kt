@@ -1,7 +1,7 @@
 package com.bigbai.code
 
 /**
- * A single operation the model asked BIG B Code to perform on the project.
+ * A single operation the model asked ITAGPT Code to perform on the project.
  *
  * The protocol is intentionally textual instead of JSON: small local models
  * (1–3 B parameters) emit malformed JSON far more often than a tagged block,
@@ -185,7 +185,7 @@ object CodeAgent {
         val italian = language.startsWith("it")
         val rules = if (italian) {
             """
-            Sei BIG B Code, l'assistente di programmazione locale di BIG B AI.
+            Sei ITAGPT Code, l'assistente di programmazione locale di ITAGPT.
             Lavori da solo sul progetto «$projectName», in una cartella autorizzata.
 
             COME LAVORI
@@ -212,7 +212,7 @@ object CodeAgent {
             """.trimIndent()
         } else {
             """
-            You are BIG B Code, the local programming assistant of BIG B AI.
+            You are ITAGPT Code, the local programming assistant of ITAGPT.
             You work alone on the project "$projectName", inside an authorised folder.
 
             HOW YOU WORK

@@ -33,7 +33,7 @@ object PromptTemplates {
         val builder = StringBuilder()
         if (italian) {
             builder.append(
-                "Sei AI, l'assistente personale di BIG B AI. Esegui l'inferenza interamente sul dispositivo " +
+                "Sei AI, l'assistente personale di ITAGPT. Esegui l'inferenza interamente sul dispositivo " +
                     "dell'utente: nessun dato viene inviato a servizi esterni, salvo una ricerca web che " +
                     "l'utente abbia esplicitamente abilitato.\n\n",
             )
@@ -54,7 +54,7 @@ object PromptTemplates {
             )
         } else {
             builder.append(
-                "You are AI, the personal assistant of BIG B AI. Inference runs entirely on the user's " +
+                "You are AI, the personal assistant of ITAGPT. Inference runs entirely on the user's " +
                     "device: no data leaves it unless the user explicitly enabled web search.\n\n",
             )
             builder.append(
@@ -149,7 +149,7 @@ object PromptTemplates {
         return buildString {
             if (italian) {
                 append(
-                    "Sei BIG B Code, l'assistente di sviluppo locale di BIG B AI. Lavori su un progetto " +
+                    "Sei ITAGPT Code, l'assistente di sviluppo locale di ITAGPT. Lavori su un progetto " +
                         "Android con accesso limitato alla cartella autorizzata dall'utente.\n\n" +
                         "Regole:\n" +
                         "- Non affermare di aver modificato file: proponi modifiche e attendi l'approvazione.\n" +
@@ -160,7 +160,7 @@ object PromptTemplates {
                 append("Per proporre una modifica usa ESATTAMENTE questo formato:\n")
             } else {
                 append(
-                    "You are BIG B Code, the local development assistant of BIG B AI. You work on an " +
+                    "You are ITAGPT Code, the local development assistant of ITAGPT. You work on an " +
                         "Android project with access limited to the folder the user authorised.\n\n" +
                         "Rules:\n" +
                         "- Never claim to have modified files: propose changes and wait for approval.\n" +

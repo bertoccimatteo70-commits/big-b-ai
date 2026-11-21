@@ -2,10 +2,11 @@
 # Packages the DEBUG APK with a stable name, a SHA-256 checksum and a metadata
 # file. Run from the repository root after `./gradlew assembleDebug`.
 #
-# The 1.5 requirement is explicit: the universal APK must be at least 200 MiB
-# (209,715,200 bytes) of real components. This script refuses to publish
-# anything smaller, refuses an APK without every shipped ABI, and verifies the
-# signature, the manifest and the bundled embedding model inside the APK.
+# ITAGPT ships real, working components: the native engine for every ABI and
+# the bundled embedding model. This script refuses an APK without every shipped
+# ABI, and verifies the signature, the manifest and the model inside the APK.
+# There is deliberately no minimum or maximum size: the APK is exactly as large
+# as the components it ships require.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -14,7 +15,6 @@ cd "$ROOT"
 VERSION="$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts | head -1)"
 VERSION_CODE="$(grep -oP 'versionCode\s*=\s*\K[0-9]+' app/build.gradle.kts | head -1)"
 APK="app/build/outputs/apk/debug/app-debug.apk"
-MIN_APK_BYTES=$((200 * 1024 * 1024))
 ABIS="arm64-v8a armeabi-v7a x86_64"
 
 MODEL_NAME="multilingual-e5-small-q8_0.gguf"
@@ -43,8 +43,8 @@ for ABI in $ABIS; do
   fi
 done
 
-# The embedding model is a real component of 1.5: if it is missing, retrieval
-# would silently stop working, so the build fails instead.
+# The embedding model is a real component of ITAGPT: if it is missing,
+# retrieval would silently stop working, so the build fails instead.
 MODEL_ENTRY="assets/models/${MODEL_NAME}"
 if ! grep -q "$MODEL_ENTRY" <<<"$APK_ENTRIES"; then
   echo "ERRORE: modello di embedding assente dall'APK ($MODEL_ENTRY)." >&2
@@ -74,12 +74,12 @@ AAPT2="$BUILD_TOOLS/aapt2"
 SIGNATURE_CHECK="non eseguita (apksigner assente)"
 MANIFEST_CHECK="non eseguita (aapt2 assente)"
 if [ -x "$APKSIGNER" ]; then
-  "$APKSIGNER" verify --print-certs "$APK" > /tmp/bigbai-apksigner.txt 2>&1
-  SIGNATURE_CHECK="valida ($(grep -m1 'Signer #1 certificate DN' /tmp/bigbai-apksigner.txt | sed 's/.*DN: //'))"
+  "$APKSIGNER" verify --print-certs "$APK" > /tmp/itagpt-apksigner.txt 2>&1
+  SIGNATURE_CHECK="valida ($(grep -m1 'Signer #1 certificate DN' /tmp/itagpt-apksigner.txt | sed 's/.*DN: //'))"
 fi
 if [ -x "$AAPT2" ]; then
-  "$AAPT2" dump badging "$APK" > /tmp/bigbai-badging.txt 2>&1
-  PACKAGE_LINE="$(grep -m1 '^package:' /tmp/bigbai-badging.txt)"
+  "$AAPT2" dump badging "$APK" > /tmp/itagpt-badging.txt 2>&1
+  PACKAGE_LINE="$(grep -m1 '^package:' /tmp/itagpt-badging.txt)"
   if ! grep -q "versionCode='${VERSION_CODE}'" <<<"$PACKAGE_LINE"; then
     echo "ERRORE: il manifest non riporta versionCode ${VERSION_CODE}: $PACKAGE_LINE" >&2
     exit 1
@@ -94,7 +94,7 @@ if [ -x "$AAPT2" ]; then
     exit 1
   fi
   for ABI in $ABIS; do
-    if ! grep -q "native-code:.*'${ABI}'" /tmp/bigbai-badging.txt; then
+    if ! grep -q "native-code:.*'${ABI}'" /tmp/itagpt-badging.txt; then
       echo "ERRORE: il manifest non dichiara l'ABI ${ABI}." >&2
       exit 1
     fi
@@ -103,7 +103,7 @@ if [ -x "$AAPT2" ]; then
 fi
 
 mkdir -p dist
-OUT="dist/BIG-B-AI-debug-${VERSION}.apk"
+OUT="dist/ITAGPT-debug-${VERSION}.apk"
 cp "$APK" "$OUT"
 
 SHA="$(sha256sum "$OUT" | cut -d' ' -f1)"
@@ -119,21 +119,14 @@ if [ "$SHA" != "$BUILT_SHA" ]; then
   exit 1
 fi
 
-if [ "$SIZE" -lt "$MIN_APK_BYTES" ]; then
-  echo "ERRORE: l'APK pesa ${SIZE} byte (${SIZE_MB} MiB), sotto il requisito di 200 MiB." >&2
-  echo "Verifica che le tre ABI e il modello di embedding siano stati inclusi." >&2
-  exit 1
-fi
+printf '%s  %s\n' "$SHA" "$(basename "$OUT")" > "dist/ITAGPT-debug-${VERSION}.apk.sha256"
 
-printf '%s  %s\n' "$SHA" "$(basename "$OUT")" > "dist/BIG-B-AI-debug-${VERSION}.apk.sha256"
-
-cat > "dist/BIG-B-AI-debug-${VERSION}.txt" <<EOF
-BIG B AI — APK DEBUG
+cat > "dist/ITAGPT-debug-${VERSION}.txt" <<EOF
+ITAGPT — APK DEBUG
 ====================
 File:          $(basename "$OUT")
 Versione:      ${VERSION} (versionCode ${VERSION_CODE}) — variante debug
 Dimensione:    ${SIZE} byte (${SIZE_MB} MiB)
-Requisito:     200 MiB (209715200 byte) — ${SIZE} byte, soddisfatto
 SHA-256:       ${SHA}
 Data build:    ${BUILD_DATE}
 minSdk:        31 (Android 12)
@@ -148,11 +141,11 @@ Embedding:     ${MODEL_NAME}, ${MODEL_SIZE} byte, SHA-256 ${MODEL_SHA}
 Modelli chat:  NON inclusi nell'APK; si scaricano dall'app e sono verificati con SHA-256.
 Test eseguiti: test unitari JVM dei quattro moduli (0 falliti) + lint + build debug.
                Nessun test su dispositivo fisico o emulatore.
-Audit:         docs/AUDIT-${VERSION%.*}.md
+Release note:  docs/RELEASE-2.0.0.md
 EOF
 
 echo "APK:      $OUT"
 echo "Size:     ${SIZE} bytes (${SIZE_MB} MiB)"
 echo "SHA-256:  $SHA"
 echo "Firma:    ${SIGNATURE_CHECK}"
-echo "Metadata: dist/BIG-B-AI-debug-${VERSION}.txt"
+echo "Metadata: dist/ITAGPT-debug-${VERSION}.txt"

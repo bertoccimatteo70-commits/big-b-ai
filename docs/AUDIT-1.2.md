@@ -1,4 +1,4 @@
-# BIG B AI 1.2.0 — Audit, hardening e consegna
+# ITAGPT 1.2.0 — Audit, hardening e consegna
 
 Data: 21 novembre 2026. Questo documento copre il secondo passaggio di revisione
 (1.1.0 → 1.2.0). L'audit 1.1.0 resta in [AUDIT-1.1.md](AUDIT-1.1.md).
@@ -7,7 +7,7 @@ Data: 21 novembre 2026. Questo documento copre il secondo passaggio di revisione
 
 Revisione del percorso completo UI → ViewModel → repository Room/SQLCipher →
 motore Kotlin → JNI/llama.cpp → filesystem/SAF, più catalogo modelli, download,
-backup, BIG B Code, sandbox WebView, manifest, dipendenze, workflow CI e test.
+backup, ITAGPT Code, sandbox WebView, manifest, dipendenze, workflow CI e test.
 
 Ambiente di build e verifica:
 
@@ -77,7 +77,7 @@ La copertura con JaCoCo **non è misurata** (non configurata).
 | Voce | Risultato |
 |---|---|
 | `assembleDebug` | **BUILD SUCCESSFUL** |
-| APK | `dist/BIG-B-AI-debug-1.2.0.apk` |
+| APK | `dist/ITAGPT-debug-1.2.0.apk` |
 | Dimensione | **92.821.934 byte** (88,5 MiB) |
 | Delta vs 1.1.0 (92.815.874) | **+6.060 byte** |
 | SHA-256 | `7b8a5a390d05034ef4bb0534657e78fb959e8b2a79128ef3768fe68598d5d808` |
@@ -122,7 +122,7 @@ L'APK è compilato, firmato e verificato staticamente; **non** è stato avviato.
 - Modelli scaricati solo via HTTPS e verificati con SHA-256 prima della promozione a file finale.
 - Nessun log applicativo con contenuti utente: la ricerca `Log.*` trova solo esempi in `third_party/llama.cpp`.
 - WebView sandbox: JS abilitato solo per l'anteprima, storage/file/content disabilitati, rete bloccata salvo opt-in esplicito, bridge limitato a log/error, timeout e `destroy()`.
-- BIG B Code non esegue Java/C++: analisi statica dichiarata come tale.
+- ITAGPT Code non esegue Java/C++: analisi statica dichiarata come tale.
 - Limite residuo: la chiave Brave Search è salvata nel DataStore privato dell'app (non cifrata a livello applicativo, esclusa da backup). Non viene loggata né inclusa nei backup.
 
 ## 7. Compatibilità
@@ -148,7 +148,7 @@ L'APK è compilato, firmato e verificato staticamente; **non** è stato avviato.
 ## 9. CI
 
 Il workflow [.github/workflows/android.yml](../.github/workflows/android.yml) mantiene
-nome artifact `BIG-B-AI-Debug-APK`, `actions/upload-artifact@v4`, retention 30 giorni
+nome artifact `ITAGPT-Debug-APK`, `actions/upload-artifact@v4`, retention 30 giorni
 e contenuto APK + SHA-256. L'unica modifica è l'esecuzione dei test anche per
 `llm` e `app`. La pipeline compila il nativo, esegue i 62 test, assembla l'APK,
 verifica la presenza di `libbigbai.so`, calcola lo SHA-256 e carica l'artifact.
@@ -160,7 +160,7 @@ solo dopo la pubblicazione effettiva su GitHub.
 
 Questo passaggio è stato eseguito dopo la prima consegna 1.2.0, con priorità al ripristino di un
 APK scaricabile. La run di ripristino (#15, `workflow_dispatch` su `main`) ha prodotto un artifact
-`BIG-B-AI-Debug-APK` valido (APK 92.251.532 byte, SHA-256
+`ITAGPT-Debug-APK` valido (APK 92.251.532 byte, SHA-256
 `d4c2a98613ea15e0c8cff104180f6885b7a07498430e01ae15b7c4c181548335`, checksum interno verificato).
 Il commit di questo intervento genera una nuova run; i riferimenti finali sono nel report di
 consegna.

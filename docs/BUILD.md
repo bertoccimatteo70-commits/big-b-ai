@@ -96,12 +96,12 @@ La consegna è un APK di debug, firmato con la chiave debug Android (`CN=Android
 bash scripts/package-debug-apk.sh
 ```
 
-Lo script copia l'APK in `dist/BIG-B-AI-debug-<versione>.apk`, verifica che `libbigbai.so` **e**
+Lo script copia l'APK in `dist/ITAGPT-debug-<versione>.apk`, verifica che `libbigbai.so` **e**
 `libsqlcipher.so` siano presenti per `arm64-v8a`, `armeabi-v7a` e `x86_64` (un APK senza motore
 nativo, o con un'ABI incompleta, non deve mai essere pubblicato), verifica che il modello di
 embedding dentro l'APK abbia dimensione e SHA-256 attesi, controlla firma (`apksigner`) e manifest
 (`aapt2`: package, versionCode, versionName, ABI), confronta l'hash della copia con quello
-dell'APK appena compilato, calcola lo SHA-256 e scrive `dist/BIG-B-AI-debug-<versione>.txt` con
+dell'APK appena compilato, calcola lo SHA-256 e scrive `dist/ITAGPT-debug-<versione>.txt` con
 dimensione, data, package e firma. Lo script **fallisce** se l'APK è sotto i **200 MiB**
 (209.715.200 byte) richiesti dal progetto.
 
@@ -121,7 +121,7 @@ I test unitari JVM coprono la logica pura, senza Android framework:
 - `LanguageCoachTest` (7 test): glossari del tutor, prompt, parsing e deduplica del lessico.
 - `ChatTitleTest` (5 test): derivazione deterministica del titolo, markdown e troncamento.
 - `Utf8StreamTest` (6 test): UTF-8 spezzato tra token, emoji, sequenze incomplete.
-- `PromptTemplatesTest` (7 test): prompt multilingua, Vision, fonti, tutor e BIG B Code.
+- `PromptTemplatesTest` (7 test): prompt multilingua, Vision, fonti, tutor e ITAGPT Code.
 - `AttachmentPolicyTest` (5 test): classificazione MIME/estensione e limiti di dimensione.
 
 - `GenerationTimingTest` (5 test): token/s e tempi prompt/TTFT dai contatori llama.cpp e fallback wall-clock.
@@ -184,7 +184,7 @@ incluso nell'APK: non sostituirlo con un file scaricato da fonti non autorizzate
 4. `:app:lintDebug`;
 5. `./gradlew assembleDebug`;
 6. `package-debug-apk.sh` (verifica ABI, modello, firma, manifest e dimensione ≥ 200 MiB) e upload
-   dell'artifact **BIG-B-AI-Debug-APK** (APK + `.sha256` + `.txt`, retention 30 giorni).
+   dell'artifact **ITAGPT-Debug-APK** (APK + `.sha256` + `.txt`, retention 30 giorni).
 
 La copertura JaCoCo è riproducibile in locale con `./gradlew jacocoTestReport`; la pipeline non
 carica un artifact di copertura separato, per non affiancare un secondo artifact a quello APK.

@@ -147,6 +147,14 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit) {
                     Chip("Scuro", settings.theme == ThemeMode.DARK) { viewModel.setTheme(ThemeMode.DARK) }
                 }
                 Spacer(Modifier.height(10.dp))
+                SliderRow(
+                    label = "Dimensione del testo",
+                    value = settings.fontScale,
+                    range = 0.85f..1.30f,
+                    format = { "${(it * 100).toInt()}%" },
+                    onChange = { viewModel.setFontScale(it) },
+                )
+                Spacer(Modifier.height(10.dp))
                 Text("Lingua delle risposte", style = MaterialTheme.typography.labelLarge)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Chip("Italiano", settings.language == "it") { viewModel.setLanguage("it") }
@@ -387,7 +395,7 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         onClick = {
-                            val name = "BIG-B-AI-backup-" +
+                            val name = "ITAGPT-backup-" +
                                 SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date()) + ".bkb"
                             createBackup.launch(name)
                         },
@@ -399,7 +407,7 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit) {
                 Spacer(Modifier.height(8.dp))
                 SwitchRow(
                     "Includi dati dei progetti",
-                    "Memoria, chat e configurazioni di BIG B Code.",
+                    "Memoria, chat e configurazioni di ITAGPT Code.",
                     settings.backupIncludeProjects,
                 ) { viewModel.setBackupIncludeProjects(it) }
                 SwitchRow(
@@ -418,7 +426,7 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit) {
                 )
             }
 
-            SectionCard("BIG B Code") {
+            SectionCard("ITAGPT Code") {
                 SwitchRow(
                     "Consenti rete nei progetti",
                     "Disattivato per impostazione predefinita. Riguarda solo la sandbox dei progetti.",

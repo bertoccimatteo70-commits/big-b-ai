@@ -270,7 +270,7 @@ private fun PrivacyStep() {
         "L'inferenza avviene sul dispositivo: le conversazioni non vengono inviate a servizi esterni.",
         "Il database locale è cifrato con una chiave protetta da Android Keystore.",
         "Non servono account né login.",
-        "BIG B Code non ha accesso alla rete se non lo autorizzi esplicitamente.",
+        "ITAGPT Code non ha accesso alla rete se non lo autorizzi esplicitamente.",
         "Puoi disattivare la memoria in qualsiasi momento dalle impostazioni.",
     ).forEach { line ->
         Row(
@@ -320,7 +320,7 @@ private fun ModelStep(
         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
             Text(
                 "Nessun modello compatibile con la memoria disponibile. Potrai comunque usare " +
-                    "BIG B Code e le funzioni locali.",
+                    "ITAGPT Code e le funzioni locali.",
                 modifier = Modifier.padding(16.dp),
                 style = MaterialTheme.typography.bodyMedium,
             )

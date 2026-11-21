@@ -101,6 +101,13 @@ interface MessageDao {
     @Query("DELETE FROM messages WHERE id = :id")
     suspend fun delete(id: Long)
 
+    @Query("UPDATE messages SET content = :content WHERE id = :id")
+    suspend fun updateContent(id: Long, content: String)
+
+    /** Drops every message created after [id] in the same conversation. */
+    @Query("DELETE FROM messages WHERE conversationId = :conversationId AND id > :id")
+    suspend fun deleteAfter(conversationId: Long, id: Long)
+
     @Query("SELECT COUNT(*) FROM messages WHERE conversationId = :conversationId")
     suspend fun countForConversation(conversationId: Long): Int
 

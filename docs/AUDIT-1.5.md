@@ -1,4 +1,4 @@
-# BIG B AI 1.5.0 — Audit: retrieval locale, precisione, BIG B Code e APK da 200 MiB
+# ITAGPT 1.5.0 — Audit: retrieval locale, precisione, ITAGPT Code e APK da 200 MiB
 
 Data: 21 novembre 2026. Versione `1.5.0` (versionCode 6), variante debug
 `com.bigbai.app.debug`.
@@ -18,7 +18,7 @@ di almeno 200 MiB: la sezione 7 riporta la misura reale, non una stima.
 | Modello di embedding nell'APK | assente | **multilingual-e5-small Q8_0** (132.439.008 byte) |
 | Ricerca nel contesto | solo memoria recente e PDF corrente | **retrieval semantico** su documenti e memorie, filtrato per conversazione |
 | Controlli deterministici | nessuno | calcolatrice verificata + controllo italiano + quality gate con una riscrittura |
-| BIG B Code | agente con 5 strumenti | + analisi multi-file, duplicati, dipendenze mancanti, report modifiche, sandbox automatica, test |
+| ITAGPT Code | agente con 5 strumenti | + analisi multi-file, duplicati, dipendenze mancanti, report modifiche, sandbox automatica, test |
 | Diagnostica | assente | schermata con motore, RAM, CPU, metriche, integrità del modello, indice |
 | APK debug | 115.341.878 byte | **248.660.875 byte (237,14 MiB)** |
 | Lint | 0 errori, 66 warning | 0 errori, 66 warning |
@@ -176,7 +176,7 @@ viene quindi dichiarato alcun punteggio di grammatica, comprensione o coerenza.
 
 ---
 
-## 5. BIG B Code
+## 5. ITAGPT Code
 
 - **Analisi multi-file** (`ProjectInsights`): fino a 200 file e 600.000 caratteri per
   analisi; rileva blocchi duplicati (finestre di 8 righe normalizzate), dipendenze
@@ -211,7 +211,7 @@ viene quindi dichiarato alcun punteggio di grammatica, comprensione o coerenza.
   sono stati usati per l'ultima risposta.
 - **Impostazioni**: repetition penalty e min-p regolabili con impostazioni avanzate;
   interruttore della memoria semantica.
-- **Interfaccia**: nuova voce “Diagnostica” nel menu, azioni rapide in BIG B Code,
+- **Interfaccia**: nuova voce “Diagnostica” nel menu, azioni rapide in ITAGPT Code,
   nota di qualità sotto la risposta quando il controllo interviene. Le bolle della
   chat restano bianche `#FFFFFF` con testo nero `#000000`, angoli arrotondati e
   codice monospaziato; il font resta Tinos.
@@ -228,7 +228,7 @@ animazioni e resa del font. Non viene dichiarato un risultato visivo.
 
 | Campo | Valore |
 |---|---|
-| File | `BIG-B-AI-debug-1.5.0.apk` |
+| File | `ITAGPT-debug-1.5.0.apk` |
 | Versione | 1.5.0-debug (versionCode 6) |
 | Dimensione | **248.075.965 byte (236,58 MiB)** |
 | Requisito 200 MiB | **soddisfatto** (209.715.200 byte) |
@@ -297,7 +297,7 @@ Il workflow `.github/workflows/android.yml` esegue: JDK 17, Android SDK 35, NDK 
 CMake, fetch di llama.cpp, fetch del modello di embedding con verifica SHA-256,
 build nativa delle tre ABI, test dei quattro moduli, lint, `assembleDebug`,
 packaging con controllo ≥200 MiB, firma/manifest/ABI, SHA-256, upload
-dell'artifact **BIG-B-AI-Debug-APK** (APK + `.sha256` + `.txt`, retention 30
+dell'artifact **ITAGPT-Debug-APK** (APK + `.sha256` + `.txt`, retention 30
 giorni). Il workflow fallisce se il controllo di dimensione fallisce.
 
 Esito della run [44904141926](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44904141926)
@@ -306,7 +306,7 @@ assemble, verifica ≥200 MiB, upload).
 
 | Dato artifact | Valore |
 |---|---|
-| Nome | `BIG-B-AI-Debug-APK` |
+| Nome | `ITAGPT-Debug-APK` |
 | ID | 14707228365 |
 | ZIP | 167.696.447 byte, SHA-256 `9f943a36f040dc8d1c9441dcf0b095a60546612e1e4c9aa300b24fa1be1b9232` |
 | APK | 248.075.965 byte (236,58 MiB) |
@@ -338,7 +338,7 @@ dell'artifact.
    memoria privata. Su dispositivi con poca RAM il modello viene scaricato sotto
    pressione e il retrieval torna lessicale.
 5. **Nessuna GPU.** Solo CPU.
-6. **Nessun compilatore Java/C++ sul dispositivo.** BIG B Code analizza ed esegue
+6. **Nessun compilatore Java/C++ sul dispositivo.** ITAGPT Code analizza ed esegue
    HTML/JS, non compila.
 7. **Solo debug.** Firma `CN=Android Debug`, nessun AAB, nessuna release firmata.
 8. **Copertura JVM non ricalcolata.** L'ultima misura (1.3.0) era 8,0%; i nuovi

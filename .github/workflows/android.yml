@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   debug-apk:
-    name: Universal debug APK (3 ABIs, ≥200 MiB, bundled embedding model)
+    name: ITAGPT universal debug APK (3 ABIs, bundled embedding model)
     runs-on: ubuntu-latest
     timeout-minutes: 150
     steps:
@@ -69,16 +69,45 @@ jobs:
       - name: Assemble debug APK
         run: ./gradlew --no-daemon assembleDebug
 
-      - name: Verify APK, ABI and size, write checksum
+      # The packaging step is also the gate: it fails if an ABI, the embedding
+      # model, its SHA-256, the signature or the manifest is wrong, and it is
+      # the only place that names and hashes the file users download.
+      - name: Verify APK, ABIs, model and write checksum + build report
         run: bash scripts/package-debug-apk.sh
+
+      - name: Confirm the APK and checksum are readable and non-empty
+        run: |
+          set -euo pipefail
+          APK="$(ls dist/ITAGPT-debug-*.apk | head -1)"
+          SUM="${APK}.sha256"
+          test -s "$APK"
+          test -s "$SUM"
+          (cd dist && sha256sum -c "$(basename "$SUM")")
+          echo "APK: $APK" >> "$GITHUB_STEP_SUMMARY"
+          echo "Size: $(stat -c%s "$APK") bytes" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat "$SUM" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: BIG-B-AI-Debug-APK
+          name: ITAGPT-Debug-APK
           path: |
-            dist/BIG-B-AI-debug-*.apk
-            dist/BIG-B-AI-debug-*.apk.sha256
-            dist/BIG-B-AI-debug-*.txt
+            dist/ITAGPT-debug-*.apk
+            dist/ITAGPT-debug-*.apk.sha256
+            dist/ITAGPT-debug-*.txt
           retention-days: 30
           if-no-files-found: error
+
+      - name: Upload test and lint reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ITAGPT-CI-Reports
+          path: |
+            */build/test-results/testDebugUnitTest/*.xml
+            app/build/reports/lint-results-debug.txt
+            app/build/reports/lint-results-debug.html
+          retention-days: 30
+          if-no-files-found: warn

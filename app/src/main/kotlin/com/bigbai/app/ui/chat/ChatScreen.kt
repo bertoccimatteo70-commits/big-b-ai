@@ -1,5 +1,8 @@
 package com.bigbai.app.ui.chat
 
+import android.app.Activity
+import android.content.Intent
+import android.speech.RecognizerIntent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -38,6 +41,7 @@ import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Menu
+import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.School
@@ -68,6 +72,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -90,14 +95,17 @@ import androidx.compose.ui.unit.dp
 import com.bigbai.app.AppContainer
 import com.bigbai.app.files.FileExport
 import com.bigbai.app.ui.LocalAppDrawer
-import com.bigbai.app.ui.theme.BigBBrand
+import com.bigbai.app.voice.SpeechPlayer
+import com.bigbai.app.ui.theme.ItaGptBrand
 import com.bigbai.core.lang.LanguageCoach
 import com.bigbai.core.model.AppSettings
 import com.bigbai.core.model.Attachment
 import com.bigbai.core.model.ChatMessage
 import com.bigbai.core.model.Conversation
 import com.bigbai.core.model.Role
+import com.bigbai.llm.AnswerSanitizer
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -120,12 +128,23 @@ fun ChatScreen(
     val focusManager = LocalFocusManager.current
     val haptics = LocalHapticFeedback.current
     val listState = rememberLazyListState()
+    val speechPlayer = remember { SpeechPlayer(context) }
+    var speakingMessageId by remember { mutableStateOf<Long?>(null) }
+    val speechLanguageTag = if (settings.language.startsWith("it")) {
+        "it-IT"
+    } else {
+        Locale.getDefault().toLanguageTag()
+    }
+    DisposableEffect(Unit) {
+        onDispose { speechPlayer.shutdown() }
+    }
 
     var showModelMenu by remember { mutableStateOf(false) }
     var showOverflow by remember { mutableStateOf(false) }
     var showAttachmentMenu by remember { mutableStateOf(false) }
     var metricsExpanded by remember { mutableStateOf(settings.showPerfPanel) }
     var pendingDelete by remember { mutableStateOf<Conversation?>(null) }
+    var editingMessage by remember { mutableStateOf<ChatMessage?>(null) }
     var stickToBottom by remember { mutableStateOf(true) }
 
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -133,6 +152,16 @@ fun ChatScreen(
     }
     val pdfPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) viewModel.attach(uri)
+    }
+    // System dictation: the recognizer app owns the microphone permission, so
+    // ITAGPT does not need RECORD_AUDIO and never records audio itself.
+    val dictation = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                ?.firstOrNull()
+                ?.takeIf { it.isNotBlank() }
+                ?.let(viewModel::onInputChange)
+        }
     }
 
     // Follow new content only while the user is reading the end of the chat.
@@ -165,7 +194,7 @@ fun ChatScreen(
         val extension = FileExport.extensionFor(message.content)
         val name = FileExport.suggestedFileName(currentTitle ?: "risposta", extension, message.createdAt)
         FileExport.saveToDownloads(context, name, FileExport.mimeFor(extension), message.content)
-            .onSuccess { Toast.makeText(context, "Salvato in Download/BIG B AI/$name", Toast.LENGTH_LONG).show() }
+            .onSuccess { Toast.makeText(context, "Salvato in Download/ITAGPT/$name", Toast.LENGTH_LONG).show() }
             .onFailure { error ->
                 Toast.makeText(context, error.message ?: "Salvataggio non riuscito", Toast.LENGTH_LONG).show()
             }
@@ -180,24 +209,93 @@ fun ChatScreen(
             }
     }
 
-    fun exportConversation() {
+    fun startDictation() {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, speechLanguageTag)
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Parla: il testo viene inserito nella chat")
+        }
+        runCatching { dictation.launch(intent) }.onFailure {
+            Toast.makeText(
+                context,
+                "Riconoscimento vocale non disponibile: installa o abilita un servizio di dettatura.",
+                Toast.LENGTH_LONG,
+            ).show()
+        }
+    }
+
+    /** format: "md", "txt" or "pdf". Each one writes a real file. */
+    fun exportConversation(format: String) {
         if (state.messages.isEmpty()) return
-        val markdown = buildString {
-            appendLine("# ${currentTitle ?: "Conversazione"}")
-            appendLine()
-            state.messages.forEach { message ->
-                appendLine(if (message.role == Role.USER) "## Utente" else "## AI")
-                appendLine()
-                appendLine(message.content)
-                appendLine()
+        val title = currentTitle ?: "Conversazione"
+        val extension = when (format) {
+            "txt" -> "txt"
+            "pdf" -> "pdf"
+            else -> "md"
+        }
+        val name = FileExport.suggestedFileName(currentTitle, extension, System.currentTimeMillis())
+        val result = runCatching {
+            when (format) {
+                "txt" -> FileExport.saveToDownloads(
+                    context,
+                    name,
+                    FileExport.MIME_TEXT,
+                    FileExport.conversationPlainText(title, state.messages),
+                ).getOrThrow()
+                "pdf" -> FileExport.saveBytesToDownloads(
+                    context,
+                    name,
+                    FileExport.MIME_PDF,
+                    FileExport.conversationPdf(title, state.messages),
+                ).getOrThrow()
+                else -> FileExport.saveToDownloads(
+                    context,
+                    name,
+                    FileExport.MIME_MARKDOWN,
+                    FileExport.conversationMarkdown(title, state.messages),
+                ).getOrThrow()
             }
         }
-        val name = FileExport.suggestedFileName(currentTitle, "md", System.currentTimeMillis())
-        FileExport.saveToDownloads(context, name, FileExport.MIME_MARKDOWN, markdown)
-            .onSuccess { Toast.makeText(context, "Conversazione salvata in Download/BIG B AI/$name", Toast.LENGTH_LONG).show() }
+        result
+            .onSuccess { Toast.makeText(context, "Conversazione salvata in Download/ITAGPT/$name", Toast.LENGTH_LONG).show() }
             .onFailure { error ->
                 Toast.makeText(context, error.message ?: "Esportazione non riuscita", Toast.LENGTH_LONG).show()
             }
+    }
+
+    editingMessage?.let { message ->
+        var draft by remember(message.id) { mutableStateOf(message.content) }
+        AlertDialog(
+            onDismissRequest = { editingMessage = null },
+            title = { Text("Modifica messaggio") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = draft,
+                        onValueChange = { draft = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 3,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Salvando, la risposta successiva viene eliminata e rigenerata con il nuovo testo.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val value = draft
+                        editingMessage = null
+                        viewModel.editMessage(message, value)
+                    },
+                    enabled = draft.isNotBlank(),
+                ) { Text("Salva e rigenera") }
+            },
+            dismissButton = { TextButton(onClick = { editingMessage = null }) { Text("Annulla") } },
+        )
     }
 
     pendingDelete?.let { conversation ->
@@ -235,7 +333,7 @@ fun ChatScreen(
                                         .padding(end = 6.dp)
                                         .size(6.dp)
                                         .background(
-                                            if (state.modelReady) BigBBrand.Success else MaterialTheme.colorScheme.outline,
+                                            if (state.modelReady) ItaGptBrand.Success else MaterialTheme.colorScheme.outline,
                                             CircleShape,
                                         ),
                                 )
@@ -255,6 +353,16 @@ fun ChatScreen(
                         }
                     },
                     actions = {
+                        if (speakingMessageId != null) {
+                            IconButton(
+                                onClick = {
+                                    speechPlayer.stop()
+                                    speakingMessageId = null
+                                },
+                            ) {
+                                Icon(Icons.Outlined.Stop, contentDescription = "Interrompi la lettura")
+                            }
+                        }
                         Box {
                             IconButton(onClick = { showModelMenu = true }) {
                                 Icon(Icons.Outlined.Tune, contentDescription = "Seleziona modello")
@@ -317,14 +425,24 @@ fun ChatScreen(
                                     onClick = { showOverflow = false; onOpenMemory() },
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("BIG B Code") },
+                                    text = { Text("ITAGPT Code") },
                                     leadingIcon = { Icon(Icons.Outlined.Psychology, null) },
                                     onClick = { showOverflow = false; onOpenCode() },
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("Esporta conversazione") },
+                                    text = { Text("Esporta Markdown") },
                                     leadingIcon = { Icon(Icons.Outlined.Description, null) },
-                                    onClick = { showOverflow = false; exportConversation() },
+                                    onClick = { showOverflow = false; exportConversation("md") },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Esporta TXT") },
+                                    leadingIcon = { Icon(Icons.Outlined.Description, null) },
+                                    onClick = { showOverflow = false; exportConversation("txt") },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Esporta PDF") },
+                                    leadingIcon = { Icon(Icons.Outlined.Description, null) },
+                                    onClick = { showOverflow = false; exportConversation("pdf") },
                                 )
                                 DropdownMenuItem(
                                     text = { Text("Impostazioni") },
@@ -355,6 +473,7 @@ fun ChatScreen(
                     },
                     onRemoveAttachment = viewModel::removeAttachment,
                     onAttachClick = { showAttachmentMenu = true },
+                    onDictate = { startDictation() },
                 )
                 AttachmentMenu(
                     expanded = showAttachmentMenu,
@@ -421,6 +540,44 @@ fun ChatScreen(
                                 },
                                 onSaveFile = { saveMessage(message) },
                                 onShare = { shareMessage(message) },
+                                onEdit = if (message.role == Role.USER && !state.isGenerating) {
+                                    ({ editingMessage = message })
+                                } else {
+                                    null
+                                },
+                                onRegenerate = if (
+                                    message.role == Role.ASSISTANT &&
+                                    !state.isGenerating &&
+                                    message.id == state.messages.lastOrNull()?.id
+                                ) {
+                                    ({ viewModel.regenerate() })
+                                } else {
+                                    null
+                                },
+                                onSpeak = if (message.role == Role.ASSISTANT) {
+                                    ({
+                                        if (speakingMessageId == message.id) {
+                                            speechPlayer.stop()
+                                            speakingMessageId = null
+                                        } else {
+                                            val accepted = speechPlayer.speak(
+                                                AnswerSanitizer.clean(message.content),
+                                                speechLanguageTag,
+                                            )
+                                            if (accepted) {
+                                                speakingMessageId = message.id
+                                            } else {
+                                                Toast.makeText(
+                                                    context,
+                                                    "Sintesi vocale non disponibile su questo dispositivo.",
+                                                    Toast.LENGTH_LONG,
+                                                ).show()
+                                            }
+                                        }
+                                    })
+                                } else {
+                                    null
+                                },
                             )
                         }
                         if (state.isGenerating) {
@@ -589,7 +746,7 @@ private fun EmptyChat(tutorLabel: String?, onSuggestion: (String) -> Unit) {
             modifier = Modifier
                 .size(76.dp)
                 .background(
-                    Brush.linearGradient(listOf(BigBBrand.Indigo, BigBBrand.Cyan)),
+                    Brush.linearGradient(listOf(ItaGptBrand.Indigo, ItaGptBrand.Cyan)),
                     RoundedCornerShape(24.dp),
                 ),
             contentAlignment = Alignment.Center,
@@ -658,6 +815,7 @@ private fun Composer(
     onStop: () -> Unit,
     onRemoveAttachment: (Attachment) -> Unit,
     onAttachClick: () -> Unit,
+    onDictate: () -> Unit,
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surface,
@@ -704,6 +862,9 @@ private fun Composer(
                 }
             }
             Row(verticalAlignment = Alignment.Bottom) {
+                IconButton(onClick = onDictate, modifier = Modifier.size(44.dp)) {
+                    Icon(Icons.Outlined.Mic, contentDescription = "Dettatura vocale")
+                }
                 IconButton(onClick = onAttachClick, modifier = Modifier.size(44.dp)) {
                     Icon(Icons.Outlined.AttachFile, contentDescription = "Allega")
                 }

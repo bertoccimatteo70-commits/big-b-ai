@@ -23,7 +23,7 @@ import com.bigbai.core.model.ThemeMode
  * identical widths and proportions, legally redistributable. Times New Roman
  * itself is proprietary and cannot be bundled in an APK.
  */
-val BigBSerif: FontFamily = FontFamily(
+val ItaGptSerif: FontFamily = FontFamily(
     Font(R.font.tinos_regular, FontWeight.Normal, FontStyle.Normal),
     Font(R.font.tinos_bold, FontWeight.Bold, FontStyle.Normal),
     Font(R.font.tinos_italic, FontWeight.Normal, FontStyle.Italic),
@@ -31,12 +31,12 @@ val BigBSerif: FontFamily = FontFamily(
 )
 
 /**
- * BIG B AI visual identity: deep indigo for actions, cyan for live/AI states,
+ * ITAGPT visual identity: deep indigo for actions, cyan for live/AI states,
  * a near-white canvas in light mode and a navy canvas in dark mode. Colours are
  * intentionally few and reused through Material roles so every screen stays
  * coherent without per-screen hex values.
  */
-object BigBBrand {
+object ItaGptBrand {
     val Indigo = Color(0xFF3B5BFF)
     val IndigoDeep = Color(0xFF1B2A6B)
     val Cyan = Color(0xFF12B8C7)
@@ -100,71 +100,71 @@ private val DarkScheme = darkColorScheme(
     scrim = Color.Black,
 )
 
-private val BigBAiTypography = Typography(
+private val ItaGptTypography = Typography(
     headlineLarge = TextStyle(
-        fontFamily = BigBSerif,
+        fontFamily = ItaGptSerif,
         fontWeight = FontWeight.SemiBold,
         fontSize = 30.sp,
         lineHeight = 36.sp,
         letterSpacing = (-0.3).sp,
     ),
     headlineMedium = TextStyle(
-        fontFamily = BigBSerif,
+        fontFamily = ItaGptSerif,
         fontWeight = FontWeight.SemiBold,
         fontSize = 26.sp,
         lineHeight = 32.sp,
         letterSpacing = (-0.2).sp,
     ),
     headlineSmall = TextStyle(
-        fontFamily = BigBSerif,
+        fontFamily = ItaGptSerif,
         fontWeight = FontWeight.SemiBold,
         fontSize = 22.sp,
         lineHeight = 28.sp,
         letterSpacing = (-0.1).sp,
     ),
     titleLarge = TextStyle(
-        fontFamily = BigBSerif,
+        fontFamily = ItaGptSerif,
         fontWeight = FontWeight.SemiBold,
         fontSize = 20.sp,
         lineHeight = 26.sp,
         letterSpacing = (-0.1).sp,
     ),
     titleMedium = TextStyle(
-        fontFamily = BigBSerif,
+        fontFamily = ItaGptSerif,
         fontWeight = FontWeight.SemiBold,
         fontSize = 16.sp,
         lineHeight = 22.sp,
     ),
     titleSmall = TextStyle(
-        fontFamily = BigBSerif,
+        fontFamily = ItaGptSerif,
         fontWeight = FontWeight.SemiBold,
         fontSize = 15.sp,
         lineHeight = 20.sp,
     ),
-    bodyLarge = TextStyle(fontFamily = BigBSerif, fontSize = 16.sp, lineHeight = 24.sp),
-    bodyMedium = TextStyle(fontFamily = BigBSerif, fontSize = 14.sp, lineHeight = 21.sp),
-    bodySmall = TextStyle(fontFamily = BigBSerif, fontSize = 12.5.sp, lineHeight = 18.sp),
+    bodyLarge = TextStyle(fontFamily = ItaGptSerif, fontSize = 16.sp, lineHeight = 24.sp),
+    bodyMedium = TextStyle(fontFamily = ItaGptSerif, fontSize = 14.sp, lineHeight = 21.sp),
+    bodySmall = TextStyle(fontFamily = ItaGptSerif, fontSize = 12.5.sp, lineHeight = 18.sp),
     labelLarge = TextStyle(
-        fontFamily = BigBSerif,
+        fontFamily = ItaGptSerif,
         fontWeight = FontWeight.Medium,
         fontSize = 14.sp,
         lineHeight = 20.sp,
     ),
     labelMedium = TextStyle(
-        fontFamily = BigBSerif,
+        fontFamily = ItaGptSerif,
         fontWeight = FontWeight.Medium,
         fontSize = 12.sp,
         lineHeight = 16.sp,
     ),
     labelSmall = TextStyle(
-        fontFamily = BigBSerif,
+        fontFamily = ItaGptSerif,
         fontWeight = FontWeight.Medium,
         fontSize = 11.sp,
         lineHeight = 15.sp,
     ),
 )
 
-private val BigBAiShapes = Shapes(
+private val ItaGptShapes = Shapes(
     extraSmall = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
     small = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
     medium = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
@@ -173,7 +173,7 @@ private val BigBAiShapes = Shapes(
 )
 
 @Composable
-fun BigBAiTheme(mode: ThemeMode, content: @Composable () -> Unit) {
+fun ItaGptTheme(mode: ThemeMode, content: @Composable () -> Unit) {
     val dark = when (mode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
         ThemeMode.LIGHT -> false
@@ -181,8 +181,8 @@ fun BigBAiTheme(mode: ThemeMode, content: @Composable () -> Unit) {
     }
     MaterialTheme(
         colorScheme = if (dark) DarkScheme else LightScheme,
-        typography = BigBAiTypography,
-        shapes = BigBAiShapes,
+        typography = ItaGptTypography,
+        shapes = ItaGptShapes,
         content = content,
     )
 }

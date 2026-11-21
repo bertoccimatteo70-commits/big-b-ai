@@ -17,6 +17,8 @@ data class AppSettings(
     val onboardingComplete: Boolean = false,
     val language: String = "system",
     val theme: ThemeMode = ThemeMode.SYSTEM,
+    /** App-wide text scale: 1.0 is the system default. */
+    val fontScale: Float = 1f,
     val memoryEnabled: Boolean = true,
     val confirmMemoryWrites: Boolean = true,
     val ramMode: RamMode = RamMode.NORMAL,

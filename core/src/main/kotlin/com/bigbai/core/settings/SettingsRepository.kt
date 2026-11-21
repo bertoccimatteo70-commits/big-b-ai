@@ -37,6 +37,7 @@ class SettingsRepository(private val context: Context) {
     suspend fun setOnboardingComplete(value: Boolean) = update { it.copy(onboardingComplete = value) }
     suspend fun setLanguage(value: String) = update { it.copy(language = value) }
     suspend fun setTheme(value: ThemeMode) = update { it.copy(theme = value) }
+    suspend fun setFontScale(value: Float) = update { it.copy(fontScale = value.coerceIn(0.85f, 1.30f)) }
     suspend fun setMemoryEnabled(value: Boolean) = update { it.copy(memoryEnabled = value) }
     suspend fun setConfirmMemoryWrites(value: Boolean) = update { it.copy(confirmMemoryWrites = value) }
     suspend fun setRamMode(value: RamMode) = update { it.copy(ramMode = value) }
@@ -59,7 +60,7 @@ class SettingsRepository(private val context: Context) {
     suspend fun setSemanticMemoryEnabled(value: Boolean) = update { it.copy(semanticMemoryEnabled = value) }
 
     /**
-     * BIG B Code daily quota, stored as raw values so the core module does not
+     * ITAGPT Code daily quota, stored as raw values so the core module does not
      * depend on the code module. The date is a local ISO day (yyyy-MM-dd).
      */
     val codeQuota: Flow<Pair<String?, Int>> = context.settingsDataStore.data.map { prefs ->
@@ -82,6 +83,7 @@ class SettingsRepository(private val context: Context) {
         private val KEY_ONBOARDING = booleanPreferencesKey("onboarding_complete")
         private val KEY_LANGUAGE = stringPreferencesKey("language")
         private val KEY_THEME = stringPreferencesKey("theme")
+        private val KEY_FONT_SCALE = floatPreferencesKey("font_scale")
         private val KEY_MEMORY = booleanPreferencesKey("memory_enabled")
         private val KEY_CONFIRM_MEMORY = booleanPreferencesKey("confirm_memory")
         private val KEY_RAM_MODE = stringPreferencesKey("ram_mode")
@@ -122,6 +124,7 @@ class SettingsRepository(private val context: Context) {
             onboardingComplete = this[KEY_ONBOARDING] ?: false,
             language = this[KEY_LANGUAGE] ?: "system",
             theme = runCatching { ThemeMode.valueOf(this[KEY_THEME] ?: "SYSTEM") }.getOrDefault(ThemeMode.SYSTEM),
+            fontScale = (this[KEY_FONT_SCALE] ?: 1f).coerceIn(0.85f, 1.30f),
             memoryEnabled = this[KEY_MEMORY] ?: true,
             confirmMemoryWrites = this[KEY_CONFIRM_MEMORY] ?: true,
             ramMode = runCatching { RamMode.valueOf(this[KEY_RAM_MODE] ?: "NORMAL") }.getOrDefault(RamMode.NORMAL),
@@ -163,6 +166,7 @@ class SettingsRepository(private val context: Context) {
             this[KEY_ONBOARDING] = s.onboardingComplete
             this[KEY_LANGUAGE] = s.language
             this[KEY_THEME] = s.theme.name
+            this[KEY_FONT_SCALE] = s.fontScale
             this[KEY_MEMORY] = s.memoryEnabled
             this[KEY_CONFIRM_MEMORY] = s.confirmMemoryWrites
             this[KEY_RAM_MODE] = s.ramMode.name

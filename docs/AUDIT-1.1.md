@@ -1,4 +1,4 @@
-# BIG B AI 1.1.0 — Audit tecnico
+# ITAGPT 1.1.0 — Audit tecnico
 
 Questo documento riporta ciò che è stato realmente analizzato, modificato e verificato in questa
 iterazione. Non contiene stime presentate come misure: dove non è stato possibile eseguire una
@@ -114,7 +114,7 @@ prompt, filtro della lingua, deduplica e formato delle lezioni.
   testi esplicativi su cosa è reale e cosa no.
 - **Memoria**: stato vuoto progettato, card con bordo, categorie e ricerca invariate.
 - **Modelli**: nota di compatibilità RAM accanto al budget reale.
-- **BIG B Code**: composer ridisegnato, card introduttiva, tab e diagnostica invariati nella
+- **ITAGPT Code**: composer ridisegnato, card introduttiva, tab e diagnostica invariati nella
   sostanza (nessuna funzione rimossa).
 - **Navigazione**: transizioni fade/slide brevi (0 ms con "Riduci animazioni"), `BackHandler` che
   chiude prima il drawer della cronologia.
@@ -176,7 +176,7 @@ bash scripts/package-debug-apk.sh
 
 | Campo | Valore |
 |---|---|
-| APK | `dist/BIG-B-AI-debug-1.1.0.apk` |
+| APK | `dist/ITAGPT-debug-1.1.0.apk` |
 | Dimensione | 92.815.874 byte (88,5 MiB) |
 | SHA-256 | `c118030f529aed115b99e10da64b5ec891e9cc13ff936cae90c7388450a3764c` |
 | Versione | 1.1.0-debug, versionCode 2 |
@@ -189,7 +189,7 @@ libreria nativa ricompilata: **+711.916 byte**. Non è stato aggiunto peso fitti
 
 La CI (`.github/workflows/android.yml`) non è stata modificata: continua a costruire il nativo,
 eseguire i test JVM, produrre l'APK debug, verificare la presenza di `libbigbai.so`, calcolare lo
-SHA-256 e caricare l'artifact **BIG-B-AI-Debug-APK** (retention 30 giorni).
+SHA-256 e caricare l'artifact **ITAGPT-Debug-APK** (retention 30 giorni).
 
 ## 8. Limiti residui
 
@@ -197,7 +197,7 @@ SHA-256 e caricare l'artifact **BIG-B-AI-Debug-APK** (retention 30 giorni).
    notifiche restano non eseguiti su dispositivo.
 2. **Solo arm64-v8a, Android 12+, CPU**: nessuna GPU/Vulkan, nessun modello incluso.
 3. **Nessun OCR**: i PDF scansionati restano non leggibili; il messaggio lo dichiara.
-4. **Nessun compilatore Java/C++** sul dispositivo: BIG B Code fa analisi statica reale, non
+4. **Nessun compilatore Java/C++** sul dispositivo: ITAGPT Code fa analisi statica reale, non
    compilazione.
 5. **Tutor linguistico in-context**: nessun addestramento dei pesi; il lessico dipende dal formato
    emesso dal modello.

@@ -27,13 +27,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Psychology
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.SaveAlt
+import androidx.compose.material.icons.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -60,7 +63,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.bigbai.app.ui.theme.BigBSerif
+import com.bigbai.app.ui.theme.ItaGptSerif
 import com.bigbai.app.ui.theme.LocalReduceMotion
 import com.bigbai.core.model.ChatMessage
 import com.bigbai.core.model.GenerationMetrics
@@ -78,6 +81,9 @@ fun MessageBubble(
     onSaveToMemory: (() -> Unit)? = null,
     onSaveFile: (() -> Unit)? = null,
     onShare: (() -> Unit)? = null,
+    onEdit: (() -> Unit)? = null,
+    onRegenerate: (() -> Unit)? = null,
+    onSpeak: (() -> Unit)? = null,
 ) {
     val clipboard = LocalClipboardManager.current
     val isUser = message.role == Role.USER
@@ -133,7 +139,7 @@ fun MessageBubble(
                         }
                         Spacer(Modifier.height(6.dp))
                     }
-                    MarkdownText(message.content, color = bubbleText, fontFamily = BigBSerif)
+                    MarkdownText(message.content, color = bubbleText, fontFamily = ItaGptSerif)
                     if (message.sources.isNotEmpty()) {
                         Spacer(Modifier.height(8.dp))
                         CompactSources(message.sources)
@@ -191,6 +197,36 @@ fun MessageBubble(
                     Icon(
                         Icons.Outlined.Memory,
                         contentDescription = "Salva in memoria",
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (onEdit != null && isUser) {
+                IconButton(onClick = onEdit, modifier = Modifier.size(30.dp)) {
+                    Icon(
+                        Icons.Outlined.Edit,
+                        contentDescription = "Modifica messaggio",
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (onRegenerate != null && !isUser) {
+                IconButton(onClick = onRegenerate, modifier = Modifier.size(30.dp)) {
+                    Icon(
+                        Icons.Outlined.Refresh,
+                        contentDescription = "Rigenera risposta",
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (onSpeak != null && !isUser) {
+                IconButton(onClick = onSpeak, modifier = Modifier.size(30.dp)) {
+                    Icon(
+                        Icons.Outlined.VolumeUp,
+                        contentDescription = "Leggi la risposta ad alta voce",
                         modifier = Modifier.size(14.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -302,7 +338,7 @@ fun MarkdownText(
                         Text(
                             text = block.text.trim(),
                             style = MaterialTheme.typography.bodyLarge.copy(
-                                fontFamily = fontFamily ?: BigBSerif,
+                                fontFamily = fontFamily ?: ItaGptSerif,
                             ),
                             color = color,
                         )

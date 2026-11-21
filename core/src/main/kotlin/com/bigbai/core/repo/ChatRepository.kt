@@ -93,6 +93,18 @@ class ChatRepository(private val db: AppDatabase) {
         completionTokens: Int,
     ) = db.messageDao().updateAssistant(id, content, tokensPerSecond, promptTokens, completionTokens)
 
+    /** Rewrites a user message in place, then drops the answers that followed it. */
+    suspend fun editUserMessage(messageId: Long, conversationId: Long, content: String) {
+        db.messageDao().updateContent(messageId, content)
+        db.messageDao().deleteAfter(conversationId, messageId)
+    }
+
+    /** Removes generated messages after [messageId], keeping the user's turn. */
+    suspend fun deleteMessagesAfter(conversationId: Long, messageId: Long) =
+        db.messageDao().deleteAfter(conversationId, messageId)
+
+    suspend fun deleteMessage(messageId: Long) = db.messageDao().delete(messageId)
+
     suspend fun setTitle(conversationId: Long, title: String) {
         db.conversationDao().rename(conversationId, title)
         db.conversationDao().touch(conversationId, System.currentTimeMillis(), title)

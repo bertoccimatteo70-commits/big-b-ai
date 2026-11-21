@@ -12,7 +12,7 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
     <application
-        android:name=".BigBAiApplication"
+        android:name=".ItaGptApplication"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="false"
@@ -23,7 +23,7 @@
         android:localeConfig="@xml/locales_config"
         android:enableOnBackInvokedCallback="true"
         android:supportsRtl="true"
-        android:theme="@style/Theme.BigBAi"
+        android:theme="@style/Theme.ItaGpt"
         tools:targetApi="35"
         xmlns:tools="http://schemas.android.com/tools">
 
@@ -32,7 +32,7 @@
             android:exported="true"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode|locale|layoutDirection|fontScale"
             android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.BigBAi">
+            android:theme="@style/Theme.ItaGpt">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

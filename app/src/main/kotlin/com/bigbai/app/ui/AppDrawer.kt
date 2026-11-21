@@ -1,5 +1,6 @@
 package com.bigbai.app.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -25,7 +26,6 @@ import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.MenuBook
-import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Speed
@@ -40,9 +40,11 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.bigbai.app.R
 import com.bigbai.core.model.Conversation
 
 /**
@@ -61,7 +63,7 @@ private data class DrawerEntry(
 private val entries = listOf(
     DrawerEntry("Cronologia", Icons.Outlined.History, Routes.HISTORY),
     DrawerEntry("Ricerca conversazioni", Icons.Outlined.Search, Routes.SEARCH),
-    DrawerEntry("BIG B Code", Icons.Outlined.Code, Routes.CODE),
+    DrawerEntry("ITAGPT Code", Icons.Outlined.Code, Routes.CODE),
     DrawerEntry("Libreria modelli AI", Icons.Outlined.MenuBook, Routes.models(0)),
     DrawerEntry("Download modelli", Icons.Outlined.CloudDownload, Routes.models(1)),
     DrawerEntry("Modelli installati", Icons.Outlined.CheckCircle, Routes.models(2)),
@@ -102,16 +104,15 @@ fun AppDrawer(
                         .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(
-                        Icons.Outlined.Psychology,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(22.dp),
+                    Image(
+                        painter = painterResource(R.drawable.ic_itagpt_mark),
+                        contentDescription = "ITAGPT",
+                        modifier = Modifier.size(26.dp),
                     )
                 }
                 Spacer(Modifier.width(10.dp))
                 Column {
-                    Text("BIG B AI", style = MaterialTheme.typography.titleLarge)
+                    Text("ITAGPT", style = MaterialTheme.typography.titleLarge)
                     Text(
                         "Assistente locale",
                         style = MaterialTheme.typography.labelSmall,
@@ -226,7 +227,7 @@ fun AppDrawer(
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 Text(
-                    "BIG B AI ${com.bigbai.app.BuildConfig.VERSION_NAME}",
+                    "ITAGPT ${com.bigbai.app.BuildConfig.VERSION_NAME}",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

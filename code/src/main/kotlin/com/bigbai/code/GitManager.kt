@@ -24,7 +24,7 @@ data class GitCommitInfo(
 )
 
 /**
- * Versioning for BIG B Code.
+ * Versioning for ITAGPT Code.
  *
  * The Storage Access Framework does not expose a filesystem path, so JGit cannot
  * operate directly on the user's folder. Instead every commit snapshots the
@@ -64,7 +64,7 @@ class GitManager(private val context: Context) {
             }
             it.add().addFilepattern(".").call()
             it.add().setUpdate(true).addFilepattern(".").call()
-            val identity = PersonIdent("BIG B AI", "local@bigbai.app")
+            val identity = PersonIdent("ITAGPT", "local@bigbai.app")
             val commit = it.commit()
                 .setMessage(message.ifBlank { "Snapshot del progetto" })
                 .setAuthor(identity)
@@ -177,7 +177,7 @@ class GitManager(private val context: Context) {
         id = name,
         shortId = name.take(7),
         message = shortMessage,
-        author = authorIdent?.name ?: "BIG B AI",
+        author = authorIdent?.name ?: "ITAGPT",
         timestamp = commitTime.toLong() * 1000L,
     )
 }

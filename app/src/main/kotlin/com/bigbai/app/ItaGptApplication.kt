@@ -5,7 +5,7 @@ import android.content.ComponentCallbacks2
 import android.content.res.Configuration
 import kotlinx.coroutines.launch
 
-class BigBAiApplication : Application(), ComponentCallbacks2 {
+class ItaGptApplication : Application(), ComponentCallbacks2 {
 
     lateinit var container: AppContainer
         private set

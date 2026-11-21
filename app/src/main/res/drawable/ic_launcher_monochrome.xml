@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Themed (monochrome) icon: an outline instead of a filled bubble, so the "i"
+     stays legible when Android tints the whole layer with one colour. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineJoin="round"
+        android:pathData="M42,27 h24 a16,16 0 0 1 16,16 v11 a16,16 0 0 1 -16,16 h-11 l-13,11 v-11 h-0.5 a16,16 0 0 1 -15.5,-16 v-11 a16,16 0 0 1 16,-16 z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M51.6,47.5 h4.8 a1.6,1.6 0 0 1 1.6,1.6 v10.4 a1.6,1.6 0 0 1 -1.6,1.6 h-4.8 a1.6,1.6 0 0 1 -1.6,-1.6 v-10.4 a1.6,1.6 0 0 1 1.6,-1.6 z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,40 m-4.2,0 a4.2,4.2 0 1,0 8.4,0 a4.2,4.2 0 1,0 -8.4,0" />
+</vector>

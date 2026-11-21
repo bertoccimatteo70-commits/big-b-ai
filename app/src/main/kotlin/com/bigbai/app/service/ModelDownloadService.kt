@@ -6,7 +6,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.IBinder
 import androidx.core.app.ServiceCompat
-import com.bigbai.app.BigBAiApplication
+import com.bigbai.app.ItaGptApplication
 import com.bigbai.app.Notifications
 import com.bigbai.app.R
 import com.bigbai.llm.DownloadOutcome
@@ -39,7 +39,7 @@ class ModelDownloadService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val container = (application as BigBAiApplication).container
+        val container = (application as ItaGptApplication).container
         val modelId = intent?.getStringExtra(EXTRA_MODEL_ID)
         when (intent?.action) {
             ACTION_START -> {

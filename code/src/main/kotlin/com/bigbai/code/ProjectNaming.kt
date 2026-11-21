@@ -64,7 +64,7 @@ object ProjectNaming {
             <body>
               <main>
                 <h1>$safeTitle</h1>
-                <p>Questo progetto è stato creato da BIG B Code. Modifica
+                <p>Questo progetto è stato creato da ITAGPT Code. Modifica
                   <code>$ENTRY_FILE</code> nell'editor e usa l'anteprima per vederlo.</p>
                 <p>La sandbox non ha accesso alla rete se non lo autorizzi.</p>
               </main>

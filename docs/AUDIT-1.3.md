@@ -1,4 +1,4 @@
-# Audit BIG B AI 1.3.0
+# Audit ITAGPT 1.3.0
 
 Revisione completa del repository con interventi diretti su codice, build e interfaccia.
 Ogni numero in questo documento è misurato in questo ambiente; ciò che non è stato eseguito è
@@ -40,7 +40,7 @@ llama.cpp e usata a runtime da quella architettura. `x86_64` rende l'app eseguib
 `UnsatisfiedLinkError`.
 
 **Risultato misurato sull'artifact CI** (run 44894826291, commit `606797a`):
-`BIG-B-AI-debug-1.3.0.apk` = **114.028.656 byte = 108,75 MiB = 114,03 MB**. Verificato con
+`ITAGPT-debug-1.3.0.apk` = **114.028.656 byte = 108,75 MiB = 114,03 MB**. Verificato con
 `unzip -l` dopo aver scaricato l'artifact: 735 file, 25 `classes*.dex` (74,4 MB) e sei librerie
 native reali, cioè `libbigbai.so` e `libsqlcipher.so` per ognuna delle tre ABI, per un totale di
 32,9 MB. Nella build locale gli SHA-256 dei `.so` dentro l'APK coincidono con quelli compilati in
@@ -62,7 +62,7 @@ grafo di navigazione (`AppRoot`). Contiene le dieci voci richieste:
 1. Nuova chat (azione, azzera la chat)
 2. Cronologia
 3. Ricerca conversazioni (apre la cronologia con il campo di ricerca già a fuoco)
-4. BIG B Code
+4. ITAGPT Code
 5. Libreria modelli AI
 6. Download modelli
 7. Modelli installati
@@ -71,7 +71,7 @@ grafo di navigazione (`AppRoot`). Contiene le dieci voci richieste:
 10. Informazioni sull'app
 
 Sotto le voci compaiono le sei conversazioni recenti. Il menu è raggiungibile dall'icona in alto a
-sinistra in chat, cronologia, modelli, BIG B Code, memoria, impostazioni, plugin e informazioni.
+sinistra in chat, cronologia, modelli, ITAGPT Code, memoria, impostazioni, plugin e informazioni.
 Il vecchio drawer conteneva solo la cronologia: modelli, codice e impostazioni erano nascosti in
 menu overflow.
 
@@ -116,17 +116,17 @@ realmente presenti), `ui/about/AboutScreen.kt` (versione, motore, dispositivo, p
 `#000000` e font serif** in entrambi i temi; il codice recintato mantiene un blocco monospaziato
 distinto (sfondo `#F1F3F7`, testo `#111111`). Il font è `FontFamily.Serif` di Android: Times New
 Roman non è distribuibile con l'app, quindi si usa il serif di sistema, come previsto dal
-requisito. Le stesse regole sono applicate alle bolle della chat di BIG B Code.
+requisito. Le stesse regole sono applicate alle bolle della chat di ITAGPT Code.
 
 ## 4. Autonomia dell'AI e gestione file
 
 - **Salvataggio automatico delle risposte.** Ogni bolla ha le azioni «Salva come file» e
-  «Condividi». Il nome è generato da titolo + data (`bigb-<slug>-<yyyyMMdd-HHmmss>.<ext>`) e
+  «Condividi». Il nome è generato da titolo + data (`itagpt-<slug>-<yyyyMMdd-HHmmss>.<ext>`) e
   l'estensione deriva dal primo blocco di codice (`kotlin` → `.kt`, `python` → `.py`, altrimenti
-  `.md`). Il file viene scritto in `Download/BIG B AI` via MediaStore, senza permessi di storage.
+  `.md`). Il file viene scritto in `Download/ITAGPT` via MediaStore, senza permessi di storage.
 - **Esportazione conversazione.** Il menu overflow della chat salva l'intera conversazione in
   Markdown con nome automatico.
-- **BIG B Code senza percorsi.** «Nuovo progetto» crea una cartella `progetto-<data>` nella
+- **ITAGPT Code senza percorsi.** «Nuovo progetto» crea una cartella `progetto-<data>` nella
   cartella documenti dell'app, scrive `index.html` con una pagina funzionante e apre il progetto:
   nessun selettore di cartelle, nessun nome da inventare. Resta disponibile l'apertura di una
   cartella esistente via SAF.
@@ -159,7 +159,7 @@ Interventi sul percorso UI → ViewModel → prompt → JNI → llama.cpp → sa
 |---|---|
 | Loop e ripetizioni con modelli piccoli | Aggiunto sampler di penalità (`penalty_last_n=64`, `repeat=1.12`) prima di top-k/top-p/temperatura in `bigbai_jni.cpp`. |
 | Doppio BOS | Il prompt reso dal chat template contiene già il token di inizio: `nativeBegin`/`nativeBeginVision` ora ricevono `addSpecial=false` quando il template è stato applicato (`LlamaEngine.buildPrompt` restituisce anche l'origine del prompt). |
-| Testo dopo la fine del turno | `AnswerSanitizer` (nuovo, `llm`) taglia a `<|im_end|>`, `<|im_start|>`, `<|endoftext|>`, `<|eot_id|>`, `<|end|>`, `<end_of_turn>`, `</s>`, trattiene i suffissi parziali e ferma il loop nativo. Usato in chat, in BIG B Code e nel salvataggio file. |
+| Testo dopo la fine del turno | `AnswerSanitizer` (nuovo, `llm`) taglia a `<|im_end|>`, `<|im_start|>`, `<|endoftext|>`, `<|eot_id|>`, `<|end|>`, `<end_of_turn>`, `</s>`, trattiene i suffissi parziali e ferma il loop nativo. Usato in chat, in ITAGPT Code e nel salvataggio file. |
 | EOS/EOG | Resta `llama_vocab_is_eog` nel ciclo nativo; il sanitizer copre i modelli che non dichiarano il marker come EOG. |
 | Template mancante | Fallback testuale conservato e segnalato. |
 | Streaming | `StreamingBuffer` invariato (25 fps); il testo è filtrato dal sanitizer prima della UI. |
@@ -202,7 +202,7 @@ Test: `AnswerSanitizerTest` (5 test), incluso il caso di marker spezzato tra due
 - Nessuna telemetria; rete solo per download modelli e ricerca web opzionale.
 - Nessuna nuova permission nell'manifest.
 
-### BIG B Code
+### ITAGPT Code
 
 - Aggiunto supporto `file://` in `ProjectFiles.root` per i progetti creati dall'app.
 - Nuovo progetto automatico, rinomina file, esportazione e condivisione del file aperto.
@@ -215,7 +215,7 @@ Test: `AnswerSanitizerTest` (5 test), incluso il caso di marker spezzato tra due
 - `package-debug-apk.sh` verifica la presenza di `libbigbai.so` **e** `libsqlcipher.so` per ogni
   ABI, stampa byte e MiB e **fallisce** se l'APK è sotto 100 MiB.
 - Workflow: timeout 120 minuti, build delle tre ABI, test JVM, `:app:lintDebug`, `assembleDebug`,
-  packaging e artifact `BIG-B-AI-Debug-APK` (APK + `.sha256` + `.txt`, 30 giorni).
+  packaging e artifact `ITAGPT-Debug-APK` (APK + `.sha256` + `.txt`, 30 giorni).
 - Versione: `1.3.0`, `versionCode` 4.
 
 ## 8. Misurazioni

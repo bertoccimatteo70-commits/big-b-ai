@@ -9,7 +9,7 @@ L'obiettivo è che nessuno scopra un limite solo dopo aver installato l'APK.
 |---|---|
 | Compilazione debug | Verificata in questo ambiente |
 | Test unitari JVM (200) | Verificati, 0 falliti |
-| Agente BIG B Code (parsing, limiti, quota) | Verificato con test JVM |
+| Agente ITAGPT Code (parsing, limiti, quota) | Verificato con test JVM |
 | Quota giornaliera su dispositivo reale | **Non verificata**: logica e persistenza testate, ciclo su device no |
 | Lint debug | 0 errori, 66 warning |
 | Copertura JVM (JaCoCo) | Misurata in 1.5.1: **14,7%** delle linee (1.955 coperte, 11.365 mancanti); UI, Room, PDF e backup non coperti |
@@ -39,7 +39,7 @@ implementate e compilano, ma non sono state eseguite: non vengono dichiarate "fu
 - **Limite di 5 richieste locale al dispositivo.** Non esiste account né backend: il conteggio è
   salvato in DataStore e vale solo su quel dispositivo. Disinstallare l'app o cancellarne i dati
   lo azzera. Non è un limite globale per utente.
-- **L'agente non compila.** Su Android non ci sono javac/clang: BIG B Code esegue analisi statica e
+- **L'agente non compila.** Su Android non ci sono javac/clang: ITAGPT Code esegue analisi statica e
   la sandbox HTML, non build Java/C++. Il prompt vieta al modello di dichiarare build o test
   superati, e l'app mostra solo ciò che ha eseguito davvero.
 - **Modelli piccoli e protocollo a strumenti.** Sotto ~1 B parametri il modello può sbagliare la
@@ -66,7 +66,7 @@ implementate e compilano, ma non sono state eseguite: non vengono dichiarate "fu
 - **GPU non disponibile.** Il backend Vulkan è escluso: la build di llama.cpp usata non include
   gli shader SPIR-V precompilati. Tutta l'inferenza è su CPU.
 - **Nessun compilatore Java/C++ sul dispositivo.** Android non include `javac` né `clang`.
-  BIG B Code offre analisi statica reale, non compilazione: l'interfaccia lo dichiara.
+  ITAGPT Code offre analisi statica reale, non compilazione: l'interfaccia lo dichiara.
 - **Nessun OCR.** I PDF scansionati non sono leggibili.
 - **Nessun modello di chat incluso.** L'APK contiene il motore e il modello di embedding
   multilingual-e5-small Q8_0 (132.439.008 byte, licenza MIT), usato per il retrieval locale. I
@@ -75,7 +75,7 @@ implementate e compilano, ma non sono state eseguite: non vengono dichiarate "fu
 
 ## Consegna
 
-- **Solo APK di debug.** La consegna è `BIG-B-AI-debug-1.5.0.apk`, firmato con `CN=Android Debug`:
+- **Solo APK di debug.** La consegna è `ITAGPT-debug-1.5.0.apk`, firmato con `CN=Android Debug`:
   installabile, ma non adatto a Play Store né a una distribuzione "ufficiale". Non vengono
   prodotti AAB né release firmate.
 - **APK da 237 MiB.** Il requisito di 200 MiB è soddisfatto con componenti reali (tre ABI e modello

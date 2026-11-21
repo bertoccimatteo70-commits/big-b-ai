@@ -193,7 +193,7 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    /** Copies the open file to Download/BIG B AI with its own name. */
+    /** Copies the open file to Download/ITAGPT with its own name. */
     fun exportCurrentFile() {
         val path = _state.value.openPath ?: return
         val name = path.substringAfterLast('/')
@@ -210,7 +210,7 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
             _state.update { current ->
                 result.fold(
                     onSuccess = {
-                        current.copy(status = "Esportato in Download/BIG B AI/$name", error = null)
+                        current.copy(status = "Esportato in Download/ITAGPT/$name", error = null)
                     },
                     onFailure = { error ->
                         current.copy(error = error.message ?: "Esportazione non riuscita")
@@ -393,7 +393,7 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
                 _state.update {
                     it.copy(
                         input = text,
-                        error = "Hai esaurito le 5 richieste di BIG B Code per oggi. " +
+                        error = "Hai esaurito le 5 richieste di ITAGPT Code per oggi. " +
                             "Il contatore si azzera domani; i passaggi interni non consumano richieste.",
                     )
                 }

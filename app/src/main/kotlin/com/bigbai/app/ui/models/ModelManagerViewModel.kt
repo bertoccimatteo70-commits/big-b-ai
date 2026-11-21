@@ -111,7 +111,7 @@ class ModelManagerViewModel(private val container: AppContainer) : ViewModel() {
     fun contextFor(variant: ModelVariant): Int =
         container.catalog.adaptiveContext(variant, container.deviceProfile, _state.value.budget)
 
-    /** Chat and BIG B Code are chosen independently: no silent model switch. */
+    /** Chat and ITAGPT Code are chosen independently: no silent model switch. */
     fun setActive(variant: ModelVariant) {
         viewModelScope.launch {
             container.settings.setActiveModel(variant.id)
@@ -126,7 +126,7 @@ class ModelManagerViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             container.settings.setActiveCodeModel(variant.id)
             _state.update {
-                it.copy(message = "Modello di BIG B Code: ${variant.family} ${variant.quant}")
+                it.copy(message = "Modello di ITAGPT Code: ${variant.family} ${variant.quant}")
             }
         }
     }

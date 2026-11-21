@@ -286,11 +286,68 @@ class ChatViewModel(
         container.engine.stop()
     }
 
-    fun send() {
+    fun send() = startSend(reuse = null)
+
+    /** Re-runs the last user turn after deleting the answer(s) it produced. */
+    fun regenerate() {
         val snapshot = _state.value
         if (snapshot.isGenerating) return
-        val text = snapshot.input.trim()
-        if (text.isEmpty() && snapshot.attachments.isEmpty()) return
+        viewModelScope.launch {
+            val conversationId = session.conversationId
+            if (conversationId <= 0L) return@launch
+            val messages = container.chat.messagesNow(conversationId)
+            val lastUser = messages.lastOrNull { it.role == Role.USER } ?: return@launch
+            if (messages.lastOrNull()?.id == lastUser.id) {
+                _state.update { it.copy(error = "Non c'è ancora una risposta da rigenerare.") }
+                return@launch
+            }
+            messages.filter { it.id > lastUser.id }.forEach { container.chat.deleteMessage(it.id) }
+            startSend(
+                Reuse(
+                    id = lastUser.id,
+                    conversationId = conversationId,
+                    text = lastUser.content,
+                    attachments = lastUser.attachments,
+                ),
+            )
+        }
+    }
+
+    /**
+     * Rewrites a user message and regenerates from it. The messages that
+     * followed are deleted first, so the model never sees the answer it is
+     * supposed to replace.
+     */
+    fun editMessage(message: ChatMessage, newContent: String) {
+        if (message.role != Role.USER) return
+        if (_state.value.isGenerating) {
+            _state.update { it.copy(error = "Interrompi la generazione prima di modificare un messaggio.") }
+            return
+        }
+        val text = newContent.trim()
+        if (text.isBlank()) {
+            _state.update { it.copy(error = "Il messaggio non può essere vuoto.") }
+            return
+        }
+        viewModelScope.launch {
+            container.chat.editUserMessage(message.id, message.conversationId, text)
+            startSend(Reuse(message.id, message.conversationId, text, message.attachments))
+        }
+    }
+
+    private data class Reuse(
+        val id: Long,
+        val conversationId: Long,
+        val text: String,
+        val attachments: List<Attachment>,
+    )
+
+    private fun startSend(reuse: Reuse?) {
+        val snapshot = _state.value
+        if (snapshot.isGenerating) return
+        val text = reuse?.text?.trim() ?: snapshot.input.trim()
+        val attachments = reuse?.attachments ?: snapshot.attachments
+        if (text.isEmpty() && attachments.isEmpty()) return
 
         val generation = ++generationSeq
         activeGeneration = generation
@@ -300,8 +357,8 @@ class ChatViewModel(
         generationJob = viewModelScope.launch {
             _state.update {
                 it.copy(
-                    input = "",
-                    attachments = emptyList(),
+                    input = if (reuse == null) "" else it.input,
+                    attachments = if (reuse == null) emptyList() else it.attachments,
                     error = null,
                     isGenerating = true,
                     isThinking = true,
@@ -313,16 +370,20 @@ class ChatViewModel(
                     status = "Preparazione…",
                 )
             }
-            savedState?.set(KEY_INPUT, "")
+            if (reuse == null) savedState?.set(KEY_INPUT, "")
 
             val buffer = StreamingBuffer()
-            var conversationId = session.conversationId
-            var userMessagePersisted = false
+            var conversationId = reuse?.conversationId ?: session.conversationId
+            var userMessagePersisted = reuse != null
             try {
+                if (reuse != null) {
+                    session.bind(reuse.conversationId)
+                    savedState?.set(KEY_CONVERSATION, reuse.conversationId)
+                }
                 val settings = container.settings.current()
                 val loaded = ensureModel(settings)
                 if (loaded == null) {
-                    restoreDraft(text, snapshot.attachments, generation)
+                    if (reuse == null) restoreDraft(text, attachments, generation)
                     return@launch
                 }
                 // The user may have pressed + while the model was loading.
@@ -332,12 +393,12 @@ class ChatViewModel(
                 // could miss history right after process death, before the Room
                 // collector has emitted the restored conversation.
                 val priorMessages = if (conversationId > 0L) {
-                    container.chat.messagesNow(conversationId)
+                    container.chat.messagesNow(conversationId).filter { it.id != reuse?.id }
                 } else {
                     emptyList()
                 }
 
-                val imageAttachment = snapshot.attachments.firstOrNull { it.kind == Attachment.Kind.IMAGE }
+                val imageAttachment = attachments.firstOrNull { it.kind == Attachment.Kind.IMAGE }
                 val vision = imageAttachment?.let { attachment -> loadVisionInput(attachment) }
                 if (imageAttachment != null && vision == null) {
                     _state.update {
@@ -348,7 +409,7 @@ class ChatViewModel(
                             status = null,
                         )
                     }
-                    restoreDraft(text, snapshot.attachments, generation)
+                    if (reuse == null) restoreDraft(text, attachments, generation)
                     return@launch
                 }
                 if (vision != null && !loaded.vision) {
@@ -360,7 +421,7 @@ class ChatViewModel(
                             status = null,
                         )
                     }
-                    restoreDraft(text, snapshot.attachments, generation)
+                    if (reuse == null) restoreDraft(text, attachments, generation)
                     return@launch
                 }
 
@@ -388,15 +449,17 @@ class ChatViewModel(
                 // Persist the turn only after every fallible validation passed.
                 // Otherwise a failed send would leave a user message behind and
                 // a retry would duplicate it.
-                conversationId = ensureConversation(loaded.variant.id)
-                container.chat.appendMessage(
-                    conversationId = conversationId,
-                    role = Role.USER,
-                    content = if (text.isBlank()) "(immagine allegata)" else text,
-                    modelId = loaded.variant.id,
-                    attachments = snapshot.attachments,
-                )
-                userMessagePersisted = true
+                if (reuse == null) {
+                    conversationId = ensureConversation(loaded.variant.id)
+                    container.chat.appendMessage(
+                        conversationId = conversationId,
+                        role = Role.USER,
+                        content = if (text.isBlank()) "(immagine allegata)" else text,
+                        modelId = loaded.variant.id,
+                        attachments = attachments,
+                    )
+                    userMessagePersisted = true
+                }
 
                 if (settings.memoryEnabled && text.isNotBlank()) {
                     val proposals = MemoryExtractor.propose(text)
@@ -407,7 +470,7 @@ class ChatViewModel(
 
                 // Index the document that was attached in this turn under the
                 // real conversation id, so follow-up questions can retrieve it.
-                val documents = snapshot.attachments.filter {
+                val documents = attachments.filter {
                     it.kind == Attachment.Kind.PDF && !it.extractedText.isNullOrBlank()
                 }
                 var indexError: String? = null
@@ -434,7 +497,7 @@ class ChatViewModel(
 
                 val prompt = buildPrompt(
                     userText = text,
-                    attachments = snapshot.attachments,
+                    attachments = attachments,
                     priorMessages = priorMessages,
                     sources = sources,
                     loaded = loaded,
@@ -596,7 +659,7 @@ class ChatViewModel(
                 }.onFailure { error ->
                     // A failed generation is not a final answer: the partial text
                     // is discarded and the error is shown instead.
-                    if (!userMessagePersisted) restoreDraft(text, snapshot.attachments, generation)
+                    if (!userMessagePersisted) if (reuse == null) restoreDraft(text, attachments, generation)
                     updateIfCurrent(generation) {
                         it.copy(
                             error = error.message ?: "Generazione non riuscita",
@@ -609,7 +672,7 @@ class ChatViewModel(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
-                if (!userMessagePersisted) restoreDraft(text, snapshot.attachments, generation)
+                if (!userMessagePersisted) if (reuse == null) restoreDraft(text, attachments, generation)
                 updateIfCurrent(generation) {
                     it.copy(
                         error = error.message ?: "Errore imprevisto",

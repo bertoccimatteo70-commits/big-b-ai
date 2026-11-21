@@ -10,7 +10,7 @@ data class ProposedChange(
 )
 
 /**
- * Parses the explicit change protocol BIG B Code asks the model to use.
+ * Parses the explicit change protocol ITAGPT Code asks the model to use.
  *
  * The protocol is line-oriented on purpose: JSON-escaped source code is
  * unreliable for small local models, while a delimited block is trivial to

@@ -72,7 +72,7 @@ fun AboutScreen(container: AppContainer, onBack: () -> Unit) {
             ) {
                 Column(modifier = Modifier.padding(18.dp)) {
                     Text(
-                        "BIG B AI",
+                        "ITAGPT",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -118,7 +118,7 @@ fun AboutScreen(container: AppContainer, onBack: () -> Unit) {
                         "protetta da Android Keystore.\n" +
                         "• Le uniche connessioni di rete sono il download dei modelli scelti e la ricerca web " +
                         "se la abiliti.\n" +
-                        "• BIG B Code accede solo alle cartelle che autorizzi.",
+                        "• ITAGPT Code accede solo alle cartelle che autorizzi.",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }

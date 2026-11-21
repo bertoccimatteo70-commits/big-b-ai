@@ -1,4 +1,4 @@
-# BIG B AI 1.4.0 — Audit di intelligenza, autonomia, UX e prestazioni
+# ITAGPT 1.4.0 — Audit di intelligenza, autonomia, UX e prestazioni
 
 Data: 21 novembre 2026. Versione `1.4.0` (versionCode 5), variante debug
 `com.bigbai.app.debug`.
@@ -9,7 +9,7 @@ verificate sono indicate come tali.
 
 ---
 
-## 1. BIG B Code: agente con strumenti reali
+## 1. ITAGPT Code: agente con strumenti reali
 
 La versione 1.3.0 proponeva modifiche tramite blocchi `<<<<<<< FILE:` e richiedeva
 un'approvazione esplicita per ogni file. Era un assistente di suggerimenti, non un
@@ -75,7 +75,7 @@ l'HTML. Il prompt lo dichiara e l'app non mostra mai un risultato di build inven
 - Letture, scritture, correzioni, controlli e passi interni **non** consumano.
 - Il contatore è persistente (DataStore) e si azzera al cambio di giorno locale.
 - Un errore tecnico prima di qualsiasi output del modello rimborsa la richiesta.
-- Il numero residuo è visibile nel menu laterale, nella schermata di BIG B Code e
+- Il numero residuo è visibile nel menu laterale, nella schermata di ITAGPT Code e
   nella barra del progetto; a zero il pulsante di invio è disabilitato.
 
 **Limite dichiarato:** non esiste account né backend. Il conteggio è valido solo su
@@ -121,14 +121,14 @@ installato, assente in questo ambiente.
 
 ---
 
-## 4. Modello della chat e modello di BIG B Code
+## 4. Modello della chat e modello di ITAGPT Code
 
 Sono due scelte indipendenti:
 
 - `activeModelId` per la chat;
-- `activeCodeModelId` per BIG B Code.
+- `activeCodeModelId` per ITAGPT Code.
 
-Nella scheda «Modelli installati» ogni modello ha «Usa in chat» e «Usa in BIG B
+Nella scheda «Modelli installati» ogni modello ha «Usa in chat» e «Usa in ITAGPT
 Code». Se non viene scelto un modello per il codice, l'app usa il primo modello con
 ruolo CODE e lo dichiara nella barra («… (automatico)»). Non c'è più il cambio
 silenzioso della 1.3.0, dove «Usa» impostava entrambi.
@@ -145,7 +145,7 @@ inserimento della lista. Durante la generazione si vede un indicatore animato.
   «(risposta interrotta)».
 - Errore: la risposta parziale viene scartata e si mostra l'errore; non viene
   presentata come definitiva.
-- Timeout: 180 secondi per la chat, 240 per BIG B Code; allo scadere il motore
+- Timeout: 180 secondi per la chat, 240 per ITAGPT Code; allo scadere il motore
   nativo viene fermato e l'esito è dichiarato.
 - Memoria: il buffer è una `StringBuilder`; non viene ricomposto nulla durante la
   generazione, quindi il costo di Compose per token è zero.
@@ -209,7 +209,7 @@ reale: sarebbero stime, non misure.
 | Font nell'APK | 4 file Tinos presenti in `res/font/` |
 | APK | **115.341.878 byte = 110,00 MiB = 115,34 MB** |
 | SHA-256 | `9328e4b09265cd8aa3c09639a30d9a35aa1b0490ad61f70ae64ce4c5c39781cf` |
-| Artifact CI | `BIG-B-AI-Debug-APK` della run [44898660492](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44898660492), scaricato e verificato |
+| Artifact CI | `ITAGPT-Debug-APK` della run [44898660492](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44898660492), scaricato e verificato |
 | versionCode / versionName | 5 / `1.4.0-debug` |
 
 Nuovi test aggiunti (33):

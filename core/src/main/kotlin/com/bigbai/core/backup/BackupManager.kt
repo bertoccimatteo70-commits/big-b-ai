@@ -347,7 +347,7 @@ class BackupManager(
     }
 
     companion object {
-        private val MAGIC = "BIGBAI1\n".toByteArray(Charsets.US_ASCII)
+        private val MAGIC = "ITAGPT1\n".toByteArray(Charsets.US_ASCII)
         private const val MAX_BACKUP_BYTES = 64 * 1024 * 1024
     }
 }

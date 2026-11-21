@@ -270,7 +270,7 @@ private fun LibraryTab(
             }
         }
 
-        item { SectionTitle("BIG B Code") }
+        item { SectionTitle("ITAGPT Code") }
         items(
             if (state.advanced) viewModel.variantsFor(ModelRole.CODE)
             else listOfNotNull(
@@ -465,7 +465,7 @@ private fun InstalledTab(
         }
         item {
             Text(
-                "Scegli un modello per la chat e, se vuoi, un modello diverso per BIG B Code: " +
+                "Scegli un modello per la chat e, se vuoi, un modello diverso per ITAGPT Code: " +
                     "la scelta è indipendente e sempre visibile. Il modello viene caricato al primo messaggio.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -513,9 +513,9 @@ private fun InstalledTab(
                 ) {
                     Text(
                         text = if (isCodeModel) {
-                            "BIG B Code: modello attivo"
+                            "ITAGPT Code: modello attivo"
                         } else {
-                            "BIG B Code: non selezionato"
+                            "ITAGPT Code: non selezionato"
                         },
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -525,7 +525,7 @@ private fun InstalledTab(
                         onClick = { onActivateCode(installed.variant) },
                         enabled = !isCodeModel,
                     ) {
-                        Text(if (isCodeModel) "In uso" else "Usa in BIG B Code")
+                        Text(if (isCodeModel) "In uso" else "Usa in ITAGPT Code")
                     }
                 }
             }

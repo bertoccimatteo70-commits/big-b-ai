@@ -164,7 +164,7 @@ private fun ProjectsHome(
             title = { Text("Rimuovere il progetto?") },
             text = {
                 Text(
-                    "Il progetto «${project.name}» verrà rimosso da BIG B Code. " +
+                    "Il progetto «${project.name}» verrà rimosso da ITAGPT Code. " +
                         "I file nella cartella originale non vengono toccati.",
                 )
             },
@@ -183,7 +183,7 @@ private fun ProjectsHome(
                         Icon(Icons.Outlined.Menu, contentDescription = "Menu")
                     }
                 },
-                title = { Text("BIG B Code") },
+                title = { Text("ITAGPT Code") },
             )
         },
     ) { padding ->
@@ -207,7 +207,7 @@ private fun ProjectsHome(
                         )
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            "Scrivi cosa vuoi creare: BIG B Code crea i file, scrive il codice, " +
+                            "Scrivi cosa vuoi creare: ITAGPT Code crea i file, scrive il codice, " +
                                 "controlla il risultato e corregge da solo. Non devi inventare nomi o percorsi.",
                             style = MaterialTheme.typography.bodySmall,
                         )
@@ -242,7 +242,7 @@ private fun ProjectsHome(
                 item {
                     Text(
                         "Nessun progetto. Usa «Nuovo progetto» per iniziare subito, oppure apri una " +
-                            "cartella esistente: BIG B Code riceve solo il permesso su quella cartella.",
+                            "cartella esistente: ITAGPT Code riceve solo il permesso su quella cartella.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -385,7 +385,7 @@ private fun CodeChatTab(state: CodeUiState, viewModel: CodeViewModel) {
                     Column {
                         Text(
                             "Descrivi l'obiettivo, non i file: «Crea un'app per gestire le attività». " +
-                                "BIG B Code pianifica, crea i file, scrive il codice e controlla il risultato. " +
+                                "ITAGPT Code pianifica, crea i file, scrive il codice e controlla il risultato. " +
                                 "Le eliminazioni richiedono sempre una conferma.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -436,7 +436,7 @@ private fun CodeChatTab(state: CodeUiState, viewModel: CodeViewModel) {
                             fontFamily = if (!isUser && message.content.contains("<<<<<<<")) {
                                 FontFamily.Monospace
                             } else {
-                                com.bigbai.app.ui.theme.BigBSerif
+                                com.bigbai.app.ui.theme.ItaGptSerif
                             },
                         ),
                         color = Color.Black,
@@ -459,7 +459,7 @@ private fun CodeChatTab(state: CodeUiState, viewModel: CodeViewModel) {
                             ThinkingIndicator()
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                "BIG B Code sta lavorando in autonomia…",
+                                "ITAGPT Code sta lavorando in autonomia…",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Color(0xFF4A4A4A),
                             )
@@ -1157,7 +1157,7 @@ private fun AgentStepsPanel(steps: List<AgentStep>) {
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
-                "Attività di BIG B Code",
+                "Attività di ITAGPT Code",
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
             )

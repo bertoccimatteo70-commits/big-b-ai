@@ -20,7 +20,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "BIG B AI"
+rootProject.name = "ITAGPT"
 
 include(":app")
 include(":core")
