@@ -15,9 +15,9 @@ concurrency:
 
 jobs:
   debug-apk:
-    name: Debug APK (arm64-v8a)
+    name: Debug APK (arm64-v8a, armeabi-v7a, x86_64)
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -48,16 +48,22 @@ jobs:
       - name: Fetch llama.cpp (pinned revision)
         run: bash scripts/fetch-llama.sh
 
-      - name: Build native library (arm64-v8a, CPU only)
+      - name: Build native libraries (all shipped ABIs)
+        env:
+          JOBS: 3
+          ABIS: "arm64-v8a armeabi-v7a x86_64"
         run: bash scripts/build-native.sh
 
       - name: Unit tests (JVM)
         run: ./gradlew --no-daemon :core:testDebugUnitTest :code:testDebugUnitTest :llm:testDebugUnitTest :app:testDebugUnitTest
 
+      - name: Lint (debug)
+        run: ./gradlew --no-daemon :app:lintDebug
+
       - name: Assemble debug APK
         run: ./gradlew --no-daemon assembleDebug
 
-      - name: Verify APK and write checksum
+      - name: Verify APK, ABI and size, write checksum
         run: bash scripts/package-debug-apk.sh
 
       - name: Upload debug APK artifact
@@ -67,5 +73,6 @@ jobs:
           path: |
             dist/BIG-B-AI-debug-*.apk
             dist/BIG-B-AI-debug-*.apk.sha256
+            dist/BIG-B-AI-debug-*.txt
           retention-days: 30
           if-no-files-found: error
