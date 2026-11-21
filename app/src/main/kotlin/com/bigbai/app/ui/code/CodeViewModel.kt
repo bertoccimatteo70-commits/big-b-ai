@@ -825,9 +825,9 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     /**
-     * Restores exactly the state before the last agent task: files present in
-     * the checkpoint are written back, files the task created are removed.
-     * Files the task never touched are left alone.
+     * Restores the files the last agent task touched: files present in the
+     * checkpoint are written back, files the task created are removed. Files
+     * the task never touched are left alone, including later user edits.
      */
     fun rollbackTask() {
         val project = _state.value.project ?: return
@@ -867,7 +867,9 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
             val restored = mutableListOf<String>()
             val removed = mutableListOf<String>()
             val failed = mutableListOf<String>()
-            for (path in committed) {
+            // Only files this task touched are restored: later user edits to
+            // unrelated files must survive a task rollback.
+            for (path in committed.filter { it in touched }) {
                 val content = container.git.readFileAt(project.id, target.id, path)
                 if (content == null) {
                     failed += path
