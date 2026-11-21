@@ -1,0 +1,29 @@
+name: apply-delta
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scarica e verifica
+        run: |
+          set -euo pipefail
+          curl -fsSL https://paste.rs/eqfQj -o /tmp/delta14.patch
+          echo "955fbaaf8691505da2a9d0e65abbe424e9b96dba13d15e975d47a2ec511a3f79  /tmp/delta14.patch" | sha256sum -c -
+      - name: Applica
+        run: |
+          set -euo pipefail
+          git apply --index /tmp/delta14.patch
+          git config user.name "BIG B AI"
+          git config user.email "bigbai@users.noreply.github.com"
+          git commit -m "BIG B AI 1.4.0: timeout Code rimborsato e messaggi onesti [skip ci]"
+      - name: Pubblica
+        run: git push origin HEAD:main
