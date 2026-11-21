@@ -35,7 +35,12 @@ class ProjectFiles(private val context: Context) {
         val uri = Uri.parse(treeUri)
         if (uri.scheme == "file") {
             val path = uri.path ?: return null
-            val file = File(path)
+            // A file:// root can only be one of the app-owned project folders:
+            // a corrupted database row must not expose arbitrary storage.
+            val file = runCatching { File(path).canonicalFile }.getOrNull() ?: return null
+            val bases = listOfNotNull(context.filesDir, context.getExternalFilesDir(null))
+                .map { File(it, "projects").canonicalFile }
+            if (bases.none { file.startsWith(it) }) return null
             return if (file.isDirectory) DocumentFile.fromFile(file) else null
         }
         return runCatching { DocumentFile.fromTreeUri(context, uri) }
@@ -44,14 +49,7 @@ class ProjectFiles(private val context: Context) {
     }
 
     /** Returns a normalised relative path, or null when it is unsafe. */
-    fun sanitize(path: String): String? {
-        val normalised = path.replace('\\', '/').trim().removePrefix("/")
-        if (normalised.isBlank()) return null
-        if (normalised.contains("..")) return null
-        // Hidden files are outside the project surface the user granted.
-        if (normalised.startsWith(".")) return null
-        return normalised
-    }
+    fun sanitize(path: String): String? = ProjectPaths.normalize(path)
 
     fun find(root: DocumentFile, path: String): DocumentFile? {
         val safe = sanitize(path) ?: return null
@@ -109,14 +107,46 @@ class ProjectFiles(private val context: Context) {
                 parent = parent.findFile(segment) ?: parent.createDirectory(segment) ?: return@withContext false
             }
             val name = segments.last()
-            val target = parent.findFile(name)
-                ?: parent.createFile(mimeFor(name), name)
-                ?: return@withContext false
-            runCatching {
+            val existing = parent.findFile(name)
+            if (existing != null && !existing.isFile) return@withContext false
+            val target = existing ?: parent.createFile(mimeFor(name), name) ?: return@withContext false
+            val bytes = content.toByteArray(Charsets.UTF_8)
+            if (bytes.size > MAX_WRITE_BYTES) return@withContext false
+
+            // Keep the old text so a failed or truncated write can be undone.
+            val previous = if (existing != null) {
+                readText(root, safe, maxBytes = maxOf(bytes.size + 1, MAX_ROLLBACK_BYTES))
+            } else {
+                null
+            }
+            // Without a readable copy we cannot guarantee a safe replacement;
+            // refusing is better than truncating a file we cannot restore.
+            if (existing != null && previous == null) return@withContext false
+            val written = runCatching {
                 context.contentResolver.openOutputStream(target.uri, "wt")?.use { output ->
-                    output.write(content.toByteArray(Charsets.UTF_8))
+                    output.write(bytes)
+                    output.flush()
                 } ?: return@withContext false
             }.isSuccess
+            if (!written) return@withContext false
+
+            // Some providers accept a write but persist a truncated file. Verify
+            // the bytes before reporting success; restore the old text if needed.
+            val readBack = readText(root, safe, maxBytes = bytes.size + 1)
+            if (readBack == content) {
+                true
+            } else {
+                if (previous != null) {
+                    runCatching {
+                        context.contentResolver.openOutputStream(target.uri, "wt")?.use { output ->
+                            output.write(previous.toByteArray(Charsets.UTF_8))
+                        }
+                    }
+                } else if (existing == null) {
+                    runCatching { target.delete() }
+                }
+                false
+            }
         }
 
     suspend fun createFile(root: DocumentFile, path: String): Boolean = writeText(root, path, "")
@@ -131,13 +161,19 @@ class ProjectFiles(private val context: Context) {
     }
 
     suspend fun delete(root: DocumentFile, path: String): Boolean = withContext(Dispatchers.IO) {
-        find(root, path)?.delete() ?: false
+        val safe = sanitize(path) ?: return@withContext false
+        val file = find(root, safe) ?: return@withContext false
+        runCatching { file.delete() }.getOrDefault(false)
     }
+
+    suspend fun deleteNode(root: DocumentFile, node: FileNode): Boolean = delete(root, node.path)
 
     suspend fun rename(root: DocumentFile, path: String, newName: String): Boolean = withContext(Dispatchers.IO) {
         val file = find(root, path) ?: return@withContext false
-        val clean = newName.trim().replace("/", "_")
-        if (clean.isBlank()) return@withContext false
+        val clean = ProjectPaths.safeFileName(newName) ?: return@withContext false
+        if (clean == file.name) return@withContext true
+        val collision = file.parentFile?.findFile(clean)
+        if (collision != null && collision.uri != file.uri) return@withContext false
         runCatching { file.renameTo(clean) }.getOrDefault(false)
     }
 
@@ -157,10 +193,12 @@ class ProjectFiles(private val context: Context) {
         root: DocumentFile,
         maxFiles: Int = 300,
         maxBytesPerFile: Int = 400_000,
+        maxTotalChars: Int = 6_000_000,
     ): Map<String, String> = withContext(Dispatchers.IO) {
         val result = LinkedHashMap<String, String>()
+        var totalChars = 0
         fun walk(directory: DocumentFile, prefix: String, depth: Int) {
-            if (depth > 6 || result.size >= maxFiles) return
+            if (depth > 6 || result.size >= maxFiles || totalChars >= maxTotalChars) return
             val children = runCatching { directory.listFiles() }.getOrDefault(emptyArray())
             for (child in children) {
                 if (result.size >= maxFiles) return
@@ -172,7 +210,12 @@ class ProjectFiles(private val context: Context) {
                 } else if (isTextFile(name) && child.length() <= maxBytesPerFile) {
                     runCatching {
                         context.contentResolver.openInputStream(child.uri)?.use { input ->
-                            readBounded(input, maxBytesPerFile)?.let { text -> result[path] = text }
+                            readBounded(input, maxBytesPerFile)?.let { text ->
+                                if (totalChars + text.length <= maxTotalChars) {
+                                    result[path] = text
+                                    totalChars += text.length
+                                }
+                            }
                         }
                     }
                 }
@@ -213,6 +256,10 @@ class ProjectFiles(private val context: Context) {
             }
             return output.toString(Charsets.UTF_8.name())
         }
+
+        /** Refuse absurd editor writes even before they reach a provider. */
+        const val MAX_WRITE_BYTES = 2_000_000
+        private const val MAX_ROLLBACK_BYTES = 2_000_000
 
         private val TEXT_EXTENSIONS = setOf(
             "html", "htm", "css", "js", "ts", "json", "xml", "md", "txt",

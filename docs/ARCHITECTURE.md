@@ -138,6 +138,19 @@ quindi il backup non le usa: per questo serve una password.
 
 - **ProjectFiles** — wrapper su `DocumentFile` con path relativi, lettura/scrittura testuale,
   snapshot ricorsivo e limiti di dimensione. Nessun path assoluto, nessuna risalita oltre la radice.
+  `ProjectPaths` è l'unica policy dei percorsi (agente, explorer, rinomina, checkpoint) e
+  `writeText` rilegge il file dopo la scrittura, ripristinando il contenuto precedente se il
+  provider lo tronca. Una radice `file://` è ammessa solo sotto `projects` dell'app.
+- **CodeAgent / EditBudget** — parser degli strumenti e budget rigido di 40 file distinti e 72
+  operazioni per attività; il checkpoint viene creato prima della prima scrittura e il suo
+  fallimento blocca ogni modifica.
+- **CodeModelResolver** — unica scelta del modello Code: modello esplicito, Code automatico,
+  fallback Chat dichiarato oppure errore. Etichetta e caricamento usano la stessa scelta.
+- **ProjectContextBuilder** — ranking dei file per richiesta, entry point e import, con budget di
+  24.000 caratteri; il contesto viene letto una volta per attività.
+- **GitManager** — oltre a commit/log/diff, `pathsAt` elenca i file di un commit per il ripristino
+  esatto; i checkpoint ammettono un progetto vuoto. `rollbackTask` ripristina i file del checkpoint
+  e rimuove solo quelli creati dal task, dopo un checkpoint di sicurezza.
 - **StaticAnalyzers** — regole deterministiche per HTML (annidamento tag, doctype, script, alt),
   CSS (bilanciamento blocchi), Java (bilanciamento ignorando stringhe/commenti, nome classe
   pubblica, catch vuoti), C++ (bilanciamento, include guard, `using namespace` negli header).
@@ -149,7 +162,9 @@ quindi il backup non le usa: per questo serve una password.
 - **GitManager** — JGit su un mirror privato nella storage dell'app: commit di snapshot, log,
   diff, ripristino, branch. Il ripristino riscrive i file nella cartella autorizzata via SAF.
 - **JsSandbox** — WebView usa-e-getta con JavaScript abilitato, accesso file disabilitato, rete
-  intercettata e bloccata salvo autorizzazione, timeout e raccolta di log/errori.
+  intercettata e bloccata salvo autorizzazione, timeout e raccolta di log/errori. `SandboxPolicy`
+  blocca sempre loopback e reti private, impedisce la navigazione fuori da `sandbox.local` e
+  consente gli asset locali anche a rete spenta.
 
 ## Chat: modifica, rigenerazione, export
 

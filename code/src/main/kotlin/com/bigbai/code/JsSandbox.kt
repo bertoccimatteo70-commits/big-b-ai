@@ -60,6 +60,10 @@ class JsSandbox(private val context: Context) {
             settings.blockNetworkLoads = !allowNetwork
             settings.mediaPlaybackRequiresUserGesture = true
             settings.cacheMode = android.webkit.WebSettings.LOAD_NO_CACHE
+            settings.allowFileAccessFromFileURLs = false
+            settings.allowUniversalAccessFromFileURLs = false
+            settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            settings.safeBrowsingEnabled = true
             setBackgroundColor(0x00000000)
         }
 
@@ -153,8 +157,7 @@ class JsSandbox(private val context: Context) {
                     request: WebResourceRequest?,
                 ): WebResourceResponse? {
                     val url = request?.url?.toString() ?: return null
-                    val remote = url.startsWith("http://") || url.startsWith("https://")
-                    if (remote && !allowNetwork) {
+                    if (!SandboxPolicy.allows(url, allowNetwork)) {
                         blocked.incrementAndGet()
                         return WebResourceResponse(
                             "text/plain",
@@ -166,6 +169,17 @@ class JsSandbox(private val context: Context) {
                         )
                     }
                     return null
+                }
+
+                override fun shouldOverrideUrlLoading(
+                    view: WebView?,
+                    request: WebResourceRequest?,
+                ): Boolean {
+                    val url = request?.url?.toString() ?: return true
+                    if (SandboxPolicy.allowsMainNavigation(url)) return false
+                    blocked.incrementAndGet()
+                    errors.add("Navigazione esterna bloccata: $url")
+                    return true
                 }
 
                 override fun onPageFinished(view: WebView?, url: String?) {
@@ -183,7 +197,9 @@ class JsSandbox(private val context: Context) {
                 }
             }
 
-            continuation.invokeOnCancellation { finish(timedOut = false) }
+            // Cancellation may come from another thread: WebView must be torn
+            // down on the main thread like every other lifecycle operation.
+            continuation.invokeOnCancellation { handler.post { finish(timedOut = false) } }
             handler.postDelayed({ finish(timedOut = true) }, timeoutMs)
 
             runCatching {

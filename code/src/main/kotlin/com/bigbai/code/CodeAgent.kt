@@ -40,6 +40,7 @@ object CodeAgent {
     const val MAX_STEPS = 12
     const val MAX_ACTIONS_PER_STEP = 6
     const val MAX_FILES_PER_TASK = 40
+    const val MAX_OPERATIONS_PER_TASK = 72
     const val MAX_FILE_BYTES = 200_000
     const val MAX_CONTEXT_CHARS = 24_000
     const val MAX_READ_CHARS = 12_000
@@ -59,21 +60,7 @@ object CodeAgent {
      * Normalises a model-supplied path. Returns null for anything that could
      * escape the authorised project folder or hide files from the user.
      */
-    fun sanitizePath(raw: String): String? {
-        val trimmed = raw.replace('\\', '/').trim()
-        // Absolute paths are rejected, not silently made relative.
-        if (trimmed.startsWith("/")) return null
-        if (Regex("^[A-Za-z]:/").containsMatchIn(trimmed)) return null
-        val normalised = trimmed.removePrefix("./").trim()
-        if (normalised.isBlank()) return null
-        if (normalised.length > 180) return null
-        if (normalised.contains("..")) return null
-        if (normalised.startsWith(".")) return null
-        val segments = normalised.split('/')
-        if (segments.any { it.isBlank() || it == "." }) return null
-        if (segments.any { it.startsWith(".") }) return null
-        return normalised
-    }
+    fun sanitizePath(raw: String): String? = ProjectPaths.normalize(raw)
 
     fun isDestructive(action: AgentAction): Boolean = action is AgentAction.DeleteFile
 
@@ -213,6 +200,10 @@ object CodeAgent {
             - Non dire di aver fatto qualcosa che non hai fatto: l'app esegue solo gli strumenti.
             - Non eliminare file senza che sia necessario; l'eliminazione richiede conferma.
             - Il progetto è tuo: niente percorsi assoluti, niente "..".
+            - Puoi modificare al massimo $MAX_FILES_PER_TASK file distinti per attività e
+              $MAX_OPERATIONS_PER_TASK operazioni totali. Lo stesso file conta una volta sola, anche
+              se lo riscrivi più volte. Non aggirare il limite dividendo il lavoro: se lo raggiungi,
+              fermati e spiega cosa resta da fare.
             - Passo $step di $maxSteps. Sei autonomo: non chiedere conferma per creare o modificare file.
             """.trimIndent()
         } else {
@@ -240,6 +231,9 @@ object CodeAgent {
             - Never claim to have done something the app did not execute.
             - Do not delete files unless necessary; deletion needs confirmation.
             - Stay inside the project: no absolute paths, no "..".
+            - You may change at most $MAX_FILES_PER_TASK distinct files per task and
+              $MAX_OPERATIONS_PER_TASK operations in total. A file counts once even if rewritten;
+              never split work to bypass the limit. When you reach it, stop and state what remains.
             - Step $step of $maxSteps. Be autonomous: do not ask permission to create or edit files.
             """.trimIndent()
         }

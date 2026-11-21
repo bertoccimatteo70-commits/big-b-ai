@@ -1,4 +1,4 @@
-# Limiti noti — ITAGPT 2.1
+# Limiti noti — ITAGPT 2.2
 
 Questo documento elenca ciò che **non** è stato verificato o non è disponibile. L'obiettivo è che
 nessuno scopra un limite solo dopo aver installato l'APK.
@@ -8,7 +8,7 @@ nessuno scopra un limite solo dopo aver installato l'APK.
 | Cosa | Stato |
 |---|---|
 | Compilazione debug/release (R8) | Verificata dalla CI; build release minificata |
-| Test unitari JVM | **236 test, 0 falliti, 0 errori, 0 saltati** |
+| Test unitari JVM | **264 test, 0 falliti, 0 errori, 0 saltati** |
 | Lint debug | **0 errori, 69 warning** |
 | Librerie native arm64-v8a, armeabi-v7a, x86_64 | Compilate e verificate negli APK dalla CI |
 | Modelli negli asset | **0 file**; gate di packaging |
@@ -16,6 +16,9 @@ nessuno scopra un limite solo dopo aver installato l'APK.
 | Avvio app, Keystore, SQLCipher, SAF | **Non verificati** a runtime |
 | Chat con modello reale | **Non verificata** su device |
 | Chat senza modello | Implementata (messaggio + CTA); **non eseguita su device** |
+| ITAGPT Code: conferme, limiti, checkpoint, rollback | Logica coperta da test JVM; **SAF, JGit e UI non eseguiti su device** |
+| ITAGPT Code: esecuzione Java/Kotlin/C++ | **Non implementata**: Android non include la toolchain; resta l'analisi statica |
+| ITAGPT Code: editor e sandbox | Compilano; **nessun test visivo o WebView su device** |
 | OCR immagini/PDF | Implementato con ML Kit; **non eseguito su device** |
 | DOCX/XLSX/CSV/TXT | Parser coperti da test JVM; **non provati su file reali su device** |
 | Voce (TTS, dettatura) | Implementata; **non provata su device** |

@@ -11,6 +11,7 @@ import com.bigbai.code.AgentStepStatus
 import com.bigbai.code.CodeAgent
 import com.bigbai.code.CodeQuota
 import com.bigbai.code.Diagnostic
+import com.bigbai.code.EditBudget
 import com.bigbai.code.FileNode
 import com.bigbai.code.GitCommitInfo
 import com.bigbai.code.JsSandbox
@@ -19,7 +20,9 @@ import com.bigbai.code.ProposedChange
 import com.bigbai.code.ProjectFiles
 import com.bigbai.code.ProjectInsight
 import com.bigbai.code.ProjectInsights
+import com.bigbai.code.ProjectContextBuilder
 import com.bigbai.code.ProjectNaming
+import com.bigbai.code.ProjectPaths
 import com.bigbai.code.SandboxResult
 import com.bigbai.code.StaticAnalyzers
 import com.bigbai.core.model.Project
@@ -73,8 +76,14 @@ data class CodeUiState(
     /** Activity log of the current agent task: done, failed, needs user. */
     val steps: List<AgentStep> = emptyList(),
     val quota: CodeQuota = CodeQuota(CodeQuota.today(), 0),
-    /** Path waiting for an explicit confirmation before deletion. */
+    /** Path the agent asked to delete, waiting for explicit confirmation. */
     val pendingDelete: String? = null,
+    /** File or folder the user asked to delete from the explorer. */
+    val pendingManualDelete: FileNode? = null,
+    /** Checkpoint taken before the current/last agent task, if it succeeded. */
+    val taskCheckpoint: GitCommitInfo? = null,
+    /** Paths the last task wrote, used to undo exactly those files. */
+    val taskModifiedPaths: List<String> = emptyList(),
     val codeModelLabel: String? = null,
     val chatModelLabel: String? = null,
     /** Project-wide findings: duplicated blocks, undeclared imports, TODO. */
@@ -92,6 +101,7 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
 
     private var chatJob: Job? = null
     private var timeoutJob: Job? = null
+    private var editorAnalysisJob: Job? = null
     private var cancelledByUser = false
     private var timedOut = false
 
@@ -257,12 +267,16 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
                     sandbox = null,
                     steps = emptyList(),
                     pendingDelete = null,
+                    pendingManualDelete = null,
+                    taskCheckpoint = null,
+                    taskModifiedPaths = emptyList(),
                     insights = emptyList(),
                     projectSummary = null,
                     changeReport = null,
                 )
             }
             container.projects.touch(id)
+            updateModelLabels(container.settings.current())
             refreshTree()
             viewModelScope.launch {
                 container.projects.messages(id).collect { messages ->
@@ -280,7 +294,17 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
 
     fun closeProject() {
         _state.update {
-            it.copy(project = null, tree = emptyList(), openPath = null, editorText = "", diagnostics = emptyList())
+            it.copy(
+                project = null,
+                tree = emptyList(),
+                openPath = null,
+                editorText = "",
+                diagnostics = emptyList(),
+                pendingDelete = null,
+                pendingManualDelete = null,
+                taskCheckpoint = null,
+                taskModifiedPaths = emptyList(),
+            )
         }
     }
 
@@ -304,6 +328,7 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
                 _state.update { it.copy(error = "File non leggibile o troppo grande (${node.path})") }
                 return@launch
             }
+            editorAnalysisJob?.cancel()
             _state.update {
                 it.copy(
                     openPath = node.path,
@@ -317,12 +342,17 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun updateEditor(text: String) {
-        _state.update {
-            it.copy(
-                editorText = text,
-                dirty = true,
-                diagnostics = it.openPath?.let { path -> StaticAnalyzers.analyze(path, text) } ?: emptyList(),
-            )
+        _state.update { it.copy(editorText = text, dirty = true) }
+        val path = _state.value.openPath ?: return
+        // Static analysis is deterministic but not free: run it after the typing
+        // pause, off the main thread, and discard results for stale text.
+        editorAnalysisJob?.cancel()
+        editorAnalysisJob = viewModelScope.launch {
+            delay(250)
+            val diagnostics = withContext(Dispatchers.Default) { StaticAnalyzers.analyze(path, text) }
+            _state.update {
+                if (it.openPath == path && it.editorText == text) it.copy(diagnostics = diagnostics) else it
+            }
         }
     }
 
@@ -362,18 +392,47 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
+    /** Never deletes immediately: the explorer must ask for confirmation. */
     fun deleteFile(node: FileNode) {
+        _state.update { it.copy(pendingManualDelete = node, error = null) }
+    }
+
+    fun cancelManualDelete() = _state.update {
+        it.copy(pendingManualDelete = null, status = "Eliminazione annullata") }
+
+    fun confirmManualDelete() {
+        val node = _state.value.pendingManualDelete ?: return
         val project = _state.value.project ?: return
         viewModelScope.launch {
-            val root = container.projectFiles.root(project.treeUri) ?: return@launch
+            val root = container.projectFiles.root(project.treeUri)
+            if (root == null) {
+                _state.update {
+                    it.copy(pendingManualDelete = null, error = "Cartella del progetto non accessibile")
+                }
+                return@launch
+            }
+            _state.update { it.copy(busy = true, pendingManualDelete = null) }
             val ok = container.projectFiles.delete(root, node.path)
-            if (ok && _state.value.openPath == node.path) {
-                _state.update { it.copy(openPath = null, editorText = "", diagnostics = emptyList()) }
+            if (ok) {
+                _state.update { current ->
+                    val openInside = current.openPath?.let { path ->
+                        if (node.isDirectory) ProjectPaths.isInside(path, node.path) else path == node.path
+                    } == true
+                    current.copy(
+                        openPath = if (openInside) null else current.openPath,
+                        editorText = if (openInside) "" else current.editorText,
+                        diagnostics = if (openInside) emptyList() else current.diagnostics,
+                        dirty = if (openInside) false else current.dirty,
+                    )
+                }
             }
             _state.update {
                 it.copy(
-                    status = if (ok) "Elemento eliminato" else null,
-                    error = if (ok) null else "Eliminazione non riuscita",
+                    busy = false,
+                    status = if (ok) {
+                        if (node.isDirectory) "Cartella «${node.name}» eliminata" else "File «${node.name}» eliminato"
+                    } else null,
+                    error = if (ok) null else "Eliminazione non riuscita: ${node.name}",
                 )
             }
             if (ok) refreshTree()
@@ -409,6 +468,8 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
                     error = null,
                     steps = emptyList(),
                     pendingDelete = null,
+                    taskCheckpoint = null,
+                    taskModifiedPaths = emptyList(),
                     proposals = emptyList(),
                     proposalDiffs = emptyMap(),
                     status = "Analisi della richiesta…",
@@ -419,13 +480,11 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
             var checkpointed = false
             try {
                 val settings = container.settings.current()
-                updateModelLabels(settings)
                 val loaded = ensureCodeModel(settings)
                 if (loaded == null) {
                     refundQuota(consumed)
                     return@launch
                 }
-                updateModelLabels(settings)
                 val profile = ModelProfiles.forVariant(loaded.variant)
                 val params = profile.params(settings)
 
@@ -443,16 +502,22 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
                 var stepIndex = 1
                 var finished = false
                 var toolTranscript = ""
+                var limitReached = false
+                var limitReason = ""
+                // Read the project once per task instead of once per step.
+                val initialContext = projectContext(root, text)
                 val written = mutableListOf<String>()
+                val modifiedPaths = linkedSetOf<String>()
+                val budget = EditBudget()
 
-                while (stepIndex <= CodeAgent.MAX_STEPS && !finished) {
+                while (stepIndex <= CodeAgent.MAX_STEPS && !finished && !limitReached) {
                     if (cancelledByUser || timedOut) break
                     _state.update { it.copy(status = "Passo $stepIndex di ${CodeAgent.MAX_STEPS}…") }
                     val system = CodeAgent.systemPrompt(
                         language = settings.language,
                         projectName = project.name,
                         tree = container.projectFiles.treeText(_state.value.tree),
-                        projectContext = projectContext(root),
+                        projectContext = initialContext,
                         step = stepIndex,
                         maxSteps = CodeAgent.MAX_STEPS,
                     )
@@ -513,15 +578,49 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
                     val transcript = StringBuilder()
                     var needsConfirmation = false
                     for (action in actions) {
+                        if (!budget.beginOperation()) {
+                            limitReached = true
+                            limitReason = budget.blockReason()
+                            transcript.append("ERRORE: ").append(limitReason).append('\n')
+                            break
+                        }
                         when (action) {
                             is AgentAction.WriteFile -> {
+                                if (!budget.canChange(action.path)) {
+                                    limitReached = true
+                                    limitReason = budget.blockReason()
+                                    transcript.append("ERRORE: ").append(limitReason)
+                                        .append(" File non modificato: ").append(action.path).append('\n')
+                                    break
+                                }
                                 if (!checkpointed) {
+                                    val cp = checkpoint(project, "Prima dell'attività AI")
+                                    if (cp == null) {
+                                        val message = "Checkpoint non riuscito: non ho modificato nessun file. " +
+                                            "Controlla lo spazio disponibile e riprova."
+                                        _state.update {
+                                            it.copy(
+                                                error = message,
+                                                steps = it.steps + AgentStep(
+                                                    "Modifiche bloccate",
+                                                    message,
+                                                    AgentStepStatus.FAILED,
+                                                ),
+                                            )
+                                        }
+                                        appendAssistant(project.id, message)
+                                        if (written.isEmpty()) refundQuota(consumed)
+                                        return@launch
+                                    }
                                     checkpointed = true
-                                    checkpoint(project, "Prima dell'attività AI")
+                                    _state.update { it.copy(taskCheckpoint = cp) }
                                 }
                                 val ok = container.projectFiles.writeText(root, action.path, action.content)
                                 if (ok) {
+                                    budget.recordChange(action.path)
                                     written += action.path
+                                    modifiedPaths += action.path
+                                    _state.update { it.copy(taskModifiedPaths = modifiedPaths.toList()) }
                                     transcript.append("OK: scritto ").append(action.path).append('\n')
                                     _state.update {
                                         it.copy(
@@ -565,9 +664,19 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
                                 _state.update { it.copy(tree = nodes) }
                             }
                             is AgentAction.DeleteFile -> {
+                                if (!budget.canChange(action.path)) {
+                                    limitReached = true
+                                    limitReason = budget.blockReason()
+                                    transcript.append("ERRORE: ").append(limitReason)
+                                        .append(" File non eliminato: ").append(action.path).append('\n')
+                                    break
+                                }
+                                budget.recordChange(action.path)
+                                modifiedPaths += action.path
                                 _state.update {
                                     it.copy(
                                         pendingDelete = action.path,
+                                        taskModifiedPaths = modifiedPaths.toList(),
                                         steps = it.steps + AgentStep(
                                             "Eliminazione da confermare: ${action.path}",
                                             "Operazione distruttiva: serve il tuo consenso.",
@@ -597,6 +706,22 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
                         if (finished || needsConfirmation) break
                     }
 
+                    if (limitReached) {
+                        val message = "Mi sono fermato: $limitReason Nessuna altra modifica è stata " +
+                            "applicata in questa attività. Il progetto resta nello stato mostrato nell'activity log."
+                        appendAssistant(project.id, message)
+                        _state.update {
+                            it.copy(
+                                error = message,
+                                steps = it.steps + AgentStep(
+                                    "Limite dell'attività raggiunto",
+                                    limitReason,
+                                    AgentStepStatus.FAILED,
+                                ),
+                            )
+                        }
+                        break
+                    }
                     if (finished || needsConfirmation) break
                     if (transcript.isNotEmpty()) toolTranscript = transcript.toString()
                     stepIndex += 1
@@ -612,8 +737,19 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
                             "Scrivi «continua» per proseguire da dove sono arrivato.",
                     )
                 }
+                if ((cancelledByUser || timedOut) && written.isNotEmpty()) {
+                    val checkpointId = _state.value.taskCheckpoint?.shortId
+                    _state.update {
+                        it.copy(
+                            error = "Attività interrotta dopo ${written.distinct().size} file modificati. " +
+                                (checkpointId?.let { "Checkpoint $it disponibile: puoi ripristinarlo dalla chat." }
+                                    ?: "Nessun checkpoint disponibile."),
+                        )
+                    }
+                }
                 if (written.isNotEmpty()) {
                     analyzeWritten(project, written)
+                    reloadOpenFileIfClean(project, root)
                 }
             } catch (cancelled: CancellationException) {
                 if (!producedOutput) refundQuota(consumed)
@@ -646,10 +782,27 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
                 _state.update { it.copy(error = "Cartella non accessibile", pendingDelete = null) }
                 return@launch
             }
+            // The checkpoint must exist before the deletion, otherwise the file
+            // could not be recovered from Git.
+            val cp = checkpoint(project, "Prima di eliminare $path")
+            if (cp == null) {
+                val message = "Checkpoint non riuscito: eliminazione annullata. Il file «$path» è ancora presente."
+                _state.update {
+                    it.copy(
+                        error = message,
+                        steps = it.steps + AgentStep(
+                            "Eliminazione non eseguita",
+                            message,
+                            AgentStepStatus.FAILED,
+                        ),
+                    )
+                }
+                return@launch
+            }
             val ok = container.projectFiles.delete(root, path)
-            if (ok) checkpoint(project, "Eliminazione di $path")
             _state.update {
                 it.copy(
+                    taskCheckpoint = cp,
                     pendingDelete = null,
                     steps = it.steps + AgentStep(
                         if (ok) "Eliminato $path" else "Eliminazione non riuscita: $path",
@@ -669,6 +822,107 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
             status = "Eliminazione annullata",
             steps = it.steps + AgentStep("Eliminazione annullata"),
         )
+    }
+
+    /**
+     * Restores exactly the state before the last agent task: files present in
+     * the checkpoint are written back, files the task created are removed.
+     * Files the task never touched are left alone.
+     */
+    fun rollbackTask() {
+        val project = _state.value.project ?: return
+        val target = _state.value.taskCheckpoint ?: return
+        val touched = _state.value.taskModifiedPaths.toSet()
+        if (_state.value.generating) return
+        viewModelScope.launch {
+            _state.update { it.copy(busy = true, status = "Ripristino del checkpoint…") }
+
+            // A safety checkpoint makes the rollback itself reversible.
+            val safety = checkpoint(project, "Prima del ripristino al checkpoint ${target.shortId}")
+            if (safety == null) {
+                _state.update {
+                    it.copy(
+                        busy = false,
+                        status = null,
+                        error = "Ripristino annullato: non è stato possibile creare il checkpoint di sicurezza. " +
+                            "Il progetto non è stato modificato.",
+                    )
+                }
+                return@launch
+            }
+            val root = container.projectFiles.root(project.treeUri)
+            val committed = container.git.pathsAt(project.id, target.id)
+            if (root == null || committed == null) {
+                _state.update {
+                    it.copy(
+                        busy = false,
+                        status = null,
+                        error = "Ripristino non riuscito: progetto o checkpoint non leggibili. " +
+                            "Il progetto non è stato modificato.",
+                    )
+                }
+                return@launch
+            }
+
+            val restored = mutableListOf<String>()
+            val removed = mutableListOf<String>()
+            val failed = mutableListOf<String>()
+            for (path in committed) {
+                val content = container.git.readFileAt(project.id, target.id, path)
+                if (content == null) {
+                    failed += path
+                } else if (container.projectFiles.writeText(root, path, content)) {
+                    restored += path
+                } else {
+                    failed += path
+                }
+            }
+            for (path in touched) {
+                if (path in committed) continue
+                if (container.projectFiles.find(root, path) == null) {
+                    removed += path
+                } else if (container.projectFiles.delete(root, path)) {
+                    removed += path
+                } else {
+                    failed += path
+                }
+            }
+
+            val summary = buildString {
+                append("Ripristinati ").append(restored.size).append(" file")
+                if (removed.isNotEmpty()) append(", rimossi ").append(removed.size).append(" creati dall'attività")
+                if (failed.isNotEmpty()) append(", ").append(failed.size).append(" non ripristinati")
+                append(".")
+            }
+            _state.update {
+                it.copy(
+                    busy = false,
+                    status = summary,
+                    error = if (failed.isEmpty()) null else "Ripristino parziale: ${failed.joinToString()}",
+                    dirty = false,
+                    taskCheckpoint = null,
+                    taskModifiedPaths = emptyList(),
+                    steps = it.steps + AgentStep(
+                        if (failed.isEmpty()) "Progetto ripristinato" else "Ripristino parziale",
+                        summary,
+                        if (failed.isEmpty()) AgentStepStatus.DONE else AgentStepStatus.FAILED,
+                    ),
+                )
+            }
+            refreshTree()
+            refreshGit()
+            val openPath = _state.value.openPath
+            if (openPath != null) {
+                val text = container.projectFiles.readText(root, openPath)
+                _state.update {
+                    it.copy(
+                        editorText = text ?: "",
+                        dirty = false,
+                        diagnostics = text?.let { value -> StaticAnalyzers.analyze(openPath, value) }.orEmpty(),
+                    )
+                }
+            }
+        }
     }
 
     private fun startTimeout() {
@@ -722,42 +976,74 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    private suspend fun checkpoint(project: Project, reason: String) {
-        val root = container.projectFiles.root(project.treeUri) ?: return
-        val files = container.projectFiles.snapshot(root, maxFiles = 200)
-        if (files.isEmpty()) return
-        val commit = container.git.commit(project.id, files, reason)
-        if (commit != null) {
-            _state.update {
-                it.copy(steps = it.steps + AgentStep("Checkpoint ${commit.shortId}", reason))
-            }
+    private suspend fun checkpoint(project: Project, reason: String): GitCommitInfo? {
+        val root = container.projectFiles.root(project.treeUri) ?: return null
+        val files = container.projectFiles.snapshot(
+            root,
+            maxFiles = 600,
+            maxBytesPerFile = CodeAgent.MAX_FILE_BYTES,
+            maxTotalChars = 12_000_000,
+        )
+        // An empty project is still a valid baseline (the commit is allowed empty).
+        val commit = runCatching { container.git.commit(project.id, files, reason) }.getOrNull()
+            ?: return null
+        _state.update {
+            it.copy(steps = it.steps + AgentStep("Checkpoint ${commit.shortId}", reason))
         }
+        return commit
     }
 
-    private suspend fun projectContext(root: androidx.documentfile.provider.DocumentFile): String {
-        val files = container.projectFiles.snapshot(root, maxFiles = 24, maxBytesPerFile = 24_000)
-        val builder = StringBuilder()
-        for ((path, content) in files) {
-            if (builder.length > CodeAgent.MAX_CONTEXT_CHARS) break
-            builder.append("FILE ").append(path).append('\n')
-            builder.append(content.take(6_000)).append("\n\n")
-        }
-        return builder.toString().take(CodeAgent.MAX_CONTEXT_CHARS)
+        private suspend fun projectContext(
+        root: androidx.documentfile.provider.DocumentFile,
+        request: String,
+    ): String {
+        val files = container.projectFiles.snapshot(
+            root,
+            maxFiles = 300,
+            maxBytesPerFile = 32_000,
+            maxTotalChars = 6_000_000,
+        )
+        return ProjectContextBuilder.build(files, request, CodeAgent.MAX_CONTEXT_CHARS)
     }
 
     private suspend fun updateModelLabels(settings: com.bigbai.core.model.AppSettings) {
         val installed = container.modelStore.installedAll(container.catalog)
+        val candidates = installed.map { model ->
+            CodeModelCandidate(
+                id = model.variant.id,
+                label = model.variant.displayName,
+                isCode = model.variant.role == ModelRole.CODE,
+                rank = model.variant.tier.ordinal,
+            )
+        }
+        val choice = CodeModelResolver.resolve(
+            installed = candidates,
+            activeCodeModelId = settings.activeCodeModelId,
+            activeChatModelId = settings.activeModelId,
+        )
         val chat = installed.firstOrNull { it.variant.id == settings.activeModelId }
+            ?: installed.firstOrNull { it.variant.role != ModelRole.CODE }
             ?: installed.firstOrNull()
-        val code = installed.firstOrNull { it.variant.id == settings.activeCodeModelId }
-            ?: installed.firstOrNull { it.variant.role == ModelRole.CODE }
-            ?: chat
         _state.update {
             it.copy(
-                codeModelLabel = code?.variant?.displayName?.let { name ->
-                    if (settings.activeCodeModelId == null) "$name (automatico)" else name
-                },
+                codeModelLabel = CodeModelResolver.label(choice),
                 chatModelLabel = chat?.variant?.displayName,
+            )
+        }
+    }
+
+    /** Refreshes the editor only when the user has no unsaved local changes. */
+    private suspend fun reloadOpenFileIfClean(
+        project: Project,
+        root: androidx.documentfile.provider.DocumentFile,
+    ) {
+        val path = _state.value.openPath ?: return
+        if (_state.value.dirty) return
+        val text = container.projectFiles.readText(root, path) ?: return
+        _state.update {
+            it.copy(
+                editorText = text,
+                diagnostics = StaticAnalyzers.analyze(path, text),
             )
         }
     }
@@ -944,15 +1230,32 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
 
     fun runSandbox() {
         val project = _state.value.project ?: return
-        val path = _state.value.openPath?.takeIf { it.endsWith(".html", true) || it.endsWith(".htm", true) }
-            ?: "index.html"
+        val direct = _state.value.openPath?.takeIf {
+            it.endsWith(".html", true) || it.endsWith(".htm", true)
+        }
         viewModelScope.launch {
             _state.update { it.copy(busy = true, status = "Esecuzione nella sandbox…") }
             val root = container.projectFiles.root(project.treeUri)
-            val html = root?.let { container.projectFiles.readText(it, path) }
+            val entry = "index.html"
+            val path = direct ?: entry.takeIf {
+                root != null && container.projectFiles.readText(root, it) != null
+            }
+            if (path == null || root == null) {
+                _state.update {
+                    it.copy(
+                        busy = false,
+                        status = null,
+                        error = "La sandbox esegue solo HTML/JavaScript e non c'è un file HTML da avviare. " +
+                            "Java, Kotlin e C++ richiedono una toolchain che Android non include: " +
+                            "questi file restano soggetti alla sola analisi statica.",
+                    )
+                }
+                return@launch
+            }
+            val html = container.projectFiles.readText(root, path)
             if (html == null) {
                 _state.update {
-                    it.copy(busy = false, status = null, error = "Nessun file HTML da eseguire ($path)")
+                    it.copy(busy = false, status = null, error = "File HTML non leggibile ($path)")
                 }
                 return@launch
             }
@@ -1059,14 +1362,40 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
         cancelledByUser = false
         timedOut = false
         val installed = container.modelStore.installedAll(container.catalog)
-        if (installed.isEmpty()) {
-            _state.update { it.copy(error = "Nessun modello installato. Apri Modelli per scaricarne uno.") }
+        val candidates = installed.map { model ->
+            CodeModelCandidate(
+                id = model.variant.id,
+                label = model.variant.displayName,
+                isCode = model.variant.role == ModelRole.CODE,
+                rank = model.variant.tier.ordinal,
+            )
+        }
+        val choice = CodeModelResolver.resolve(
+            installed = candidates,
+            activeCodeModelId = settings.activeCodeModelId,
+            activeChatModelId = settings.activeModelId,
+        )
+        val chat = installed.firstOrNull { it.variant.id == settings.activeModelId }
+            ?: installed.firstOrNull { it.variant.role != ModelRole.CODE }
+            ?: installed.firstOrNull()
+        _state.update {
+            it.copy(
+                codeModelLabel = CodeModelResolver.label(choice),
+                chatModelLabel = chat?.variant?.displayName,
+            )
+        }
+        if (choice !is CodeModelChoice.Selected) {
+            val message = (choice as CodeModelChoice.Unavailable).message
+            _state.update { it.copy(error = message) }
             return null
         }
-        val preferredId = settings.activeCodeModelId ?: settings.activeModelId
-        val chosen = preferredId?.let { id -> installed.firstOrNull { it.variant.id == id } }
-            ?: installed.filter { it.variant.role == ModelRole.CODE }.maxByOrNull { it.variant.tier.ordinal }
-            ?: installed.first()
+        val chosen = installed.firstOrNull { it.variant.id == choice.candidate.id }
+        if (chosen == null) {
+            _state.update {
+                it.copy(error = "Il modello selezionato non è più disponibile. Aprilo da Modelli e riprova.")
+            }
+            return null
+        }
 
         val current = container.engine.current()
         if (current?.variant?.id == chosen.variant.id) return current
@@ -1098,7 +1427,12 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     override fun onCleared() {
+        // Closing the screen must release the native generation too, not only
+        // cancel the coroutine that is waiting for it.
+        cancelledByUser = true
+        container.engine.stop()
         chatJob?.cancel()
+        editorAnalysisJob?.cancel()
         cancelTimeout()
         super.onCleared()
     }

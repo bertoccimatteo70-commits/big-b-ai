@@ -54,23 +54,50 @@ class GitManager(private val context: Context) {
         message: String,
     ): GitCommitInfo? = withContext(Dispatchers.IO) {
         val git = open(projectId) ?: return@withContext null
-        git.use {
-            val directory = mirrorDirectory(projectId)
-            directory.listFiles()?.filter { child -> child.name != ".git" }?.forEach { it.deleteRecursively() }
-            for ((path, content) in files) {
-                val target = File(directory, path)
-                target.parentFile?.mkdirs()
-                target.writeText(content)
+        runCatching {
+            git.use {
+                val directory = mirrorDirectory(projectId)
+                directory.listFiles()?.filter { child -> child.name != ".git" }?.forEach { it.deleteRecursively() }
+                for ((path, content) in files) {
+                    // A checkpoint must never write outside the mirror because of a
+                    // malformed path coming from a provider or an old record.
+                    val safe = ProjectPaths.normalize(path) ?: continue
+                    val target = File(directory, safe)
+                    target.parentFile?.mkdirs()
+                    target.writeText(content)
+                }
+                it.add().addFilepattern(".").call()
+                it.add().setUpdate(true).addFilepattern(".").call()
+                val identity = PersonIdent("ITAGPT", "local@bigbai.app")
+                val commit = it.commit()
+                    .setMessage(message.ifBlank { "Snapshot del progetto" })
+                    .setAuthor(identity)
+                    .setCommitter(identity)
+                    // An empty project still needs a baseline checkpoint.
+                    .setAllowEmpty(true)
+                    .call()
+                commit.toInfo()
             }
-            it.add().addFilepattern(".").call()
-            it.add().setUpdate(true).addFilepattern(".").call()
-            val identity = PersonIdent("ITAGPT", "local@bigbai.app")
-            val commit = it.commit()
-                .setMessage(message.ifBlank { "Snapshot del progetto" })
-                .setAuthor(identity)
-                .setCommitter(identity)
-                .call()
-            commit.toInfo()
+        }.getOrNull()
+    }
+
+    /** Every file present in a commit, or null when the commit cannot be read. */
+    suspend fun pathsAt(projectId: Long, commitId: String): Set<String>? = withContext(Dispatchers.IO) {
+        val git = open(projectId) ?: return@withContext null
+        git.use {
+            runCatching {
+                val repository = it.repository
+                val commit = repository.parseCommit(ObjectId.fromString(commitId))
+                val walk = TreeWalk(repository)
+                walk.addTree(commit.tree)
+                walk.isRecursive = true
+                val paths = LinkedHashSet<String>()
+                while (walk.next()) {
+                    if (!walk.isSubtree) paths += walk.pathString
+                }
+                walk.close()
+                paths
+            }.getOrNull()
         }
     }
 

@@ -1,15 +1,20 @@
-# ITAGPT 2.1
+# ITAGPT 2.2
 
 Assistente AI locale per Android (Kotlin, Jetpack Compose, llama.cpp/JNI), con chat, OCR offline,
 import documenti, ricerca web automatica, memoria locale e ambiente di sviluppo ITAGPT Code.
 
 `applicationId com.bigbai.app` e namespace restano invariati per conservare installazioni e dati.
-La versione è **2.1.0** (`versionCode 10`).
+La versione è **2.2.0** (`versionCode 11`).
 
 > **Cambio di architettura in 2.1:** nessun modello AI è incluso nell'APK. Qwen2.5 1.5B e il
 > modello di embedding sono stati rimossi dal pacchetto. L'app si installa e si avvia senza modelli,
 > senza download automatici e senza API key. La chat richiede un modello scelto e scaricato
 > esplicitamente dalla sezione Modelli; l'embedding è opzionale e si importa da un file locale.
+>
+> **2.2 interviene su ITAGPT Code:** eliminazione con conferma, limite reale di 40 file e 72
+> operazioni per attività, selezione unica del modello Code, percorsi e scritture verificate,
+> checkpoint prima delle modifiche con rollback, contesto più pertinente, editor con numeri di
+> riga/ricerca/undo e sandbox con isolamento di rete più stretto.
 
 ## Stato dichiarato
 
@@ -28,7 +33,7 @@ Stati usati: `COMPLETATO E VERIFICATO`, `IMPLEMENTATO NON VERIFICATO SU DISPOSIT
 | UI/UX e accessibilità | **PARZIALE** | pulsante web, stato ricerca, fonti, stato senza modello, layout adattivo; nessun test visivo su device |
 | Tablet, mouse, trackpad, tastiera fisica | **PARZIALE** | drawer permanente sotto 1200 dp, contenuto limitato in larghezza, Ctrl+N/Ctrl+K/Ctrl+L/Esc; non provati su hardware |
 | Prestazioni e rilevamento hardware | **PARZIALE** | profilo termico/batteria con test JVM; nessun benchmark su Xiaomi Pad 8 / realme 16 Pro |
-| AI Code | **PARZIALE** | limite portato da 5 a 12 passi, checkpoint e diff esistenti; nessun terminale o compilatore reale |
+| AI Code | **PARZIALE** | 12 passi, limite di 40 file/72 operazioni applicato, checkpoint prima delle modifiche, rollback con safety checkpoint, editor migliorato; test JVM, nessun terminale/compilatore e nessun test su device |
 | Voce | **PARZIALE** | dettatura di sistema e TTS; niente full-duplex |
 | OCR e documenti | **IMPLEMENTATO NON VERIFICATO SU DISPOSITIVO** | ML Kit Latin, PDF scansionati, DOCX/XLSX/CSV/TXT; parser testati, nessun file reale su device |
 | Localizzazione IT/EN | **PARZIALE** | molte schermate storiche hanno testo italiano inline; non è stata fatta una revisione completa |
@@ -37,28 +42,27 @@ Stati usati: `COMPLETATO E VERIFICATO`, `IMPLEMENTATO NON VERIFICATO SU DISPOSIT
 | Test su dispositivo fisico/emulatore | **BLOCCATO** | nessun dispositivo disponibile in questo ambiente |
 
 Il report completo, con comandi, dimensioni e limiti, è in
-[docs/RELEASE-2.1.0.md](docs/RELEASE-2.1.0.md).
+[docs/RELEASE-2.2.0.md](docs/RELEASE-2.2.0.md).
 
-## APK 2.1
+## APK 2.2
 
-La run CI di riferimento è la **#44955362468**, build del commit `6deb331` (workflow **Android CI -
-ITAGPT debug and release**, conclusa con successo). Gli APK sono negli artifact GitHub Actions,
-non nel repository.
+La run CI di riferimento è la **#{{RUN_ID}}**, build del commit `{{CODE_COMMIT}}` (workflow
+**Android CI - ITAGPT debug and release**). Gli APK sono negli artifact GitHub Actions, non nel
+repository.
 
 | APK | Dimensione | SHA-256 | Firma |
 |---|---|---|---|
-| `ITAGPT-debug-2.1.0.apk` | 149.551.471 byte (142,62 MiB) | `48845b54a0d867315a02f31fa7a6240c8421ae7424d5a15d70fcb1d348307a8c` | debug |
-| `ITAGPT-release-debug-signed-2.1.0.apk` | 80.225.319 byte (76,51 MiB) | `7c08099104a69f40874d4b07349bf0904493d2855e7498e7b9040d41544072e6` | chiave debug, **non ufficiale** |
+| `ITAGPT-debug-2.2.0.apk` | `{{DEBUG_SIZE}}` | `{{DEBUG_SHA}}` | debug |
+| `ITAGPT-release-debug-signed-2.2.0.apk` | `{{RELEASE_SIZE}}` | `{{RELEASE_SHA}}` | chiave debug, **non ufficiale** |
 
 Ogni artifact contiene l'APK, il file `.sha256` e un report `.txt` con dimensione, data, ABI,
 firma e conferma dell'assenza di modelli. Link diretti:
 
-- [artifact debug](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44955362468/artifacts/14726864383) (ZIP 59.410.507 byte);
-- [artifact release](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44955362468/artifacts/14727970510) (ZIP 40.286.791 byte);
-- [report CI](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44955362468/artifacts/14727546700) (ZIP 55.906 byte).
+- Debug: `{{DEBUG_ARTIFACT}}`
+- Release: `{{RELEASE_ARTIFACT}}`
+- Report CI: `{{REPORT_ARTIFACT}}`
 
-Il download degli artifact richiede l'accesso a GitHub. La run completa è
-[qui](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44955362468).
+Il download degli artifact richiede l'accesso a GitHub.
 
 L'APK è universale: `arm64-v8a`, `armeabi-v7a`, `x86_64`. Non ci sono split per ABI e non esiste un
 limite artificiale di dimensione.
@@ -117,7 +121,7 @@ limite artificiale di dimensione.
 ## Verifiche eseguite
 
 - Build Kotlin/Compose: `:app:compileDebugKotlin` riuscita.
-- Test JVM: **236 test, 0 falliti, 0 errori, 0 saltati** su `core`, `llm`, `code`, `app`.
+- Test JVM: **264 test, 0 falliti, 0 errori, 0 saltati** su `core`, `llm`, `code`, `app`.
 - Lint debug: **0 errori, 69 warning**.
 - Parser ricerca: test su DuckDuckGo HTML, Google News RSS, metadati pagina, deduplica URL.
 - Provider reali da host: Google News RSS (HTTP 200, 102 item) e Wikipedia API (HTTP 200).

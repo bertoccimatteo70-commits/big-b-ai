@@ -4,6 +4,7 @@ import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -22,6 +23,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -68,6 +70,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -76,11 +79,31 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -359,7 +382,7 @@ private fun ProjectWorkspace(
             text = {
                 Text(
                     "L'AI ha chiesto di eliminare questo file. È un'operazione distruttiva: " +
-                        "il file viene rimosso dal progetto (resta recuperabile dal checkpoint Git).",
+                        "prima viene creato un checkpoint, poi il file viene rimosso dal progetto.",
                 )
             },
             confirmButton = {
@@ -370,10 +393,60 @@ private fun ProjectWorkspace(
             },
         )
     }
+
+    state.pendingManualDelete?.let { node ->
+        AlertDialog(
+            onDismissRequest = viewModel::cancelManualDelete,
+            title = {
+                Text(if (node.isDirectory) "Eliminare la cartella «${node.name}»?" else "Eliminare il file «${node.name}»?")
+            },
+            text = {
+                Text(
+                    if (node.isDirectory) {
+                        "La cartella e tutto il suo contenuto verranno rimossi dal progetto. " +
+                            "L'operazione non può essere annullata dall'esplora file."
+                    } else {
+                        "Il file verrà rimosso dal progetto. L'operazione non può essere annullata " +
+                            "dall'esplora file."
+                    },
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = viewModel::confirmManualDelete) {
+                    Text(if (node.isDirectory) "Elimina cartella" else "Elimina file")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::cancelManualDelete) { Text("Annulla") }
+            },
+        )
+    }
 }
 
 @Composable
 private fun CodeChatTab(state: CodeUiState, viewModel: CodeViewModel) {
+    var confirmRollback by remember { mutableStateOf(false) }
+    if (confirmRollback) {
+        AlertDialog(
+            onDismissRequest = { confirmRollback = false },
+            title = { Text("Ripristinare lo stato precedente?") },
+            text = {
+                Text(
+                    "I file toccati dall'ultima attività verranno riportati al checkpoint e quelli " +
+                        "creati dall'attività verranno rimossi. Prima del ripristino viene creato un " +
+                        "checkpoint di sicurezza, quindi l'operazione resta recuperabile.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { confirmRollback = false; viewModel.rollbackTask() }) {
+                    Text("Ripristina")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmRollback = false }) { Text("Annulla") }
+            },
+        )
+    }
     Column(modifier = Modifier.fillMaxSize().imePadding()) {
         LazyColumn(
             modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -445,7 +518,13 @@ private fun CodeChatTab(state: CodeUiState, viewModel: CodeViewModel) {
                 }
             }
             if (state.steps.isNotEmpty()) {
-                item(key = "steps") { AgentStepsPanel(state.steps) }
+                item(key = "steps") {
+                    AgentStepsPanel(
+                        steps = state.steps,
+                        canRollback = state.taskCheckpoint != null && !state.generating,
+                        onRollback = { confirmRollback = true },
+                    )
+                }
             }
             if (state.generating) {
                 item(key = "thinking") {
@@ -656,9 +735,17 @@ private fun FilesTab(state: CodeUiState, viewModel: CodeViewModel) {
                                     modifier = Modifier.size(15.dp),
                                 )
                             }
-                            IconButton(onClick = { viewModel.deleteFile(entry.node) }, modifier = Modifier.size(30.dp)) {
-                                Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(15.dp))
-                            }
+                        }
+                        IconButton(onClick = { viewModel.deleteFile(entry.node) }, modifier = Modifier.size(30.dp)) {
+                            Icon(
+                                Icons.Outlined.Delete,
+                                contentDescription = if (entry.node.isDirectory) {
+                                    "Elimina cartella ${entry.node.name}"
+                                } else {
+                                    "Elimina file ${entry.node.name}"
+                                },
+                                modifier = Modifier.size(15.dp),
+                            )
                         }
                     }
                 }
@@ -676,13 +763,124 @@ private fun flatten(nodes: List<FileNode>, depth: Int = 0): List<TreeEntry> =
 
 @Composable
 private fun EditorPane(state: CodeUiState, viewModel: CodeViewModel) {
-    Column(modifier = Modifier.fillMaxSize()) {
+    val path = state.openPath ?: return
+    var value by remember(path) { mutableStateOf(TextFieldValue(state.editorText, TextRange(0))) }
+    var undoStack by remember(path) { mutableStateOf<List<String>>(emptyList()) }
+    var redoStack by remember(path) { mutableStateOf<List<String>>(emptyList()) }
+    var lastEditAt by remember(path) { mutableStateOf(0L) }
+    var showFind by remember(path) { mutableStateOf(false) }
+    var query by remember(path) { mutableStateOf("") }
+    var replacement by remember(path) { mutableStateOf("") }
+    val findFocus = remember { FocusRequester() }
+    val vertical = rememberScrollState()
+    val horizontal = rememberScrollState()
+    val editorStyle = TextStyle(
+        fontFamily = FontFamily.Monospace,
+        fontSize = 12.sp,
+        lineHeight = 18.sp,
+        color = MaterialTheme.colorScheme.onSurface,
+    )
+    val keywordColor = MaterialTheme.colorScheme.tertiary
+    val stringColor = MaterialTheme.colorScheme.primary
+    val commentColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val numberColor = MaterialTheme.colorScheme.secondary
+
+    fun commit(newText: String, selection: TextRange = TextRange(newText.length)) {
+        if (newText == value.text) {
+            value = value.copy(selection = selection)
+            return
+        }
+        val now = System.currentTimeMillis()
+        val bigJump = kotlin.math.abs(newText.length - value.text.length) > 1
+        if (now - lastEditAt > 800L || bigJump) {
+            undoStack = (undoStack + value.text).takeLast(60)
+        }
+        lastEditAt = now
+        redoStack = emptyList()
+        value = TextFieldValue(newText, selection)
+        viewModel.updateEditor(newText)
+    }
+
+    fun undo() {
+        val previous = undoStack.lastOrNull() ?: return
+        undoStack = undoStack.dropLast(1)
+        redoStack = (redoStack + value.text).takeLast(60)
+        value = TextFieldValue(previous, TextRange(previous.length))
+        viewModel.updateEditor(previous)
+    }
+
+    fun redo() {
+        val next = redoStack.lastOrNull() ?: return
+        redoStack = redoStack.dropLast(1)
+        undoStack = (undoStack + value.text).takeLast(60)
+        value = TextFieldValue(next, TextRange(next.length))
+        viewModel.updateEditor(next)
+    }
+
+    fun findNext() {
+        if (query.isBlank()) return
+        val text = value.text
+        val start = value.selection.end.coerceIn(0, text.length)
+        var index = text.indexOf(query, start, ignoreCase = true)
+        if (index < 0) index = text.indexOf(query, ignoreCase = true)
+        if (index >= 0) {
+            value = value.copy(selection = TextRange(index, index + query.length))
+        }
+    }
+
+    fun replaceCurrent() {
+        val selection = value.selection
+        val selected = if (selection.length > 0) value.text.substring(selection.start, selection.end) else ""
+        if (query.isNotBlank() && selected.equals(query, ignoreCase = true)) {
+            val newText = value.text.replaceRange(selection.start, selection.end, replacement)
+            commit(newText, TextRange(selection.start, selection.start + replacement.length))
+        } else {
+            findNext()
+        }
+    }
+
+    fun replaceAll() {
+        if (query.isBlank()) return
+        val newText = value.text.replace(query, replacement, ignoreCase = true)
+        if (newText != value.text) commit(newText)
+    }
+
+    // Text can change from the agent, a restore or another tab: keep the local
+    // editor in sync without resetting the caret on every normal keystroke.
+    LaunchedEffect(state.editorText) {
+        if (state.editorText != value.text) {
+            value = TextFieldValue(state.editorText, TextRange(state.editorText.length))
+        }
+    }
+    LaunchedEffect(showFind) {
+        if (showFind) runCatching { findFocus.requestFocus() }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                if (!event.isCtrlPressed && !event.isMetaPressed) return@onPreviewKeyEvent false
+                when (event.key) {
+                    Key.S -> { viewModel.saveFile(); true }
+                    Key.F -> { showFind = true; true }
+                    Key.Z -> { undo(); true }
+                    Key.Y -> { redo(); true }
+                    Key.A -> {
+                        value = value.copy(selection = TextRange(0, value.text.length))
+                        true
+                    }
+                    else -> false
+                }
+            },
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = state.openPath ?: "",
+                text = path,
                 style = MaterialTheme.typography.labelMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -692,7 +890,7 @@ private fun EditorPane(state: CodeUiState, viewModel: CodeViewModel) {
                 Text("●", color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(end = 6.dp))
             }
             IconButton(onClick = viewModel::saveFile, enabled = state.dirty) {
-                Icon(Icons.Outlined.Save, contentDescription = "Salva")
+                Icon(Icons.Outlined.Save, contentDescription = "Salva (Ctrl+S)")
             }
             IconButton(onClick = viewModel::runSandbox) {
                 Icon(Icons.Outlined.PlayArrow, contentDescription = "Esegui nella sandbox")
@@ -705,16 +903,153 @@ private fun EditorPane(state: CodeUiState, viewModel: CodeViewModel) {
                 Icon(Icons.Outlined.Share, contentDescription = "Condividi il file")
             }
         }
-        OutlinedTextField(
-            value = state.editorText,
-            onValueChange = viewModel::updateEditor,
-            modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 8.dp),
-            textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 12.sp),
-        )
+        val beforeCaret = value.text.take(value.selection.start.coerceIn(0, value.text.length))
+        val caretLine = beforeCaret.count { it == '\n' } + 1
+        val caretColumn = beforeCaret.length - beforeCaret.lastIndexOf('\n')
+        val lineCount = value.text.count { it == '\n' } + 1
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "$lineCount righe · riga $caretLine, colonna $caretColumn",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = { showFind = !showFind }, enabled = true) { Text("Cerca") }
+            TextButton(onClick = { undo() }, enabled = undoStack.isNotEmpty()) { Text("Undo") }
+            TextButton(onClick = { redo() }, enabled = redoStack.isNotEmpty()) { Text("Redo") }
+        }
+        if (showFind) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier.weight(1f).focusRequester(findFocus),
+                        placeholder = { Text("Cerca nel file") },
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.bodySmall,
+                    )
+                    TextButton(onClick = { findNext() }) { Text("Successivo") }
+                    TextButton(onClick = { showFind = false }) { Text("Chiudi") }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = replacement,
+                        onValueChange = { replacement = it },
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text("Sostituisci con") },
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.bodySmall,
+                    )
+                    TextButton(onClick = { replaceCurrent() }) { Text("Sostituisci") }
+                    TextButton(onClick = { replaceAll() }) { Text("Tutto") }
+                }
+            }
+        }
+        val language = path.substringAfterLast('.', "").lowercase()
+        val gutterWidth = ((lineCount.toString().length * 8) + 14).dp
+        // Give the field the width of its longest line so code does not wrap:
+        // the line-number gutter stays aligned and the horizontal scroll is real.
+        val longestLine = value.text.lineSequence().maxOfOrNull { it.length } ?: 0
+        val editorWidth = ((longestLine * 7.4f) + 32f).dp.coerceIn(280.dp, 6000.dp)
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(4.dp))
+                .background(MaterialTheme.colorScheme.surface),
+        ) {
+            Column(modifier = Modifier.fillMaxSize().verticalScroll(vertical)) {
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = (1..lineCount).joinToString("\n"),
+                        modifier = Modifier.width(gutterWidth).padding(start = 4.dp, top = 8.dp, end = 4.dp),
+                        style = editorStyle.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                        textAlign = TextAlign.End,
+                    )
+                    Box(modifier = Modifier.weight(1f).horizontalScroll(horizontal)) {
+                        BasicTextField(
+                            value = value,
+                            onValueChange = { updated ->
+                                if (updated.text == value.text) value = updated else commit(updated.text, updated.selection)
+                            },
+                            modifier = Modifier.width(editorWidth).padding(8.dp),
+                            textStyle = editorStyle,
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            visualTransformation = remember(language, keywordColor, stringColor, commentColor, numberColor) {
+                                CodeSyntaxTransformation(language, keywordColor, stringColor, commentColor, numberColor)
+                            },
+                        )
+                    }
+                }
+            }
+        }
         DiagnosticsPane(state.diagnostics)
         if (state.sandbox != null) {
             SandboxPane(state, viewModel)
         }
+    }
+}
+
+/**
+ * Colours comments, strings, numbers and keywords without changing a single
+ * character of the text, so selections and offsets stay valid.
+ */
+private class CodeSyntaxTransformation(
+    private val language: String,
+    private val keywordColor: Color,
+    private val stringColor: Color,
+    private val commentColor: Color,
+    private val numberColor: Color,
+) : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        if (text.length > 120_000) return TransformedText(text, OffsetMapping.Identity)
+        val builder = AnnotatedString.Builder(text.text)
+        STRINGS.findAll(text.text).forEach { match ->
+            builder.addStyle(SpanStyle(color = stringColor), match.range.first, match.range.last + 1)
+        }
+        KEYWORDS.findAll(text.text).forEach { match ->
+            if (match.value in KEYWORDS_SET) {
+                builder.addStyle(SpanStyle(color = keywordColor), match.range.first, match.range.last + 1)
+            }
+        }
+        NUMBERS.findAll(text.text).forEach { match ->
+            builder.addStyle(SpanStyle(color = numberColor), match.range.first, match.range.last + 1)
+        }
+        val commentRegex = when (language) {
+            "py", "sh", "yaml", "yml", "properties" -> HASH_COMMENT
+            "html", "htm", "xml" -> HTML_COMMENT
+            else -> SLASH_COMMENT
+        }
+        commentRegex.findAll(text.text).forEach { match ->
+            builder.addStyle(SpanStyle(color = commentColor), match.range.first, match.range.last + 1)
+        }
+        return TransformedText(builder.toAnnotatedString(), OffsetMapping.Identity)
+    }
+
+    private companion object {
+        val STRINGS = Regex("\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*'")
+        val KEYWORDS = Regex("\\b[A-Za-z_][A-Za-z0-9_]*\\b")
+        val NUMBERS = Regex("\\b\\d+(?:\\.\\d+)?\\b")
+        val SLASH_COMMENT = Regex("//[^\\n]*|/\\*[\\s\\S]*?\\*/")
+        val HASH_COMMENT = Regex("#[^\\n]*")
+        val HTML_COMMENT = Regex("<!--[\\s\\S]*?-->")
+        val KEYWORDS_SET = setOf(
+            "fun", "val", "var", "class", "object", "interface", "if", "else", "when", "for",
+            "while", "return", "import", "package", "private", "public", "internal", "data",
+            "const", "suspend", "try", "catch", "finally", "throw", "new", "this", "super",
+            "function", "let", "async", "await", "export", "default", "from", "typeof",
+            "true", "false", "null", "undefined", "struct", "def", "self", "elif", "except",
+            "void", "int", "float", "double", "char", "bool", "constexpr", "namespace", "template",
+            "public", "protected", "static", "final", "abstract", "override", "open", "enum",
+        )
     }
 }
 
@@ -1150,7 +1485,11 @@ private fun Banner(message: String, error: Boolean, onDismiss: () -> Unit) {
  * result is never a vague "done".
  */
 @Composable
-private fun AgentStepsPanel(steps: List<AgentStep>) {
+private fun AgentStepsPanel(
+    steps: List<AgentStep>,
+    canRollback: Boolean,
+    onRollback: () -> Unit,
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -1184,6 +1523,14 @@ private fun AgentStepsPanel(steps: List<AgentStep>) {
                             )
                         }
                     }
+                }
+            }
+            if (canRollback) {
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(onClick = onRollback, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Outlined.History, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Ripristina lo stato prima dell'attività")
                 }
             }
         }

@@ -149,7 +149,7 @@ I test unitari JVM coprono la logica pura, senza Android framework:
 - Code: parsing patch, analisi HTML/Java/C++, progetto, quota e agente;
 - infrastruttura: timing di generazione, UTF-8, file, sicurezza.
 
-Totale in questa release: **236 test JVM, 0 falliti, 0 errori, 0 saltati**. La CI esegue gli stessi
+Totale in questa release: **264 test JVM, 0 falliti, 0 errori, 0 saltati**. La CI esegue gli stessi
 quattro moduli. Non esistono test strumentali: richiederebbero un device.
 
 ## 7. CI

@@ -103,7 +103,7 @@ Embedding:     opzionale, import manuale di multilingual-e5-small Q8_0
                (132439008 byte, SHA-256 e011debc…77c93), verificato all'import.
 Test eseguiti: test unitari JVM dei quattro moduli + lint + build debug.
                Nessun test su dispositivo fisico o emulatore.
-Release note:  docs/RELEASE-2.1.0.md
+Release note:  docs/RELEASE-2.2.0.md
 EOF
 
 echo "APK:      $OUT"
