@@ -1,0 +1,27 @@
+name: push-1.5-final
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Apply final docs patch and push
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 -o /tmp/final.patch "https://files.catbox.moe/gbqs1m.patch"
+          echo "patch bytes: $(stat -c%s /tmp/final.patch)"
+          git apply --index /tmp/final.patch
+          git -c user.name="BIG B AI" -c user.email="noreply@bigbai.local" \
+            commit -m "docs: dati dell'artifact CI 1.5.0 [skip ci]"
+          git push origin HEAD:main
