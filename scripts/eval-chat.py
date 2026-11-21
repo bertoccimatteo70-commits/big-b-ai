@@ -19,7 +19,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BINARY = os.path.join(ROOT, "build", "llama-host", "bin", "eval_chat")
 OUT_DIR = os.path.join(ROOT, "docs", "ai-eval")
 
-# Stesso prompt compatto usato da PromptTemplates per i modelli sotto 1B.
+# Stesso prompt compatto usato da PromptTemplates per i modelli piccoli.
 SYSTEM = """Sei AI, l'assistente locale di ITAGPT. Rispondi in italiano corretto, chiaro e breve. Usa solo fatti certi: se non sai, dillo. Non inventare fonti, azioni o funzionalità. Non ripetere la domanda. Usa Markdown per elenchi e codice. Per la matematica mostra i passaggi."""
 
 CASES = [
@@ -91,7 +91,7 @@ def main():
         with open(prompt_path, "w") as handle:
             handle.write(chatml(turns))
         completed = subprocess.run(
-            [BINARY, model, prompt_path, str(n_predict), "0.7"],
+            [BINARY, model, prompt_path, str(n_predict), "0.55"],
             capture_output=True, text=True, check=True,
         )
         output = completed.stdout

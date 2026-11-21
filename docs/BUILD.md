@@ -17,20 +17,28 @@
 Il Gradle wrapper è committato (`gradlew`, `gradle/wrapper/`), quindi locale e CI usano la stessa
 versione senza dipendere da un Gradle installato nel `PATH`.
 
-## 1. Libreria nativa
+## 1. Modelli inclusi
+
+```bash
+bash scripts/fetch-bundled-model.sh  # embedding multilingual-e5-small (132 MB)
+bash scripts/fetch-bundled-chat.sh   # chat Qwen2.5 1.5B Q4_K_M (1.066 MiB)
+```
+
+`fetch-bundled-chat.sh` scarica `qwen2.5-1.5b-instruct-q4_k_m.gguf` dal repository
+`Qwen/Qwen2.5-1.5B-Instruct-GGUF` (Apache-2.0) e verifica **dimensione e SHA-256**
+(`6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e`) prima di copiarlo in
+`app/src/main/assets/models/`. Se il file esiste già e l'hash coincide, non viene riscaricato.
+
+I due `.gguf` non sono versionati: sono grandi e riproducibili. Entrambi gli script falliscono se il
+file scaricato è corrotto; `package-debug-apk.sh` e `package-release-apk.sh` verificano poi
+dimensione e SHA-256 **dentro l'APK**. Senza uno dei due modelli l'APK viene rifiutato.
+
+## 2. Libreria nativa
 
 ```bash
 bash scripts/fetch-llama.sh          # clona llama.cpp al commit fissato in third_party/
-bash scripts/fetch-bundled-model.sh  # scarica e verifica il modello di embedding (132 MB)
 bash scripts/build-native.sh         # compila e strippa libbigbai.so per tutte le ABI
 ```
-
-`fetch-bundled-model.sh` scarica `multilingual-e5-small-q8_0.gguf` (TwinSunsLLC, Q8_0,
-132.439.008 byte) e ne verifica dimensione e SHA-256
-(`e011debc1208e31bf7b6aebee2d9fc8bd2ca11694a77ed66ac9d0c9d0a877c93`) prima di copiarlo in
-`app/src/main/assets/models/`. Il file non è versionato: è troppo grande per la storia Git ed è
-riproducibile. Senza di esso `assembleDebug` produce un APK incompleto e
-`package-debug-apk.sh` lo rifiuta.
 
 `build-native.sh` usa CMake + NDK, `-DGGML_VULKAN=OFF`, `-DGGML_OPENMP=OFF`,
 `-DLLAMA_CURL=OFF`, e produce una libreria per ogni ABI spedita:
@@ -51,13 +59,6 @@ ABIS="arm64-v8a x86_64" JOBS=4 bash scripts/build-native.sh
 `armeabi-v7a` compila con `GGML_LLAMAFILE=OFF`: i kernel FP16 NEON di llamafile richiedono ARMv8,
 mentre i dispositivi 32-bit sono ARMv7. La scelta è nel `CMakeLists.txt` del modulo `llm`.
 
-La build completa delle tre ABI richiede alcuni minuti e circa 1–2 GB di RAM per processo con
-`JOBS=2`. Su macchine piccole:
-
-```bash
-JOBS=1 bash scripts/build-native.sh
-```
-
 Il `.so` è in `.gitignore`: viene ricostruito in CI, non versionato.
 
 ### Perché CPU only
@@ -67,29 +68,30 @@ Vulkan. Distribuire un backend GPU senza shader verificati avrebbe significato u
 dichiarata e non funzionante, quindi il backend Vulkan è escluso e l'app lo dichiara nelle
 impostazioni. Il percorso CPU è compilato e verificato.
 
-## 2. Build Gradle
+## 3. Build Gradle
 
 ```bash
 ./gradlew --no-daemon :core:testDebugUnitTest :code:testDebugUnitTest \
   :llm:testDebugUnitTest :app:testDebugUnitTest
-./gradlew --no-daemon jacocoTestReport
+./gradlew --no-daemon :app:lintDebug
 ./gradlew --no-daemon assembleDebug
 bash scripts/package-debug-apk.sh
 ```
 
-`gradle.properties` è tarato su host con 2 core e ~4 GB di RAM:
+`gradle.properties` usa 4 GB di heap per il processo Gradle, due worker e il compilatore Kotlin
+in-process. Il valore è stato alzato perché il packaging dell'asset da 1,1 GB durante
+`assembleRelease` non entri nei limiti precedenti:
 
 ```properties
-org.gradle.jvmargs=-Xmx2816m -XX:MaxMetaspaceSize=768m
+org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1g
 org.gradle.workers.max=2
 kotlin.compiler.execution.strategy=in-process
 ```
 
-Su una macchina più grande si possono alzare questi valori.
+Su una macchina con più RAM si può alzare `-Xmx`; su una più piccola usare `JOBS=1` per la parte
+nativa e non eseguire debug e release in parallelo.
 
-## 3. APK di debug
-
-La consegna è un APK di debug, firmato con la chiave debug Android (`CN=Android Debug`):
+## 4. APK di debug
 
 ```bash
 ./gradlew --no-daemon assembleDebug
@@ -97,100 +99,81 @@ bash scripts/package-debug-apk.sh
 ```
 
 Lo script copia l'APK in `dist/ITAGPT-debug-<versione>.apk`, verifica che `libbigbai.so` **e**
-`libsqlcipher.so` siano presenti per `arm64-v8a`, `armeabi-v7a` e `x86_64` (un APK senza motore
-nativo, o con un'ABI incompleta, non deve mai essere pubblicato), verifica che il modello di
-embedding dentro l'APK abbia dimensione e SHA-256 attesi, controlla firma (`apksigner`) e manifest
-(`aapt2`: package, versionCode, versionName, ABI), confronta l'hash della copia con quello
-dell'APK appena compilato, calcola lo SHA-256 e scrive `dist/ITAGPT-debug-<versione>.txt` con
-dimensione, data, package e firma. Non esiste alcuna soglia minima o massima di dimensione: lo
-script fallisce solo se un componente reale (ABI, modello, firma, manifest o checksum) è sbagliato.
+`libsqlcipher.so` siano presenti per `arm64-v8a`, `armeabi-v7a` e `x86_64`, che il modello di
+embedding e quello di chat abbiano dimensione e SHA-256 attesi **dentro l'APK**, la firma
+(`apksigner`) e il manifest (`aapt2`: package, versionCode, versionName, ABI). Confronta l'hash
+della copia con quello dell'APK appena compilato, calcola lo SHA-256 e scrive
+`dist/ITAGPT-debug-<versione>.txt` con dimensione, data, package, firma e modelli.
 
 La variante debug usa `applicationId` `com.bigbai.app.debug` e `versionName` `2.0.0-debug`, quindi
 convive con una eventuale build di release sullo stesso dispositivo.
 
-`app/build.gradle.kts` supporta ancora la firma di release (`keystore.properties` o variabili
-`SIGNING_*`) per build future, ma non fa parte di questa consegna.
+Non esiste alcuna soglia minima o massima di dimensione: lo script fallisce solo se un componente
+reale (ABI, modello, firma, manifest o checksum) è sbagliato.
 
-## 4. Test
+## 5. APK di release, R8 e firma
+
+```bash
+./gradlew --no-daemon assembleRelease
+bash scripts/package-release-apk.sh
+```
+
+`app/build.gradle.kts` abilita per la release:
+
+- `isMinifyEnabled = true` (R8);
+- `isShrinkResources = true`;
+- regole keep in `app/proguard-rules.pro` per JNI, Room, serializzazione, JGit, PDFBox,
+  SQLCipher e ML Kit.
+
+La build release minificata è stata eseguita in questo ambiente. **Non è stata eseguita su un
+dispositivo**: un problema di reflection introdotto dall'offuscamento non è stato escluso.
+
+La firma è condizionale. Se sono presenti `SIGNING_STORE_FILE`, `SIGNING_STORE_PASSWORD`,
+`SIGNING_KEY_ALIAS` e `SIGNING_KEY_PASSWORD` (o `keystore.properties`), Gradle usa quel keystore;
+altrimenti usa la chiave debug. `package-release-apk.sh` distingue i due casi:
+
+- certificato `CN=Android Debug` → file `ITAGPT-release-debug-signed-2.0.0.apk`, etichettato come
+  **non ufficiale**;
+- certificato reale → `ITAGPT-release-2.0.0.apk`.
+
+Con `REQUIRE_OFFICIAL_RELEASE_SIGNATURE=1` lo script fallisce se la firma è ancora quella debug.
+La pipeline imposta questa variabile solo quando `ITAGPT_KEYSTORE_BASE64` è presente nei Secrets.
+Le chiavi non vanno mai committate.
+
+## 6. Test
 
 I test unitari JVM coprono la logica pura, senza Android framework:
 
-- `ConversationSessionTest` (6 test): identità della conversazione e regressione del bug che
-  faceva uscire dalla chat al secondo messaggio.
-- `StreamingBufferTest` (4 test): throttling e flush dello streaming.
-- `LanguageCoachTest` (7 test): glossari del tutor, prompt, parsing e deduplica del lessico.
-- `ChatTitleTest` (5 test): derivazione deterministica del titolo, markdown e troncamento.
-- `Utf8StreamTest` (6 test): UTF-8 spezzato tra token, emoji, sequenze incomplete.
-- `PromptTemplatesTest` (7 test): prompt multilingua, Vision, fonti, tutor e ITAGPT Code.
-- `AttachmentPolicyTest` (5 test): classificazione MIME/estensione e limiti di dimensione.
+- chat: sessioni, streaming, titoli, stato, export Markdown/TXT, allegati;
+- prompt: multilingua, Vision, fonti, tutor, Code, contesto OCR/documenti;
+- modelli: profili, quality gate, sampler, valutazione, embedding e indice semantico;
+- italiano: calcolatrice, controllo meccanico, lessico del tutor;
+- documenti: DOCX, XLSX, CSV, TXT, estensioni non supportate e limiti;
+- Code: parsing patch, analisi HTML/Java/C++, progetto, quota e agente;
+- infrastruttura: timing di generazione, UTF-8, file, sicurezza.
 
-- `GenerationTimingTest` (5 test): token/s e tempi prompt/TTFT dai contatori llama.cpp e fallback wall-clock.
-- `ProjectFilesReadTest` (4 test): limite byte applicato durante la lettura, UTF-8 multi-byte.
-- `PatchEngineTest` (8 test): parsing del protocollo patch, path, blocchi non chiusi, diff e statistiche.
-- `StaticAnalyzersTest` (10 test): HTML, Java, C++, CSS.
-- `HtmlTextTest` (4 test): rimozione script/style, entità, spazi.
-- `AnswerSanitizerTest` (5 test): stop marker completi e spezzati, testo trattenuto, casi vuoti.
-- `ChatStateTransitionsTest` (3 test): nuova chat e cambio conversazione senza stato ereditato.
-- `FileExportTest` (10 test): slug, timestamp, estensioni dal blocco di codice, MIME, export
-  Markdown e TXT.
-- `ProjectNamingTest` (4 test): nome cartella, HTML iniziale, escaping del titolo.
+Totale in questa release: **222 test JVM, 0 falliti, 0 errori, 0 saltati**. La CI esegue gli stessi
+quattro moduli. Non esistono test strumentali: richiederebbero un device.
 
-- `CodeAgentTest` (10), `CodeQuotaTest` (6): protocollo dell'agente, percorsi, limiti, quota.
-- `ModelProfilesTest` (7), `ResponseQualityTest` (6), `EvaluationSuiteTest` (5): profili per modello,
-  ripetizioni/troncamento, punteggio della suite di valutazione, repetition penalty e min-p.
+## 7. CI
 
-Nuovi in 1.5.0:
+`.github/workflows/android.yml`:
 
-- `EmbeddingsTest` (7), `SemanticIndexTest` (4): chunking con sovrapposizione, similarità, soglia,
-  persistenza e rimozione dei vettori.
-- `QualityGateTest` (5): ripetizioni, fence non chiusi, tempo limite, una sola riscrittura.
-- `CalculatorTest` (8), `ItalianCheckTest` (8): aritmetica verificata, intervalli di anni ignorati,
-  spazi/punteggiatura/duplicati, codice escluso.
-- `ProjectInsightsTest` (6): duplicati, dipendenze mancanti, `package.json`, report delle modifiche.
-- `PromptContextTest` (2): iniezione di passaggi recuperati e calcoli verificati nel prompt.
-
-Totale: **214 test JVM, 0 falliti**, eseguiti anche dalla pipeline CI. Non esistono test
-strumentali: richiederebbero un device.
-
-## 4.1 Copertura
-
-```bash
-./gradlew --no-daemon jacocoTestReport
-```
-
-Report aggregato in `build/reports/jacoco/jacocoTestReport/html` (XML e CSV accanto). Misurazione
-corrente in 2.0.0: **16,1% delle linee** (2.149 coperte, 11.226 mancanti) e **11,3% dei branch**
-(1.051 coperti, 8.236 mancanti). La copertura è concentrata sulla logica pura verificabile senza
-device; UI Compose, Room, PDF, backup, Keystore, voce e sandbox richiedono test strumentali e non
-sono coperti. Il dato è basso ed è riportato così com'è: non viene presentato come obiettivo
-raggiunto.
-
-## Font
-
-`app/src/main/res/font/` contiene Tinos regular/bold/italic/bold-italic. Tinos è distribuito con
-licenza Apache-2.0 (testo in `app/src/main/assets/licenses/Tinos-Apache-2.0.txt`) ed è
-metricamente compatibile con Times New Roman. Times New Roman è proprietario e non può essere
-incluso nell'APK: non sostituirlo con un file scaricato da fonti non autorizzate.
-
-
-## 5. CI
-
-`.github/workflows/android.yml` (solo build debug):
-
-1. JDK 17, Android SDK con `android-actions/setup-android@v4` (niente pacchetto `tools`, rimosso da
-   Google), NDK 27.2.12479018 e CMake 3.22.1;
-2. `fetch-llama.sh`, `fetch-bundled-model.sh` (con verifica SHA-256) e `build-native.sh` per
+1. JDK 17, Android SDK 35, NDK 27.2.12479018 e CMake 3.22.1;
+2. `fetch-llama.sh`, `fetch-bundled-model.sh`, `fetch-bundled-chat.sh` e `build-native.sh` per
    `arm64-v8a`, `armeabi-v7a` e `x86_64`;
 3. test JVM dei quattro moduli (`:core`, `:code`, `:llm`, `:app`);
 4. `:app:lintDebug`;
-5. `./gradlew assembleDebug`;
-6. `package-debug-apk.sh` (verifica ABI, modello, firma, manifest e checksum) e upload
-   dell'artifact **ITAGPT-Debug-APK** (APK + `.sha256` + `.txt`, retention 30 giorni);
-7. `sha256sum -c` esplicito sull'artifact e riepilogo nella pagina della run;
-8. upload dell'artifact **ITAGPT-CI-Reports** con risultati JUnit e lint.
+5. preparazione opzionale del keystore dai GitHub Secrets;
+6. `assembleDebug` e `assembleRelease` (R8 + resource shrinking);
+7. `package-debug-apk.sh` e `package-release-apk.sh`, con verifica di ABI, modelli, firma,
+   manifest e checksum;
+8. `sha256sum -c` esplicito sugli APK e riepilogo nella pagina della run;
+9. upload di **ITAGPT-Debug-APK**, **ITAGPT-Release-APK** (entrambi con `.sha256` e `.txt`) e
+   **ITAGPT-CI-Reports** (JUnit e lint).
 
-La copertura JaCoCo è riproducibile in locale con `./gradlew jacocoTestReport`; la pipeline non
-carica un artifact di copertura separato, per non affiancare un terzo artifact a quello APK.
+Il workflow è avviabile manualmente (`workflow_dispatch`) e non impone soglie di dimensione.
+Gli APK sono universali: non ci sono split per ABI.
 
 ## Problemi comuni
 
@@ -198,7 +181,8 @@ carica un artifact di copertura separato, per non affiancare un terzo artifact a
 |---|---|
 | `Could not find com.tom-roush:pdfbox-android:2.0.27.3` | La versione pubblica è `2.0.27.0`; il catalogo versioni è fissato a quella. |
 | `Cannot access androidx.room.RoomDatabase` in `:code` o `:app` | `AppDatabase` è API pubblica di `:core`: il modulo consumatore deve avere `room-runtime`. Già configurato. |
-| `UnsatisfiedLinkError: libbigbai.so` | La libreria non è stata costruita per quell'ABI. Rieseguire `build-native.sh` e controllare che `libbigbai.so` esista in `llm/src/main/jniLibs/<abi>/`. |
-| `apksigner: java: not found` | `JAVA_HOME` non impostato nella shell. Esportare il JDK 17. |
+| `UnsatisfiedLinkError: libbigbai.so` | La libreria non è stata costruita per quell'ABI. Rieseguire `build-native.sh` e controllare `llm/src/main/jniLibs/<abi>/`. |
+| `apksigner: java: not found` | `JAVA_HOME` non impostato nella shell. Esportare il JDK 17 e aggiungere `$JAVA_HOME/bin` al `PATH`. |
 | Build nativa uccisa (OOM) | Ridurre `JOBS` a 1 e chiudere altri processi. |
+| Build Gradle uccisa durante il packaging | Alzare `-Xmx` in `gradle.properties`; il modello da 1,1 GB richiede più memoria del solo codice. |
 | `Failed to find package 'tools'` | `android-actions/setup-android@v3` chiedeva il pacchetto `tools`, rimosso dal repository Android. Il workflow usa `v4` e dichiara i pacchetti esplicitamente. |

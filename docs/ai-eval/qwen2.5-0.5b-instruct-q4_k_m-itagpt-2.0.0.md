@@ -12,10 +12,10 @@ Le risposte sono state generate davvero; i controlli automatici sono elencati ac
 Spiega in due frasi la differenza tra «qual è» e «qual'è».
 ```
 
-**Risposta** (EOS, 9 parole)
+**Risposta** (EOS, 15 parole)
 
 ```text
-"Qual è" significa "che sia", mentre "qual'è" indica "quale".
+"Qual è" e "qual'è" sono parole che usano il stesso concetto, ma differenza in natura.
 ```
 
 **Controlli**: nessun problema automatico
@@ -28,17 +28,27 @@ Spiega in due frasi la differenza tra «qual è» e «qual'è».
 Correggi gli errori in questa frase e spiega le correzioni: «Non so se piu conveniente partire, perche domani e un giorno importante».
 ```
 
-**Risposta** (EOS, 51 parole)
+**Risposta** (EOS, 125 parole)
 
 ```text
 La frase corretta è: "Non so se piu conveniente partire, perche domani un giorno importante."
 
-Ricorso delle correzioni:
-1. Sfiorare i verbali in maniera errata: "partire" dovrebbe essere "partire" (solo l'una).
-2. Eliminare le parenthasi incorrecte ("perche domani un giorno importante"): "domani e un giorno importante" dovrebbe essere "un giorno importantesso".
+Cerco di clarificare i passaggi:
+
+1. **Il punto:** Non so se piu conveniente partire, perche domani un giorno importante.
+
+2. **La frase:** "perche" (quindi) è incompleto e necessitava di essere corrispondente con il seguente passaggio: "domani un giorno importante".
+
+3. **La frase:** "perche" (quindi) non è più appropriato per la condizione che si parla di.
+
+4. **Il punto:** Non so se piu conveniente partire, perche domani un giorno importante.
+
+La frase corretta esattamente è: "Non so se piu conveniente partire, perche domani un giorno importante."
+
+Questo errore si riscontra nella seconda frase che non ha corrispondenza con il seguente passaggio, dove "domani un giorno importante" è compreso come una condizione.
 ```
 
-**Controlli**: spazi doppi, forma errata «piu», forma errata «perche»
+**Controlli**: spazi doppi, forma errata «piu», forma errata «perche», frase ripetuta
 
 ## Concordanze e tempi verbali
 
@@ -48,29 +58,13 @@ Ricorso delle correzioni:
 Racconta al passato prossimo, in terza persona, una breve gita al mare. Mantieni tempi e concordanze coerenti.
 ```
 
-**Risposta** (LENGTH, 217 parole)
+**Risposta** (EOS, 57 parole)
 
 ```text
-Mi trovavo al mar, con le braccia che non cedevano. Il sole, a circa cinquecento metri di altezza, brillava come un'illuminatazione alante della luna. Le onde si avvicinavano con una velocità strana e forte.
-
-Mi accostavo in modo da non disturbare la musica, l'arco della vela illuminava il suo viso. Il mare era dietro me, un fiume che dava a ogni misterioso sussurro e stridio.
-
-Mi avvicinavo al mare con le mani, ma non esitavo. Il vento che si addormentava in una di quelle tempeste era un'illuminazione nuova da notare.
-
-Mi avvicinavo al mare, ma non esitavo. Il vento che si addormentava in una di quelle tempeste era un'illuminazione nuova da notare.
-
-Mi avvicinavo al mare, ma non esitavo. Il vento che si addormentava in una di quelle tempeste era un'illuminazione nuova da notare.
-
-Mi avvicinavo al mare, ma non esitavo. Il vento che si addormentava in una di quelle tempeste era un'illuminazione nuova da notare.
-
-Mi avvicinavo al mare, ma non esitavo. Il vento che si addormentava in una di quelle tempeste era un'illuminazione nuova da notare.
-
-Mi avvicinavo al mare, ma non esitavo. Il vento che si addormentava in una di quelle tempeste era un'illuminazione nuova da notare.
-
-Mi avvicinavo al mare, ma non esitavo. Il vento che si addormentava in una di quelle tempeste
+Mi sono portato con me una cura, un biciclo e un paio di vestiti. Poi ho fatto il giro al mare verso la mia casa. Il mio compito fu mettere le due macchine in movimento e fare un'occhiata intorno. Ho trovato l'albergo dove mi avrei arruolato, mi sono alzato in fretta e mi sono portato verso casa.
 ```
 
-**Controlli**: spazi doppi, frase ripetuta, troncata al limite di token
+**Controlli**: nessun problema automatico
 
 ## Punteggiatura
 
@@ -80,10 +74,10 @@ Mi avvicinavo al mare, ma non esitavo. Il vento che si addormentava in una di qu
 Aggiungi la punteggiatura a questa frase senza cambiare le parole: ieri sono andato al mercato ho comprato mele pere e pane poi sono tornato a casa
 ```
 
-**Risposta** (EOS, 15 parole)
+**Risposta** (EOS, 16 parole)
 
 ```text
-Ieri andai al mercato. Ho comprato mele pere e pane poi sono tornato a casa
+ieri sono andato al mercato ha comprato mele pere e pane poi sono tornato a casa
 ```
 
 **Controlli**: nessun problema automatico
@@ -96,10 +90,10 @@ Ieri andai al mercato. Ho comprato mele pere e pane poi sono tornato a casa
 Testo: «La maggior parte degli adulti ha bisogno di sette-otto ore di sonno per notte. Chi dorme meno di sei ore in modo abituale può accumulare stanchezza.» Quante ore dorme un adulto secondo il testo? Rispondi citando il testo.
 ```
 
-**Risposta** (EOS, 35 parole)
+**Risposta** (EOS, 34 parole)
 
 ```text
-Il testo dice che una persona ha bisogno di sette-otto ore di sonno per notte. Quindi, se dorme meno di sei ore in modo abituale, possiede sette ore di sonno e ottobre ore di sonno.
+Il testo dice che una persona ha bisogno di sette-otto ore di sonno per notte. Quindi, se dorme meno di sei ore in modo abituale, il suo sonno sarebbe di sette ore e ottobre.
 ```
 
 **Controlli**: nessun problema automatico
@@ -112,23 +106,38 @@ Il testo dice che una persona ha bisogno di sette-otto ore di sonno per notte. Q
 Spiega perché il cielo è blu in massimo 150 parole. Non inventare fonti.
 ```
 
-**Risposta** (EOS, 101 parole)
+**Risposta** (LENGTH, 308 parole)
 
 ```text
 Il cielo è blu in massimo 150 parole:
 
-1. Il cielo, di nome "sky", si conosciuta nel mezzo del XIX secolo.
-
-2. Inoltre il cielo è blu in massimo 150 anni, secondo le stime della Storia Astronoma di Giovanni Borgia.
-
-3. Quindi i due requisiti sono che il cielo sia blu e che si tratti del mezzo del XIX secolo.
-
-4. Questi risultati hanno contribuito al sviluppo della storia astronoma, che ha iniziato con la stima blu del cielo.
-
-5. Questi risultati sono stati documentati e riconosciuti nel mezzo del XIX secolo, quindi il cielo è blu in massimo 150 parole.
+1. Il cielo ha una scintilla di blu.
+2. Ci sono due principali colori del cielo: l'azzurro e il grigio.
+3. L'azurato è più visibile all'esterno, mentre i grigi sono più visibili dentro.
+4. Ci sono nuovi colori del cielo che non esistevano in passato (come la neve).
+5. Il blu è un'ottica fisica, rendendo il cielo più visibile.
+6. Ci sono nuovi strumenti e tecnologie che non esistevano in passato (come i radar).
+7. Il blu è un'ottica sensoriale, rendendo il cielo più visibile.
+8. Ci sono nuovi strumenti e tecnologie che non esistevano in passato (come i GPS).
+9. Il blu è un'ottica astronome, rendendo il cielo più visibile.
+10. Ci sono nuovi strumenti e tecnologie che non esistevano in passato (come i satelliti).
+11. Il blu è un'ottica astronome, rendendo il cielo più visibile.
+12. Ci sono nuovi strumenti e tecnologie che non esistevano in passato (come i satellite).
+13. Il blu è un'ottica astronome, rendendo il cielo più visibile.
+14. Ci sono nuovi strumenti e tecnologie che non esistevano in passato (come i satelliti).
+15. Il blu è un'ottica astronome, rendendo il cielo più visibile.
+16. Ci sono nuovi strumenti e tecnologie che non esistevano in passato (come i satellite).
+17. Il blu è un'ottica astronome, rendendo il cielo più visibile.
+18. Ci sono nuovi strumenti e tecnologie che non esistevano in passato (come i satelliti).
+19. Il blu è un'ottica astronome, rendendo il cielo più visibile.
+20. Ci sono nuovi strumenti e tecnologie che non esistevano in passato (come i satelliti).
+21. Il blu è un'ottica astronome, rendendo il cielo più visibile.
+22. Ci sono nuovi strumenti e tecnologie che non esistevano in passato (come i satellite).
+23. Il blu è un'ottica astronome, rendendo il cielo più visibile.
+24. Ci sono nuovi strumenti e tecn
 ```
 
-**Controlli**: spazi doppi
+**Controlli**: spazi doppi, frase ripetuta, troncata al limite di token
 
 ## Multi-turno
 
@@ -140,10 +149,10 @@ La capitale dell'Australia è Canberra.
 E quanti abitanti ha più o meno?
 ```
 
-**Risposta** (EOS, 17 parole)
+**Risposta** (EOS, 9 parole)
 
 ```text
-La capitale dell'Australia, Canberra, ha circa 350.000 abitanti e la città di Sydney ha almeno 27 millionate.
+La capitale dell'Australia, Canberra, ha circa 3 million abitanti.
 ```
 
 **Controlli**: nessun problema automatico
@@ -156,23 +165,24 @@ La capitale dell'Australia, Canberra, ha circa 350.000 abitanti e la città di S
 Quanto fa il 17% di 250? Mostra i passaggi e verifica il risultato.
 ```
 
-**Risposta** (EOS, 5 parole)
+**Risposta** (EOS, 12 parole)
 
 ```text
-17% di 250 è 42,5.
+Il 17% di 250 è:
+\[ 250 \times 0.17 = 42,5 \]
 ```
 
-**Controlli**: nessun problema automatico
+**Controlli**: spazi doppi
 
 ## Riepilogo
 
 | Caso | Fine | Controlli automatici |
 |---|---|---|
 | it-grammar | EOS | — |
-| it-spelling | EOS | spazi doppi, forma errata «piu», forma errata «perche» |
-| it-tenses | LENGTH | spazi doppi, frase ripetuta, troncata al limite di token |
+| it-spelling | EOS | spazi doppi, forma errata «piu», forma errata «perche», frase ripetuta |
+| it-tenses | EOS | — |
 | it-punctuation | EOS | — |
 | it-comprehension | EOS | — |
-| it-long | EOS | spazi doppi |
+| it-long | LENGTH | spazi doppi, frase ripetuta, troncata al limite di token |
 | it-multiturn | EOS | — |
-| it-math | EOS | — |
+| it-math | EOS | spazi doppi |

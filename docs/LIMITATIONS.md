@@ -7,132 +7,127 @@ L'obiettivo è che nessuno scopra un limite solo dopo aver installato l'APK.
 
 | Cosa | Stato |
 |---|---|
-| Compilazione debug | Verificata in questo ambiente |
-| Test unitari JVM (214) | Verificati, 0 falliti |
-| Agente ITAGPT Code (parsing, limiti, quota) | Verificato con test JVM |
-| Quota giornaliera su dispositivo reale | **Non verificata**: logica e persistenza testate, ciclo su device no |
-| Lint debug | 0 errori, 66 warning |
-| Copertura JVM (JaCoCo) | Misurata in 2.0.0: **16,1%** delle linee (2.149 coperte, 11.226 mancanti) e 11,3% dei branch; UI, Room, PDF e backup non coperti |
-| Librerie native arm64-v8a, armeabi-v7a, x86_64 | Compilate e strippate, presenti nell'APK |
-| Modello di embedding incluso | Verificato per dimensione e SHA-256 (script, APK, host); **non caricato su device** |
-| Retrieval semantico su device | **Non verificato**: soglia e qualità misurate solo su host |
-| Caricamento delle librerie su hardware reale | **Non verificato** |
-| Avvio dell'app su dispositivo | **Non verificato** |
-| Inferenza reale (testo) | **Non verificata** su device |
-| Inferenza multimodale | **Non verificata** su device |
-| Download di un modello completo | **Non eseguito**: il catalogo è verificato, il download no |
-| SAF, Keystore, SQLCipher a runtime | **Non verificati** |
-| Sandbox WebView | **Non verificata** a runtime |
-| Notifiche e foreground service | **Non verificati** a runtime |
-| Baseline Profiles | Valutati, **non inclusi** nella variante debug (AGP non li pacchettizza) |
+| Compilazione debug e release (R8) | Verificate in questo ambiente; build release minificata completata |
+| Test unitari JVM (222) | Verificati, 0 falliti, 0 errori, 0 saltati |
+| Lint debug | Eseguito; warning riportati nella CI |
+| Librerie native arm64-v8a, armeabi-v7a, x86_64 | Compilate e strippate dalla CI, presenti negli APK |
+| Modello chat incluso (Qwen2.5 1.5B Q4_K_M) | Verificato per dimensione e SHA-256 nello script e nell'APK; **non caricato su device** |
+| Modello di embedding incluso | Verificato per dimensione e SHA-256; **non caricato su device** |
+| OCR su immagini reali | Implementato con ML Kit sul dispositivo; **non eseguito su device** |
+| OCR su PDF scansionati | Implementato con `PdfRenderer` + ML Kit; **non eseguito su device** |
+| Import DOCX/XLSX/CSV/TXT | Parser locali coperti da test JVM; **non provati su file reali su device** |
+| Voce (TTS, dettatura, lingua, auto-speak) | Implementata; **non provata su device** |
+| Avvio dell'app, Keystore, SQLCipher, SAF | **Non verificati** a runtime |
+| Inferenza reale su Android | **Non verificata** su device |
+| Firma di release ufficiale | **BLOCCATA**: nessun keystore nei GitHub Secrets |
 
 Non era disponibile alcun dispositivo fisico né emulatore con accelerazione. Le parti sopra sono
-implementate e compilano, ma non sono state eseguite: non vengono dichiarate "funzionanti".
+implementate e compilano, ma non sono state eseguite su Android: non vengono dichiarate
+"funzionanti".
 
-## Piattaforma
+## Modello incluso e qualità
+
+- **Il modello incluso è Qwen2.5 1.5B Instruct Q4_K_M**, 1.117.320.736 byte, SHA-256
+  `6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e`, licenza Apache-2.0.
+  È il modello più piccolo che ha superato in modo accettabile la suite italiana reale
+  (`docs/ai-eval/qwen2.5-1.5b-instruct-q4_k_m-itagpt-2.0.0.md`). Il 0.5B, provato sullo stesso
+  protocollo, ripeteva frasi e produceva italiano inaffidabile.
+- **Non è un modello di frontiera.** La suite mostra risposte grammaticalmente accettabili e
+  tutti gli 8 casi chiusi con EOS, ma restano errori di contenuto: per esempio la spiegazione di
+  «qual è»/«qual'è» è sbagliata e la spiegazione del cielo blu contiene invenzioni. Non va usato
+  come fonte medica, legale o fattuale senza verifica.
+- **RAM necessaria.** Il modello pesa 1,07 GiB; con KV cache a 4.096 token e overhead la stima è
+  circa 1,45 GiB. In pratica servono almeno **4 GB di RAM** e circa **3 GB liberi** per installare
+  l'APK e copiare il modello negli asset privati. Su 2–3 GB il caricamento può essere rifiutato
+  dal budget RAM: l'app mostra l'errore, non finge di aver caricato il modello.
+- **Primo avvio.** L'estrazione del modello dagli asset richiede tempo e spazio; l'onboarding
+  mostra l'avanzamento. Non è un download di rete, ma non è istantanea.
+- **La qualità dipende anche dal prompt e dal sampler.** Il profilo dei modelli piccoli usa
+  temperatura 0,55, top-k 30, top-p 0,90, min-p 0,03, repetition penalty 1,15 e massimo 640
+  token. Questi valori sono una scelta misurata, non una garanzia.
+- **Modelli più grandi** restano scaricabili dal catalogo. Non sono inclusi nell'APK e richiedono
+  spazio, RAM e tempo di download aggiuntivi.
+
+## Piattaforma e prestazioni
 
 - **Tre ABI, ma verifica solo in compilazione.** L'APK è universale (arm64-v8a, armeabi-v7a,
   x86_64) e ogni ABI ha il proprio `libbigbai.so`. Le librerie non sono state caricate su un
   dispositivo reale: un problema di runtime specifico di un'ABI non è stato escluso.
-- **armv7 limitato dalla RAM.** Su 32-bit lo spazio di indirizzamento è ridotto: solo i modelli
-  piccoli (Q2/Q3) entrano nel budget; gli altri vengono rifiutati con un messaggio.
+- **armv7 limitato dalla RAM.** Su 32-bit lo spazio di indirizzamento è ridotto: il modello 1.5B
+  Q4 può non entrare nel budget; l'app lo rifiuta con un messaggio invece di lasciare che il
+  sistema la uccida.
+- **CPU only.** Il backend Vulkan è escluso: la build di llama.cpp usata non include gli shader
+  SPIR-V precompilati. La velocità su telefono non è stata misurata.
+- **Android 12+ (minSdk 31).** Non è stato declassato ad API 26: l'app usa `MediaStore.Downloads`
+  e comportamenti di foreground service introdotti con API 31. Servono fallback di storage,
+  permessi legacy e test su API 26–30 prima di dichiarare Android 8 supportato.
 - **Limite di 5 richieste locale al dispositivo.** Non esiste account né backend: il conteggio è
   salvato in DataStore e vale solo su quel dispositivo. Disinstallare l'app o cancellarne i dati
-  lo azzera. Non è un limite globale per utente.
-- **L'agente non compila.** Su Android non ci sono javac/clang: ITAGPT Code esegue analisi statica e
-  la sandbox HTML, non build Java/C++. Il prompt vieta al modello di dichiarare build o test
-  superati, e l'app mostra solo ciò che ha eseguito davvero.
-- **Modelli piccoli e protocollo a strumenti.** Sotto ~1 B parametri il modello può sbagliare la
-  sintassi degli strumenti: l'azione viene rifiutata con un errore nell'activity log, senza
-  scrivere file parziali. Il ciclo è limitato a 5 passi per evitare loop.
-- **Il retrieval non è una garanzia.** La soglia di similarità è 0,83, misurata su coppie di
-  controllo (correlate 0,90–0,91, non correlate 0,71–0,77). Documenti formulati in modo molto
-  diverso dalla domanda possono non essere recuperati; il margine non è ampio. Non è stato
-  possibile misurare la qualità su documenti reali né su dispositivo.
-- **Il modello di embedding costa RAM e spazio.** 132 MB negli asset, una copia nella memoria
-  privata al primo uso e circa 150–200 MB di RAM quando è caricato (stima, non misurata su
-  telefono). Sotto pressione di memoria viene scaricato e il retrieval torna lessicale.
-- **La calcolatrice non è un motore di calcolo simbolico.** Gestisce `+ - * / % ^`, parentesi,
-  decimali e meno unario; non risolve equazioni, funzioni, unità di misura o percentuali
-  implicite.
-- **Il controllo italiano è meccanico.** Spazi, punteggiatura, duplicati e bilanciamento: non è
-  un correttore grammaticale e non corregge la risposta.
-- **La riscrittura di qualità è una sola.** Se anche il secondo tentativo è ripetitivo, la
-  risposta viene mostrata con la nota: non c'è un ciclo illimitato.
-- **Times New Roman non è incluso.** È un font proprietario: l'app usa Tinos (Apache-2.0),
-  metricamente compatibile. La resa non è stata confrontata a schermo con Times New Roman.
-- **Android 12+ (minSdk 31).** Non è stato declassato ad API 26: l'app usa
-  `MediaStore.Downloads` (API 29) e comportamenti di foreground service introdotti con API 31.
-  Servono un fallback di storage, permessi legacy e test su API 26–30 prima di dichiarare
-  Android 8 supportato.
-- **GPU non disponibile.** Il backend Vulkan è escluso: la build di llama.cpp usata non include
-  gli shader SPIR-V precompilati. Tutta l'inferenza è su CPU.
+  lo azzera.
+
+## OCR, documenti e voce
+
+- **OCR solo latino.** ML Kit Latin Text Recognition copre italiano e inglese, non alfabeti
+  cirillici, greci, arabi o CJK. Il modello è incluso nella libreria e l'elaborazione avviene sul
+  dispositivo: l'immagine non viene inviata in rete.
+- **PDF scansionati fino a 20 pagine.** Ogni pagina viene renderizzata e passata all'OCR; oltre
+  20 pagine l'app avvisa e si ferma. I PDF con testo usano l'estrazione PDFBox, non l'OCR.
+- **Qualità OCR non misurata su foto reali.** Rotazione EXIF, riflessi, ombre e scansioni storte
+  possono produrre testo errato. L'app mostra un errore esplicito se non trova testo, invece di
+  inventarlo.
+- **DOCX/XLSX/CSV sono parser locali, non Office.** DOCX legge paragrafi e tabelle; XLSX legge i
+  fogli e le celle con shared strings; CSV/TXT sono testo. Non esegue macro, formule, grafici o
+  formattazione. I vecchi `.doc`/`.xls` binari sono rifiutati con un messaggio che chiede di
+  salvarli come `.docx`/`.xlsx`.
+- **Allegati limitati.** Immagini fino a 24 MB, PDF e documenti fino a 32 MB; i PDF testuali
+  estraggono al massimo 120.000 caratteri. Oltre questi limiti l'app rifiuta o tronca e lo dice.
+- **Voce non continua.** Sono disponibili TTS di sistema, lettura automatica opzionale,
+  interruzione con Stop e dettatura tramite il recognizer del dispositivo. Non esistono ascolto
+  continuo, conversazione full-duplex, selezione della voce o cronologia vocale. L'audio non viene
+  registrato né conservato dall'app e non viene richiesto il permesso microfono.
+- **Lingua voce.** Il selettore `auto`/`it`/`en` governa TTS e riconoscimento quando il dispositivo
+  supporta la lingua; se manca il pacchetto lingua, il sistema può rifiutare la sintesi. L'errore
+  viene mostrato.
+
+## Codice e sandbox
+
 - **Nessun compilatore Java/C++ sul dispositivo.** Android non include `javac` né `clang`.
-  ITAGPT Code offre analisi statica reale, non compilazione: l'interfaccia lo dichiara.
-- **Nessun OCR.** I PDF scansionati non sono leggibili; le immagini possono essere descritte
-  solo da un modello multimodale scaricato, non lette come testo.
-- **Voce parziale.** Sono disponibili TTS di sistema e dettatura tramite il recognizer del
-  dispositivo. Non esistono conversazione vocale continua, selezione della voce o cronologia
-  vocale. L'app non registra audio e non richiede il permesso microfono.
-- **Nessun modello di chat incluso.** L'APK contiene il motore e il modello di embedding
-  multilingual-e5-small Q8_0 (132.439.008 byte, licenza MIT), usato per il retrieval locale. I
-  modelli di chat si scaricano dall'app (centinaia di MB) e sono verificati con SHA-256. Il modello
-  di embedding non genera risposte: serve solo a trovare passaggi pertinenti.
+  ITAGPT Code offre analisi statica reale, editor, patch, Git locale e sandbox HTML; non esegue
+  build Java/C++ e l'interfaccia non lo dichiara disponibile. Integrare un toolchain completo
+  (compilatore, linker, sysroot, sandbox di processo) non è stato possibile in questa release.
+- **La sandbox esegue HTML/JS in una WebView isolata**, con rete bloccata per default. Non è un
+  container di sicurezza certificato e non esegue codice nativo.
+- **L'agente non compila.** Il prompt vieta al modello di dichiarare build o test superati; l'app
+  mostra solo ciò che ha eseguito davvero. Il ciclo è limitato a 5 passi per evitare loop.
+- **Modelli piccoli e protocollo a strumenti.** Il modello 1.5B può sbagliare la sintassi degli
+  strumenti: l'azione viene rifiutata con un errore nell'activity log, senza scrivere file
+  parziali.
 
-## Consegna
+## Dati, sicurezza e consegna
 
-- **Solo APK di debug.** La consegna è `ITAGPT-debug-2.0.0.apk`, firmato con `CN=Android Debug`:
-  installabile, ma non adatto a Play Store né a una distribuzione "ufficiale". Non vengono
-  prodotti AAB né release firmate.
-- **Nessun limite di dimensione imposto.** L'APK contiene tre ABI reali e il modello di embedding;
-  lo script di packaging verifica i componenti, non una soglia in MiB. Il peso non migliora da
-  solo la qualità delle risposte: la precisione dipende da prompt, retrieval, sampler e verifiche.
-- **R8/minify disattivato.** Scelta deliberata: non è stato possibile verificare su device che le
-  regole di offuscamento non rompessero JGit, Room o il ponte JNI. Meglio un APK più grande che un
-  crash non diagnosticabile.
-- **Nessun test strumentale.** Non ci sono test Android (`androidTest`) eseguiti.
-- **Copertura JVM parziale.** JaCoCo misura **16,1% delle linee** (2.149 coperte, 11.226
-  mancanti) e 11,3% dei branch. La logica pura è coperta meglio della media, ma UI Compose, Room,
-  PDF, backup, Keystore, voce e sandbox non hanno test eseguibili sulla JVM. Il numero è misurato,
-  non stimato, e non sostituisce i test su device.
-- **Paging non introdotto.** La lista è lazy e il prompt è limitato, ma una conversazione con
-  migliaia di messaggi carica tutte le righe della chat aperta.
-- **Limiti allegati.** Immagini fino a 24 MB (poi ridimensionate a 896 px lato massimo), PDF fino a
-  32 MB e 120.000 caratteri estratti (400 pagine). Oltre questi limiti l'app rifiuta o tronca e lo
-  dichiara; nessun OCR.
+- **SQLCipher e Keystore non sono stati provati a runtime.** La chiave è protetta da Android
+  Keystore e il database è cifrato, ma un test su device è ancora necessario.
 - **Backup limitati a 64 MB.** Archivi più grandi vengono rifiutati prima dell'allocazione in RAM.
-
-## Funzionalità
-
-- **Lingua dell'interfaccia.** Le stringhe della UI sono in italiano; il selettore lingua imposta
-  la lingua delle risposte del modello. La localizzazione completa IT/EN delle stringhe non è
-  completata (esiste la configurazione locale `en`/`it` per il sistema).
-- **Ricerca web.** Disattivata per default; richiede un endpoint SearXNG o una chiave Brave.
-  La qualità dei risultati dipende dal provider. Offline viene segnalata come non disponibile.
-- **Memoria.** Non è automatica: ogni salvataggio richiede conferma. Non esistono "ricordi
-  impliciti" nascosti.
-- **Tutor di lingua.** Non riaddestra i pesi del modello: usa un glossario curato e un lessico
-  personale salvato nel database. Il lessico cresce solo quando il modello emette le righe
-  `Lingua:XX` richieste; le traduzioni dipendono dal modello installato. Non è un corso completo e
-  non sostituisce un insegnante.
-- **Baseline Profiles.** Sono stati valutati: nella variante `debug` AGP non esegue
-  `compileDebugArtProfile` nel grafo di `assembleDebug` e l'APK non contiene
-  `assets/dexopt/baseline.prof` (verificato). Non vengono quindi inclusi né dichiarati guadagni.
-- **Backup.** La password non è recuperabile: senza password il file `.bkb` è inutilizzabile.
-  Il backup non include i modelli scaricati (solo dati e progetti).
-- **Git.** È un repository locale privato dell'app (JGit), non un collegamento a GitHub o ad altri
-  remote. Il ripristino riscrive i file nella cartella autorizzata.
-- **Sandbox.** Esegue HTML/JS in una WebView isolata; Java e C++ non vengono eseguiti.
-- **Profili RAM.** Il 70% è un tetto, non una garanzia: se il sistema è sotto pressione il
-  caricamento può fallire, e l'errore viene mostrato.
-- **Modelli molto grandi.** Su dispositivi con 6 GB di RAM, i modelli 7B in Q4 o superiori
-  verranno rifiutati dal controllo del budget: è il comportamento previsto.
+  La password non è recuperabile: senza password il file `.bkb` è inutilizzabile.
+- **Nessuna telemetria.** Le uniche connessioni di rete sono i download di modelli scelti e la
+  ricerca web se abilitata; OCR e chat non chiamano servizi esterni.
+- **R8/minify attivo in release.** La build minificata è stata prodotta e le regole keep coprono
+  JNI, Room, serializzazione, JGit, PDFBox, SQLCipher e ML Kit. **Non è stata eseguita su device**:
+  un problema di reflection non è stato escluso.
+- **Firma di release ufficiale assente.** Senza i quattro GitHub Secrets la release è firmata con
+  la chiave debug ed è chiamata `ITAGPT-release-debug-signed-2.0.0.apk`; non è una release
+  ufficiale. Con i Secrets la pipeline richiede la firma corretta e fallisce se resta quella debug.
+- **Nessun test strumentale.** Non ci sono test Android (`androidTest`) eseguiti. La copertura JVM
+  è parziale: UI Compose, Room, PDF, backup, Keystore, voce, OCR e sandbox non hanno test
+  eseguibili sulla JVM.
+- **Nessuna misura di velocità su telefono.** Token/s, tempo al primo token e consumo energetico
+  non sono stati misurati su hardware Android.
 
 ## Cosa serve per chiudere i limiti
 
 1. Un dispositivo Android 12+ arm64 (o un emulatore arm64) per eseguire i test runtime.
-2. Un keystore di release per firmare l'APK.
-3. Shader SPIR-V verificati per abilitare Vulkan.
-4. Una suite `androidTest` per SAF, Keystore e sandbox.
-5. Un dispositivo per ogni ABI (arm64, armv7, x86_64) per verificare il caricamento di
+2. Un keystore di release nei GitHub Secrets per una firma ufficiale.
+3. Test strumentali per SAF, Keystore, SQLCipher, OCR, voce e sandbox.
+4. Un dispositivo per ogni ABI (arm64, armv7, x86_64) per verificare il caricamento di
    `libbigbai.so` e `libsqlcipher.so`.
+5. Un toolchain Java/C++ embedded con sandbox, se si vuole compilare davvero sul telefono.

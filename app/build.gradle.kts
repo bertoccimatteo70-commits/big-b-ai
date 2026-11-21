@@ -110,7 +110,8 @@ android {
         generateLocaleConfig = false
         // The bundled GGUF is read once and copied to private storage; storing
         // it uncompressed keeps the first-run copy fast and avoids a second
-        // 130 MB decompression pass. It is a real model, not padding.
+        // decompression pass over the 1.2 GB of models. They are real models,
+        // not padding.
         noCompress += setOf("gguf")
     }
     lint {

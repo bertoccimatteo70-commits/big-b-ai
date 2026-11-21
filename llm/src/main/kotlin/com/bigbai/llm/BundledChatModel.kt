@@ -10,7 +10,7 @@ import kotlinx.coroutines.sync.withLock
  * for catalog models, so the rest of the app does not need a second model
  * source. The copy is accepted only when its size and SHA-256 match the pinned
  * values; the installer's marker makes later starts cheap. One mutex prevents
- * onboarding and the first chat from copying the same 491 MB file at once.
+ * onboarding and the first chat from copying the same 1.1 GB file at once.
  */
 class BundledChatModel(
     private val catalog: ModelCatalog,

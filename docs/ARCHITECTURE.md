@@ -80,15 +80,31 @@ llama.cpp è fissato al tag **v1.0.0** (commit `b1b770d90d94cad9e9ea5b993bdbc383
 SHA-256. Il catalogo è stato verificato contro l'API di Hugging Face (hash LFS reali).
 
 - `ModelStore` gestisce installazione, file parziali, spazio libero e record installati.
+- `BundledChatModel` e `BundledModelInstaller` copiano dagli asset il modello di chat incluso e
+  l'embedder, verificano dimensione e SHA-256 e scrivono il marker di installazione. Il modello di
+  chat è Qwen2.5 1.5B Instruct Q4_K_M; senza di esso la chat non parte, non c'è un fallback finto.
 - `ModelDownloadManager` scarica con `Range` (ripresa), scrive su file temporaneo, verifica
   SHA-256 e sposta atomicamente il file nella posizione definitiva.
 - `ModelDownloadService` è un foreground service `dataSync` con notifiche di avanzamento.
 
+## OCR e documenti
+
+- `OcrEngine` usa ML Kit Latin Text Recognition (`com.google.mlkit:text-recognition`) sul
+  dispositivo. Le immagini vengono ridimensionate, ruotate secondo EXIF e passate al recognizer;
+  i PDF senza testo vengono renderizzati pagina per pagina con `PdfRenderer` (massimo 20 pagine).
+- Il testo OCR viene mostrato in un'anteprima con copia/inserimento e aggiunto al contesto del
+  messaggio, senza inviare l'immagine a un server.
+- `DocumentTextExtractor` (modulo `core`) legge DOCX e XLSX come archivi ZIP/XML, CSV e TXT come
+  testo; `.doc`/`.xls` binari sono rifiutati con un messaggio esplicito. I limiti sono applicati
+  prima della lettura in memoria.
+
 ## Prompt e memoria
 
 `PromptTemplates` compone il messaggio di sistema con: lingua, regole di risposta, memoria
-dell'utente (solo se abilitata), fonti e istruzioni sugli strumenti. La cronologia recente viene
-inclusa entro un budget di token; i messaggi più vecchi restano nel database ma non nel prompt.
+dell'utente (solo se abilitata), testo OCR/documenti allegato, fonti e istruzioni sugli strumenti.
+Per i modelli piccoli usa una variante compatta, perché elenchi di regole troppo lunghi peggiorano
+l'aderenza. La cronologia recente viene inclusa entro un budget di token; i messaggi più vecchi
+restano nel database ma non nel prompt.
 
 La memoria è scritta solo dopo conferma esplicita dell'utente: nessun fatto viene salvato
 automaticamente. Eccezione dichiarata: con il tutor di lingua attivo, le righe `Lingua:XX` che il
@@ -148,11 +164,12 @@ esterna. Il salvataggio usa MediaStore in `Download/ITAGPT`; la condivisione usa
 
 ## Voce
 
-`SpeechPlayer` incapsula `TextToSpeech` del sistema: inizializzazione asincrona, accodamento di una
-sola frase prima della connessione, fallback alla lingua di sistema se il locale richiesto non è
-installato, stop esplicito e `shutdown` nel `DisposableEffect`. La dettatura usa
+`SpeechPlayer` incapsula `TextToSpeech` del sistema: inizializzazione asincrona, accodamento di una sola frase prima della connessione, fallback alla lingua di sistema se il locale richiesto non è
+installato, stop esplicito e `shutdown` nel `DisposableEffect`. La lingua (`auto`/`it`/`en`) e la
+lettura automatica delle nuove risposte sono impostazioni persistenti. La dettatura usa
 `RecognizerIntent.ACTION_RECOGNIZE_SPEECH`: l'app non dichiara il permesso microfono e non registra
-audio; il recognizer di sistema restituisce il testo e l'utente decide se inviarlo.
+audio; il recognizer di sistema restituisce il testo e l'utente decide se inviarlo. Non esiste
+ascolto continuo né conversazione full-duplex.
 
 ## UI
 
@@ -165,7 +182,8 @@ creati da `AppViewModelFactory` (la chat usa `SavedStateHandle` per ripristinare
 stato è esposto con `StateFlow` e collezionato con `collectAsState`. Il pulsante Indietro chiude
 prima il drawer della cronologia.
 
-L'onboarding (5 schermate) configura tema, lingua, profilo RAM, primo modello e memoria.
+L'onboarding (5 schermate) configura tema, lingua, profilo RAM, modello incluso e memoria. Il
+modello di chat viene estratto dagli asset con avanzamento e verifica SHA-256, non scaricato.
 
 ## Misurazione e I/O
 

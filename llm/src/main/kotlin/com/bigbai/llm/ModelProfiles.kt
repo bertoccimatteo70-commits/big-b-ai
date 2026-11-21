@@ -118,7 +118,8 @@ object ModelProfiles {
                 codeFriendly = false,
                 limitedReasoning = true,
                 // Qwen recommends a light repetition penalty. 1.22 distorted
-                // word choice on the 0.5B model; 1.15 still breaks loops.
+                // word choice; 1.18 made the 1.5B fail an arithmetic check in
+                // the host evaluation, so 1.15 stays for all small models.
                 repeatPenalty = 1.15f,
                 minP = 0.03f,
             )
@@ -133,8 +134,8 @@ object ModelProfiles {
                 concise = true,
                 codeFriendly = false,
                 limitedReasoning = true,
-                repeatPenalty = 1.18f,
-                minP = 0.04f,
+                repeatPenalty = 1.15f,
+                minP = 0.03f,
             )
             QWEN.containsMatchIn(id) -> ModelProfile(
                 family = "qwen",
