@@ -230,17 +230,18 @@ animazioni e resa del font. Non viene dichiarato un risultato visivo.
 |---|---|
 | File | `BIG-B-AI-debug-1.5.0.apk` |
 | Versione | 1.5.0-debug (versionCode 6) |
-| Dimensione | **248.660.875 byte (237,14 MiB)** |
+| Dimensione | **248.075.965 byte (236,58 MiB)** |
 | Requisito 200 MiB | **soddisfatto** (209.715.200 byte) |
-| SHA-256 (build locale) | `102569184f48f593fea45a7a115b5c4ea6576fcc27a6eb5a7ba135ddf040967e` |
+| SHA-256 | `23a47f3be138c6742da27392eb7ddd9f1b6d64a75419a10b6df00023ca05e064` |
 | ABI | arm64-v8a, armeabi-v7a, x86_64 |
 | Firma | valida, chiave debug Android (`CN=Android Debug`) |
 | Manifest | `com.bigbai.app.debug`, versionCode 6, versionName 1.5.0-debug |
 | Modello incluso | `assets/models/multilingual-e5-small-q8_0.gguf`, 132.439.008 byte, SHA-256 `e011debc…77c93` |
-| Build | `:app:assembleDebug` + `scripts/package-debug-apk.sh` |
+| Build | `assembleDebug` + `scripts/package-debug-apk.sh` (CI) |
+| Run CI | [44904141926](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44904141926), commit `f27d723` |
 
-Composizione: dei 133,3 MB aggiunti rispetto alla 1.4, **132,4 MB sono il modello di
-embedding**; il resto è codice e dex in più. Non c'è padding, nessun file duplicato,
+Composizione: dei 132,7 MB aggiunti rispetto alla 1.4 (115.341.878 byte), **132,4 MB sono il
+modello di embedding**; il resto è codice e dex in più. Non c'è padding, nessun file duplicato,
 nessuna risorsa casuale.
 
 `scripts/package-debug-apk.sh` ora:
@@ -253,9 +254,10 @@ nessuna risorsa casuale.
 5. **fallisce se l'APK è sotto 209.715.200 byte**;
 6. scrive `.sha256` e un file `.txt` con tutti i dati della build.
 
-L'APK pubblicato dalla CI è ricostruito dagli stessi sorgenti: dimensione e hash
-possono variare rispetto alla build locale per i timestamp della firma debug. Il
-valore definitivo è quello dell'artifact, verificato dopo il download (sezione 9).
+I valori qui sopra sono l'APK **scaricato dall'artifact** della run CI e ricalcolati dopo il
+download: dimensione, SHA-256, firma, manifest, ABI e SHA-256 del modello dentro l'APK. La build
+locale di verifica aveva una dimensione leggermente diversa (248.660.875 byte): gli stessi
+sorgenti, ordinamento del dex e timestamp di firma diversi.
 
 ---
 
@@ -288,8 +290,25 @@ packaging con controllo ≥200 MiB, firma/manifest/ABI, SHA-256, upload
 dell'artifact **BIG-B-AI-Debug-APK** (APK + `.sha256` + `.txt`, retention 30
 giorni). Il workflow fallisce se il controllo di dimensione fallisce.
 
-Esito della run e hash dell'artifact sono riportati nel README e nel report di
-consegna; non vengono inventati qui.
+Esito della run [44904141926](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44904141926)
+sul commit `f27d723`: **success**, tutti i passi verdi (fetch, build nativa 3 ABI, 165 test, lint,
+assemble, verifica ≥200 MiB, upload).
+
+| Dato artifact | Valore |
+|---|---|
+| Nome | `BIG-B-AI-Debug-APK` |
+| ID | 14707228365 |
+| ZIP | 167.696.447 byte, SHA-256 `9f943a36f040dc8d1c9441dcf0b095a60546612e1e4c9aa300b24fa1be1b9232` |
+| APK | 248.075.965 byte (236,58 MiB) |
+| APK SHA-256 | `23a47f3be138c6742da27392eb7ddd9f1b6d64a75419a10b6df00023ca05e064` |
+| Scadenza | 21 dicembre 2026 (retention 30 giorni) |
+
+Controlli sul file scaricato: `unzip -t` valido; `apksigner verify` valido (`CN=Android Debug`,
+certificato SHA-256 `9733a06f…bccb`); `aapt2` conferma `com.bigbai.app.debug`, versionCode 6,
+versionName 1.5.0-debug, targetSdk 35, ABI `arm64-v8a armeabi-v7a x86_64`; il modello dentro
+l'APK ha 132.439.008 byte e SHA-256 `e011debc…77c93`; 24 file dex; `libbigbai.so` e
+`libsqlcipher.so` presenti per tutte e tre le ABI. L'hash dell'APK coincide con il file `.sha256`
+dell'artifact.
 
 ---
 

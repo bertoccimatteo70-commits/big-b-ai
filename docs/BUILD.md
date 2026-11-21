@@ -135,15 +135,15 @@ I test unitari JVM coprono la logica pura, senza Android framework:
 - `ProjectNamingTest` (4 test): nome cartella, HTML iniziale, escaping del titolo.
 
 - `CodeAgentTest` (10), `CodeQuotaTest` (6): protocollo dell'agente, percorsi, limiti, quota.
-- `ModelProfilesTest` (8), `ResponseQualityTest` (6), `EvaluationSuiteTest` (5): profili per modello,
+- `ModelProfilesTest` (7), `ResponseQualityTest` (6), `EvaluationSuiteTest` (5): profili per modello,
   ripetizioni/troncamento, punteggio della suite di valutazione, repetition penalty e min-p.
 
 Nuovi in 1.5.0:
 
-- `EmbeddingsTest` (8), `SemanticIndexTest` (6), `SemanticRepositoryTest`: chunking con
-  sovrapposizione, similarità, soglia, persistenza e rimozione dei vettori.
-- `QualityGateTest` (7): ripetizioni, fence non chiusi, tempo limite, una sola riscrittura.
-- `CalculatorTest` (10), `ItalianCheckTest` (8): aritmetica verificata, intervalli di anni ignorati,
+- `EmbeddingsTest` (7), `SemanticIndexTest` (4): chunking con sovrapposizione, similarità, soglia,
+  persistenza e rimozione dei vettori.
+- `QualityGateTest` (5): ripetizioni, fence non chiusi, tempo limite, una sola riscrittura.
+- `CalculatorTest` (8), `ItalianCheckTest` (8): aritmetica verificata, intervalli di anni ignorati,
   spazi/punteggiatura/duplicati, codice escluso.
 - `ProjectInsightsTest` (6): duplicati, dipendenze mancanti, `package.json`, report delle modifiche.
 - `PromptContextTest` (2): iniezione di passaggi recuperati e calcoli verificati nel prompt.

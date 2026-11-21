@@ -33,18 +33,20 @@ ambiente di build. I dettagli sono in [docs/LIMITATIONS.md](docs/LIMITATIONS.md)
 |---|---|
 | File | `BIG-B-AI-debug-1.5.0.apk` |
 | Versione | 1.5.0-debug (versionCode 6) |
-| Dimensione | **248.660.875 byte (237,14 MiB / 248,66 MB)** |
-| SHA-256 (build locale) | `102569184f48f593fea45a7a115b5c4ea6576fcc27a6eb5a7ba135ddf040967e` |
+| Dimensione | **248.075.965 byte (236,58 MiB / 248,08 MB)** |
+| SHA-256 | `23a47f3be138c6742da27392eb7ddd9f1b6d64a75419a10b6df00023ca05e064` |
 | minSdk / targetSdk | 31 (Android 12) / 35 |
 | ABI | **arm64-v8a, armeabi-v7a, x86_64** (APK universale) |
 | Firma | chiave **debug** Android (`CN=Android Debug`) |
-| Requisito 200 MiB | **soddisfatto**: 209.715.200 byte richiesti, 248.660.875 presenti |
+| Requisito 200 MiB | **soddisfatto**: 209.715.200 byte richiesti, 248.075.965 presenti |
 
 L'APK è installabile su Android 12+ con architettura ARM 64-bit, ARM 32-bit o x86_64 (emulatore).
 È la variante **debug** (`com.bigbai.app.debug`), firmata con la chiave debug Android
-(`CN=Android Debug`): è dichiarato, non nascosto. La dimensione e l'hash qui sopra sono la build
-locale verificata; l'APK pubblicato dalla CI è ricostruito dagli stessi sorgenti e viene misurato
-dopo il download. L'hash cambia a ogni ricostruzione per i timestamp di firma.
+(`CN=Android Debug`): è dichiarato, non nascosto. I valori qui sopra sono l'APK scaricato
+dall'artifact `BIG-B-AI-Debug-APK` della run CI
+[44904141926](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44904141926) sul
+commit `f27d723`; dimensione, SHA-256, firma, manifest, ABI e modello incluso sono stati
+ricontrollati dopo il download. L'hash cambia a ogni ricostruzione per i timestamp di firma.
 
 La dimensione supera i 200 MiB perché l'APK contiene il motore nativo reale per **tre** ABI e il
 modello di embedding **multilingual-e5-small Q8_0** (132.439.008 byte) usato per il retrieval
