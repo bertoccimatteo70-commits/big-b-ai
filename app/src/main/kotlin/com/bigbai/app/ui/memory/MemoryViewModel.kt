@@ -39,7 +39,9 @@ class MemoryViewModel(private val container: AppContainer) : ViewModel() {
     fun add(content: String, category: String) {
         if (content.isBlank()) return
         viewModelScope.launch {
-            container.memory.add(content, category.ifBlank { "Personale" })
+            val chosen = category.ifBlank { "Personale" }
+            val id = container.memory.add(content, chosen)
+            container.semantic.indexMemory(id, content, chosen)
             _message.value = "Ricordo salvato"
         }
     }
@@ -47,17 +49,22 @@ class MemoryViewModel(private val container: AppContainer) : ViewModel() {
     fun update(id: Long, content: String) {
         viewModelScope.launch {
             container.memory.update(id, content)
+            container.semantic.indexMemory(id, content, "Memoria")
             _message.value = "Ricordo aggiornato"
         }
     }
 
     fun delete(id: Long) {
-        viewModelScope.launch { container.memory.delete(id) }
+        viewModelScope.launch {
+            container.memory.delete(id)
+            container.semantic.removeMemory(id)
+        }
     }
 
     fun clearAll() {
         viewModelScope.launch {
             container.memory.clear()
+            container.semantic.clearMemories()
             _message.value = "Memoria svuotata"
         }
     }

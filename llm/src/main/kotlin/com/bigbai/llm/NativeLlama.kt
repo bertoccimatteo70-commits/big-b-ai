@@ -46,6 +46,9 @@ internal object NativeLlama {
         temperature: Float,
         topP: Float,
         topK: Int,
+        repeatPenalty: Float,
+        minP: Float,
+        seed: Int,
         addSpecial: Boolean,
     ): Boolean
 
@@ -59,6 +62,9 @@ internal object NativeLlama {
         temperature: Float,
         topP: Float,
         topK: Int,
+        repeatPenalty: Float,
+        minP: Float,
+        seed: Int,
         addSpecial: Boolean,
     ): Boolean
 
@@ -70,4 +76,15 @@ internal object NativeLlama {
     external fun nativePerf(handle: Long): LongArray?
 
     external fun nativeContextSize(handle: Long): Int
+
+    // ---------------------------------------------------------------- embedding
+
+    external fun nativeLoadEmbedder(path: String, nCtx: Int, nThreads: Int): Long
+
+    external fun nativeEmbedderDim(handle: Long): Int
+
+    /** Returns one pooled, unnormalised embedding vector. */
+    external fun nativeEmbed(handle: Long, text: String): FloatArray?
+
+    external fun nativeFreeEmbedder(handle: Long)
 }

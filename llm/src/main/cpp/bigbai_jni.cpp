@@ -12,7 +12,9 @@
 #include <jni.h>
 #include <android/log.h>
 
+#include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <cstring>
 #include <mutex>
 #include <set>
@@ -75,6 +77,21 @@ Session * from_handle(jlong handle) {
     return reinterpret_cast<Session *>(handle);
 }
 
+// A second, independent session for the bundled embedding model. It has its own
+// model and context so retrieval never evicts the chat model and a failure in
+// one cannot corrupt the other.
+struct Embedder {
+    llama_model * model = nullptr;
+    llama_context * ctx = nullptr;
+    const llama_vocab * vocab = nullptr;
+    int32_t dim = 0;
+    int32_t n_ctx = 512;
+};
+
+Embedder * embedder_from_handle(jlong handle) {
+    return reinterpret_cast<Embedder *>(handle);
+}
+
 bool ensure_backend() {
     std::call_once(g_backend_once, []() {
         llama_log_set(llama_log_callback, nullptr);
@@ -90,7 +107,8 @@ void free_sampler(Session * session) {
     }
 }
 
-bool create_sampler(Session * session, float temperature, float top_p, int32_t top_k) {
+bool create_sampler(Session * session, float temperature, float top_p, int32_t top_k,
+                    float repeat_penalty, float min_p, int32_t seed) {
     free_sampler(session);
     auto params = llama_sampler_chain_default_params();
     params.no_perf = false;
@@ -98,20 +116,27 @@ bool create_sampler(Session * session, float temperature, float top_p, int32_t t
     if (chain == nullptr) return false;
     // Repetition control first: small quantized models otherwise fall into a
     // loop that repeats the same sentence until max_tokens is reached. The
-    // penalty is applied to the last 64 tokens with a mild strength so normal
-    // prose is unaffected.
+    // strength is a per-model parameter (1.0 disables it); the last 64 tokens
+    // are penalised so normal prose is unaffected.
+    const float penalty = std::min(1.6f, std::max(1.0f, repeat_penalty));
     llama_sampler_chain_add(chain, llama_sampler_init_penalties(
         static_cast<int32_t>(llama_vocab_n_tokens(session->vocab)),
-        64, 1.12f, 0.0f, 0.0f));
+        64, penalty, 0.0f, 0.0f));
     if (top_k > 0) {
         llama_sampler_chain_add(chain, llama_sampler_init_top_k(top_k));
     }
     if (top_p > 0.0f && top_p < 1.0f) {
         llama_sampler_chain_add(chain, llama_sampler_init_top_p(top_p, 1));
     }
+    // min-p removes the long tail of low-probability tokens that makes small
+    // models invent words, while keeping the nucleus intact at low entropy.
+    if (min_p > 0.0f && min_p < 1.0f) {
+        llama_sampler_chain_add(chain, llama_sampler_init_min_p(min_p, 1));
+    }
     if (temperature > 0.0f) {
         llama_sampler_chain_add(chain, llama_sampler_init_temp(temperature));
-        llama_sampler_chain_add(chain, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
+        const uint32_t chosen_seed = seed >= 0 ? static_cast<uint32_t>(seed) : LLAMA_DEFAULT_SEED;
+        llama_sampler_chain_add(chain, llama_sampler_init_dist(chosen_seed));
     } else {
         llama_sampler_chain_add(chain, llama_sampler_init_greedy());
     }
@@ -368,7 +393,8 @@ Java_com_bigbai_llm_NativeLlama_nativeCountTokens(JNIEnv * env, jclass, jlong ha
 JNIEXPORT jboolean JNICALL
 Java_com_bigbai_llm_NativeLlama_nativeBegin(
     JNIEnv * env, jclass, jlong handle, jstring prompt, jint max_tokens,
-    jfloat temperature, jfloat top_p, jint top_k, jboolean add_special) {
+    jfloat temperature, jfloat top_p, jint top_k, jfloat repeat_penalty,
+    jfloat min_p, jint seed, jboolean add_special) {
     Session * session = from_handle(handle);
     if (session == nullptr) return JNI_FALSE;
 
@@ -400,7 +426,7 @@ Java_com_bigbai_llm_NativeLlama_nativeBegin(
         return JNI_FALSE;
     }
     session->n_past = static_cast<int32_t>(tokens.size());
-    if (!create_sampler(session, temperature, top_p, top_k)) {
+    if (!create_sampler(session, temperature, top_p, top_k, repeat_penalty, min_p, seed)) {
         set_error("Unable to create sampler chain");
         return JNI_FALSE;
     }
@@ -410,7 +436,8 @@ Java_com_bigbai_llm_NativeLlama_nativeBegin(
 JNIEXPORT jboolean JNICALL
 Java_com_bigbai_llm_NativeLlama_nativeBeginVision(
     JNIEnv * env, jclass, jlong handle, jstring prompt, jbyteArray rgb, jint width, jint height,
-    jint max_tokens, jfloat temperature, jfloat top_p, jint top_k, jboolean add_special) {
+    jint max_tokens, jfloat temperature, jfloat top_p, jint top_k, jfloat repeat_penalty,
+    jfloat min_p, jint seed, jboolean add_special) {
     Session * session = from_handle(handle);
     if (session == nullptr) return JNI_FALSE;
     if (session->mctx == nullptr || !session->has_vision) {
@@ -467,7 +494,7 @@ Java_com_bigbai_llm_NativeLlama_nativeBeginVision(
         return JNI_FALSE;
     }
     session->n_past = new_n_past;
-    if (!create_sampler(session, temperature, top_p, top_k)) {
+    if (!create_sampler(session, temperature, top_p, top_k, repeat_penalty, min_p, seed)) {
         set_error("Unable to create sampler chain");
         return JNI_FALSE;
     }
@@ -544,6 +571,139 @@ Java_com_bigbai_llm_NativeLlama_nativeContextSize(JNIEnv *, jclass, jlong handle
     Session * session = from_handle(handle);
     if (session == nullptr) return 0;
     return static_cast<jint>(llama_n_ctx(session->ctx));
+}
+
+// ---------------------------------------------------------------------------
+// Embedding session (bundled multilingual-e5-small).
+// ---------------------------------------------------------------------------
+
+JNIEXPORT jlong JNICALL
+Java_com_bigbai_llm_NativeLlama_nativeLoadEmbedder(
+    JNIEnv * env, jclass, jstring jpath, jint n_ctx, jint n_threads) {
+    ensure_backend();
+    const std::string path = jstring_to_string(env, jpath);
+    if (path.empty()) {
+        set_error("Empty embedding model path");
+        return 0;
+    }
+    auto * embedder = new Embedder();
+    embedder->n_ctx = std::max<int32_t>(512, n_ctx);
+
+    auto model_params = llama_model_default_params();
+    model_params.n_gpu_layers = 0;
+    model_params.load_mode = LLAMA_LOAD_MODE_AUTO;
+    embedder->model = llama_model_load_from_file(path.c_str(), model_params);
+    if (embedder->model == nullptr) {
+        set_error("Unable to load embedding GGUF: " + path);
+        delete embedder;
+        return 0;
+    }
+    embedder->vocab = llama_model_get_vocab(embedder->model);
+
+    auto ctx_params = llama_context_default_params();
+    ctx_params.n_ctx = static_cast<uint32_t>(embedder->n_ctx);
+    ctx_params.n_batch = static_cast<uint32_t>(embedder->n_ctx);
+    ctx_params.n_ubatch = static_cast<uint32_t>(embedder->n_ctx);
+    ctx_params.n_threads = std::max<int32_t>(1, n_threads);
+    ctx_params.n_threads_batch = std::max<int32_t>(1, n_threads);
+    ctx_params.embeddings = true;
+    // Mean pooling is what E5 was trained with. CLS would produce worse
+    // retrieval, so the pooling type is part of the model contract.
+    ctx_params.pooling_type = LLAMA_POOLING_TYPE_MEAN;
+    ctx_params.no_perf = true;
+
+    embedder->ctx = llama_init_from_model(embedder->model, ctx_params);
+    if (embedder->ctx == nullptr) {
+        set_error("Unable to create embedding context (out of memory?)");
+        llama_model_free(embedder->model);
+        delete embedder;
+        return 0;
+    }
+    embedder->dim = llama_model_n_embd(embedder->model);
+    if (embedder->dim <= 0) {
+        set_error("Embedding model reports an invalid dimension");
+        llama_free(embedder->ctx);
+        llama_model_free(embedder->model);
+        delete embedder;
+        return 0;
+    }
+    LOGI("embedder loaded: dim=%d ctx=%d threads=%d", embedder->dim, embedder->n_ctx, n_threads);
+    return reinterpret_cast<jlong>(embedder);
+}
+
+JNIEXPORT jint JNICALL
+Java_com_bigbai_llm_NativeLlama_nativeEmbedderDim(JNIEnv *, jclass, jlong handle) {
+    Embedder * embedder = embedder_from_handle(handle);
+    return embedder == nullptr ? 0 : static_cast<jint>(embedder->dim);
+}
+
+JNIEXPORT jfloatArray JNICALL
+Java_com_bigbai_llm_NativeLlama_nativeEmbed(JNIEnv * env, jclass, jlong handle, jstring jtext) {
+    Embedder * embedder = embedder_from_handle(handle);
+    if (embedder == nullptr || embedder->ctx == nullptr) return nullptr;
+
+    const std::string text = jstring_to_string(env, jtext);
+    auto tokens = tokenize(embedder->vocab, text, true);
+    if (tokens.empty()) {
+        set_error("Embedding tokenization produced no tokens");
+        return nullptr;
+    }
+    if (static_cast<int32_t>(tokens.size()) > embedder->n_ctx) {
+        // Truncation is preferable to failing a long passage: the caller already
+        // splits documents into ~700-character chunks, so this only guards
+        // against pathological tokenization.
+        tokens.resize(static_cast<size_t>(embedder->n_ctx));
+    }
+
+    llama_memory_clear(llama_get_memory(embedder->ctx), true);
+    llama_batch batch = llama_batch_init(static_cast<int32_t>(tokens.size()), 0, 1);
+    if (batch.token == nullptr) {
+        set_error("Unable to allocate embedding batch");
+        return nullptr;
+    }
+    for (size_t i = 0; i < tokens.size(); ++i) {
+        batch.token[i] = tokens[i];
+        batch.pos[i] = static_cast<llama_pos>(i);
+        batch.n_seq_id[i] = 1;
+        batch.seq_id[i][0] = 0;
+        // Pooled embeddings are computed from the tokens marked as output.
+        batch.logits[i] = 1;
+    }
+    batch.n_tokens = static_cast<int32_t>(tokens.size());
+
+    // BERT-style embedding models in llama.cpp expose a decoder-only graph
+    // (no KV cache use for a non-causal model); encoder-decoder models need
+    // llama_encode. The branch keeps both working.
+    const int32_t rc = llama_model_has_encoder(embedder->model)
+        ? llama_encode(embedder->ctx, batch)
+        : llama_decode(embedder->ctx, batch);
+    llama_batch_free(batch);
+    if (rc < 0) {
+        set_error("Embedding evaluation failed with code " + std::to_string(rc));
+        return nullptr;
+    }
+
+    const float * values = llama_get_embeddings_seq(embedder->ctx, 0);
+    if (values == nullptr) values = llama_get_embeddings(embedder->ctx);
+    if (values == nullptr) {
+        set_error("The model did not return an embedding");
+        return nullptr;
+    }
+
+    jfloatArray result = env->NewFloatArray(embedder->dim);
+    if (result != nullptr) {
+        env->SetFloatArrayRegion(result, 0, embedder->dim, values);
+    }
+    return result;
+}
+
+JNIEXPORT void JNICALL
+Java_com_bigbai_llm_NativeLlama_nativeFreeEmbedder(JNIEnv *, jclass, jlong handle) {
+    Embedder * embedder = embedder_from_handle(handle);
+    if (embedder == nullptr) return;
+    if (embedder->ctx != nullptr) llama_free(embedder->ctx);
+    if (embedder->model != nullptr) llama_model_free(embedder->model);
+    delete embedder;
 }
 
 } // extern "C"

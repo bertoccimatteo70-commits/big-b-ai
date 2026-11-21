@@ -262,6 +262,18 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit) {
                     64f..4096f,
                     format = { it.toInt().toString() },
                 ) { viewModel.setMaxTokens(it.toInt()) }
+                SliderRow(
+                    "Repetition penalty",
+                    settings.repeatPenalty,
+                    1f..1.5f,
+                    format = { "%.2f".format(Locale.US, it) },
+                ) { viewModel.setRepeatPenalty(it) }
+                SliderRow(
+                    "Min-p",
+                    settings.minP,
+                    0f..0.2f,
+                    format = { if (it <= 0.001f) "off" else "%.3f".format(Locale.US, it) },
+                ) { viewModel.setMinP(it) }
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
@@ -321,6 +333,11 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit) {
                     "Genera il titolo della conversazione dal primo messaggio.",
                     settings.autoTitle,
                 ) { viewModel.setAutoTitle(it) }
+                SwitchRow(
+                    "Ricerca semantica locale",
+                    "Usa il modello di embedding incluso per trovare i passaggi pertinenti di documenti e ricordi. Tutto sul dispositivo.",
+                    settings.semanticMemoryEnabled,
+                ) { viewModel.setSemanticMemory(it) }
             }
 
             SectionCard("Ricerca web (opzionale)") {

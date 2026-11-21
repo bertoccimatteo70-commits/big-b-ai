@@ -40,8 +40,8 @@ android {
         applicationId = "com.bigbai.app"
         minSdk = 31
         targetSdk = 35
-        versionCode = 5
-        versionName = "1.4.0"
+        versionCode = 6
+        versionName = "1.5.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         resourceConfigurations += listOf("en", "it")
         // Universal debug APK: every supported architecture gets its own native
@@ -104,6 +104,10 @@ android {
     }
     androidResources {
         generateLocaleConfig = false
+        // The bundled GGUF is read once and copied to private storage; storing
+        // it uncompressed keeps the first-run copy fast and avoids a second
+        // 130 MB decompression pass. It is a real model, not padding.
+        noCompress += setOf("gguf")
     }
     lint {
         abortOnError = false

@@ -18,6 +18,8 @@ object PromptTemplates {
         hasImage: Boolean,
         tutor: String = "",
         modelStyle: String = "",
+        retrievedContext: String = "",
+        verifiedCalculations: String = "",
     ): String {
         val italian = language.startsWith("it")
         val languageName = when {
@@ -45,7 +47,10 @@ object PromptTemplates {
                     "- Inizia con la risposta diretta in una frase, poi aggiungi i dettagli in punti brevi.\n" +
                     "- Non ripetere la domanda e non ripetere la stessa frase: se un concetto è già spiegato, vai avanti.\n" +
                     "- Per una domanda semplice bastano 3-6 frasi; per una domanda tecnica usa sezioni con titoli.\n" +
-                    "- Se la domanda è ambigua, dichiara l'interpretazione che scegli e rispondi su quella.\n",
+                    "- Se la domanda è ambigua, dichiara l'interpretazione che scegli e rispondi su quella.\n" +
+                    "- Prima di rispondere controlla concordanze, accenti, doppie e punteggiatura; non inventare parole.\n" +
+                    "- Se un dato non è certo, scrivi «non lo so» o «probabilmente» invece di presentarlo come fatto.\n" +
+                    "- Non citare fonti che non compaiono nei risultati di ricerca o nei passaggi recuperati.\n",
             )
         } else {
             builder.append(
@@ -62,7 +67,10 @@ object PromptTemplates {
                     "- Start with the direct answer in one sentence, then add details in short bullets.\n" +
                     "- Do not restate the question and do not repeat the same sentence.\n" +
                     "- A simple question needs 3-6 sentences; a technical one uses sections with headings.\n" +
-                    "- If the question is ambiguous, state the interpretation you chose and answer that.\n",
+                    "- If the question is ambiguous, state the interpretation you chose and answer that.\n" +
+                    "- Before answering, check agreement, accents and punctuation; do not invent words.\n" +
+                    "- If a fact is uncertain, say so instead of presenting it as certain.\n" +
+                    "- Never cite a source that is not in the search results or retrieved passages.\n",
             )
         }
 
@@ -83,6 +91,21 @@ object PromptTemplates {
                         "<document>\n$documentContext\n</document>\n"
                 },
             )
+        }
+
+        if (retrievedContext.isNotBlank()) {
+            builder.append(
+                if (italian) {
+                    "\nPassaggi pertinenti recuperati sul dispositivo (possono essere incompleti). Usali solo se rispondono alla domanda e cita la fonte tra parentesi quadre con l'etichetta indicata; se non sono pertinenti, ignorali:\n"
+                } else {
+                    "\nRelevant passages retrieved on the device (possibly incomplete). Use them only if they answer the question and cite the bracketed label; ignore them otherwise:\n"
+                },
+            )
+            builder.append(retrievedContext.take(6_000)).append('\n')
+        }
+
+        if (verifiedCalculations.isNotBlank()) {
+            builder.append('\n').append(verifiedCalculations).append('\n')
         }
 
         if (sources.isNotEmpty()) {

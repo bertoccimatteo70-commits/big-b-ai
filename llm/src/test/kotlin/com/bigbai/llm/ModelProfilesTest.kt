@@ -61,6 +61,19 @@ class ModelProfilesTest {
     }
 
     @Test
+    fun `small models get stronger repetition control and min-p`() {
+        val tiny = ModelProfiles.detect("qwen2.5-0.5b-instruct")
+        val large = ModelProfiles.detect("qwen2.5-7b-instruct")
+        assertTrue(tiny.repeatPenalty > large.repeatPenalty)
+        assertTrue(tiny.minP > 0f)
+
+        val advanced = AppSettings(advancedUnlocked = true, repeatPenalty = 1.4f, minP = 0.1f)
+        val params = tiny.params(advanced)
+        assertEquals(1.4f, params.repeatPenalty, 0.001f)
+        assertEquals(0.1f, params.minP, 0.001f)
+    }
+
+    @Test
     fun `style hint is present for concise models only`() {
         assertTrue(ModelProfiles.detect("smollm-360m").styleHint(true).isNotBlank())
         assertEquals("", ModelProfiles.detect("qwen2.5-7b").styleHint(true))

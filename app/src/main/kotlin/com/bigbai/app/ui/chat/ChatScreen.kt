@@ -240,7 +240,12 @@ fun ChatScreen(
                                         ),
                                 )
                                 Text(
-                                    text = state.modelLabel ?: "Nessun modello attivo",
+                                    text = buildString {
+                                        append(state.modelLabel ?: "Nessun modello attivo")
+                                        if (state.retrievedCount > 0) {
+                                            append(" · ").append(state.retrievedCount).append(" passaggi locali")
+                                        }
+                                    },
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1,
@@ -371,6 +376,12 @@ fun ChatScreen(
                 }
                 state.status?.let { status ->
                     StatusStrip(text = status, onDismiss = viewModel::dismissStatus)
+                }
+                state.qualityNote?.let { note ->
+                    StatusStrip(
+                        text = "Controllo qualità: $note",
+                        onDismiss = viewModel::dismissQualityNote,
+                    )
                 }
                 if (settings.tutorEnabled) {
                     TutorStrip(

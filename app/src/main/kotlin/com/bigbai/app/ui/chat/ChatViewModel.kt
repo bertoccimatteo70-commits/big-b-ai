@@ -11,6 +11,8 @@ import androidx.lifecycle.viewModelScope
 import com.bigbai.app.AppContainer
 import com.bigbai.core.chat.ConversationSession
 import com.bigbai.core.chat.StreamingBuffer
+import com.bigbai.core.lang.Calculator
+import com.bigbai.core.lang.ItalianCheck
 import com.bigbai.core.lang.LanguageCoach
 import com.bigbai.core.model.AppSettings
 import com.bigbai.core.model.Attachment
@@ -27,12 +29,16 @@ import com.bigbai.core.search.SearchFailure
 import com.bigbai.core.search.SearchResult
 import com.bigbai.llm.AnswerSanitizer
 import com.bigbai.llm.GenerationParams
+import com.bigbai.llm.IndexKind
 import com.bigbai.llm.InstalledModel
 import com.bigbai.llm.LlamaEngine
 import com.bigbai.llm.ModelProfiles
 import com.bigbai.llm.ModelRole
 import com.bigbai.llm.PromptMessage
 import com.bigbai.llm.PromptTemplates
+import com.bigbai.llm.QualityGate
+import com.bigbai.llm.ResponseQuality
+import com.bigbai.llm.RetrievedPassage
 import com.bigbai.llm.VisionInput
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -67,6 +73,10 @@ data class ChatUiState(
     val visionReady: Boolean = false,
     /** Number of vocabulary lines stored by the tutor after the last answer. */
     val lexiconSaved: Int = 0,
+    /** Local passages retrieved for the last answer. */
+    val retrievedCount: Int = 0,
+    /** Deterministic quality/Italian checks on the last answer. */
+    val qualityNote: String? = null,
 )
 
 class ChatViewModel(
@@ -172,6 +182,8 @@ class ChatViewModel(
     fun dismissStatus() = _state.update { it.copy(status = null) }
 
     fun dismissLexiconNotice() = _state.update { it.copy(lexiconSaved = 0) }
+
+    fun dismissQualityNote() = _state.update { it.copy(qualityNote = null) }
 
     /**
      * Opens a brand-new chat. Any running generation is stopped first, so the
@@ -372,8 +384,6 @@ class ChatViewModel(
                     }
                 }
 
-                val prompt = buildPrompt(text, snapshot.attachments, priorMessages, sources, loaded, settings)
-
                 // Persist the turn only after every fallible validation passed.
                 // Otherwise a failed send would leave a user message behind and
                 // a retry would duplicate it.
@@ -394,17 +404,80 @@ class ChatViewModel(
                     }
                 }
 
+                // Index the document that was attached in this turn under the
+                // real conversation id, so follow-up questions can retrieve it.
+                val documents = snapshot.attachments.filter {
+                    it.kind == Attachment.Kind.PDF && !it.extractedText.isNullOrBlank()
+                }
+                if (settings.semanticMemoryEnabled && documents.isNotEmpty()) {
+                    _state.update { it.copy(status = "Preparazione del contesto del documento…") }
+                    documents.forEach { pdf ->
+                        container.semantic.indexDocument(
+                            sourceId = "doc:$conversationId:${pdf.name}",
+                            label = pdf.name,
+                            text = pdf.extractedText.orEmpty(),
+                        )
+                    }
+                }
+                val verified = if (text.isNotBlank()) Calculator.detect(text) else emptyList()
+                val retrieved = if (settings.semanticMemoryEnabled && text.isNotBlank()) {
+                    container.semantic.retrieve(text, limit = 6)
+                        .filter { it.kind == IndexKind.MEMORY || it.sourceId.startsWith("doc:$conversationId:") }
+                        .take(4)
+                } else {
+                    emptyList()
+                }
+                _state.update { it.copy(retrievedCount = retrieved.size) }
+
+                val prompt = buildPrompt(
+                    userText = text,
+                    attachments = snapshot.attachments,
+                    priorMessages = priorMessages,
+                    sources = sources,
+                    loaded = loaded,
+                    settings = settings,
+                    retrieved = retrieved,
+                    verified = verified,
+                )
+
                 _state.update { it.copy(status = "AI sta pensando…", isThinking = true) }
                 val params = ModelProfiles.forVariant(loaded.variant).params(settings)
 
+                val generationStarted = SystemClock.elapsedRealtime()
                 startTimeout(generation)
                 // The answer is generated in the background and shown only when
                 // complete: no partial text reaches the chat while streaming.
-                val result = container.engine.generate(prompt, params, vision) { token ->
+                var result = container.engine.generate(prompt, params, vision) { token ->
                     buffer.append(token, SystemClock.elapsedRealtime())
                 }
+                var finalText = AnswerSanitizer.clean(buffer.flush()).trim()
+                var quality = ResponseQuality.inspect(finalText)
+
+                // A looping or unfinished answer is worth exactly one rewrite:
+                // lower temperature and a stronger penalty fix the failure mode
+                // that small models actually show, without touching the prompt
+                // content or inventing anything.
+                if (!cancelledByUser && !timedOut &&
+                    QualityGate.shouldRetry(quality, SystemClock.elapsedRealtime() - generationStarted)
+                ) {
+                    _state.update { it.copy(status = "Controllo qualità: riscrivo la risposta…") }
+                    val retryBuffer = StreamingBuffer()
+                    val retryParams = params.copy(
+                        temperature = (params.temperature * 0.6f).coerceAtLeast(0.15f),
+                        repeatPenalty = (params.repeatPenalty + 0.1f).coerceAtMost(1.4f),
+                    )
+                    val retryPrompt = listOf(prompt.first()) + PromptMessage(
+                        "system",
+                        "La risposta precedente era ripetitiva o incompleta. Riscrivila in italiano corretto, " +
+                            "senza ripetere frasi, senza troncarla e senza aggiungere nuove informazioni.",
+                    ) + prompt.drop(1)
+                    result = container.engine.generate(retryPrompt, retryParams, vision) { token ->
+                        retryBuffer.append(token, SystemClock.elapsedRealtime())
+                    }
+                    finalText = AnswerSanitizer.clean(retryBuffer.flush()).trim()
+                    quality = ResponseQuality.inspect(finalText)
+                }
                 cancelTimeout()
-                val finalText = AnswerSanitizer.clean(buffer.flush()).trim()
 
                 if (cancelledByUser || timedOut) {
                     if (finalText.isNotEmpty()) {
@@ -421,6 +494,7 @@ class ChatViewModel(
                             streamingText = "",
                             isThinking = false,
                             status = null,
+                            qualityNote = null,
                             error = if (timedOut) {
                                 "Il modello non ha risposto in tempo. La risposta parziale è marcata come interrotta."
                             } else {
@@ -448,6 +522,8 @@ class ChatViewModel(
                     val measured = metrics.takeIf {
                         it.completionTokens > 0 || it.promptTokens > 0 || finalText.isNotEmpty()
                     }
+                    if (measured != null) container.lastMetrics.value = measured
+                    val note = buildQualityNote(quality, finalText)
                     updateIfCurrent(generation) {
                         it.copy(
                             metrics = measured,
@@ -455,6 +531,7 @@ class ChatViewModel(
                             isThinking = false,
                             status = null,
                             lexiconSaved = savedWords,
+                            qualityNote = note,
                         )
                     }
                 }.onFailure { error ->
@@ -492,7 +569,8 @@ class ChatViewModel(
 
     fun saveProposal(proposal: MemoryProposal) {
         viewModelScope.launch {
-            container.memory.add(proposal.content, proposal.categoryName, _state.value.conversationId)
+            val id = container.memory.add(proposal.content, proposal.categoryName, _state.value.conversationId)
+            container.semantic.indexMemory(id, proposal.content, proposal.categoryName)
             _state.update { it.copy(proposals = it.proposals - proposal) }
         }
     }
@@ -507,7 +585,9 @@ class ChatViewModel(
             } else {
                 "Personale"
             }
-            container.memory.add(message.content.take(500), category, message.conversationId)
+            val content = message.content.take(500)
+            val id = container.memory.add(content, category, message.conversationId)
+            container.semantic.indexMemory(id, content, category)
         }
     }
 
@@ -697,6 +777,8 @@ class ChatViewModel(
         sources: List<Source>,
         loaded: com.bigbai.llm.LoadedModel,
         settings: AppSettings,
+        retrieved: List<RetrievedPassage> = emptyList(),
+        verified: List<Calculator.Verified> = emptyList(),
     ): List<PromptMessage> {
         val memory = if (settings.memoryEnabled) container.memory.promptContext() else ""
         val document = attachments.firstOrNull { it.kind == Attachment.Kind.PDF }?.extractedText
@@ -715,13 +797,20 @@ class ChatViewModel(
         val system = PromptTemplates.chatSystemPrompt(
             language = settings.language,
             memory = memory,
-            documentContext = document?.let { it.take(12_000) },
+            documentContext = document?.let { it.take(if (retrieved.isEmpty()) 12_000 else 4_000) },
             sources = sources,
             visionAvailable = loaded.vision,
             hasImage = attachments.any { it.kind == Attachment.Kind.IMAGE },
             tutor = tutor,
             modelStyle = ModelProfiles.forVariant(loaded.variant)
                 .styleHint(settings.language.startsWith("it")),
+            retrievedContext = retrieved.joinToString("\n\n") { passage ->
+                "[${passage.label}] ${passage.text}"
+            },
+            verifiedCalculations = Calculator.promptSection(
+                verified,
+                settings.language.startsWith("it"),
+            ),
         )
 
         val budget = (loaded.contextSize - settings.maxTokens - 48).coerceAtLeast(512)
@@ -742,6 +831,13 @@ class ChatViewModel(
         }
         return listOf(PromptMessage("system", system)) + selected +
             PromptMessage("user", userText.ifBlank { "(immagine allegata)" })
+    }
+
+    /** Deterministic post-checks, shown to the user without editing the answer. */
+    private fun buildQualityNote(report: ResponseQuality.Report, text: String): String? {
+        val quality = QualityGate.describe(report)
+        val italian = ItalianCheck.summary(ItalianCheck.inspect(text))
+        return listOfNotNull(quality, italian).joinToString(" · ").ifBlank { null }
     }
 
     /**

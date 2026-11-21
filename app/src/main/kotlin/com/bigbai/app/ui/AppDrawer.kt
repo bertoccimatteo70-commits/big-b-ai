@@ -28,6 +28,7 @@ import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -64,6 +65,7 @@ private val entries = listOf(
     DrawerEntry("Libreria modelli AI", Icons.Outlined.MenuBook, Routes.models(0)),
     DrawerEntry("Download modelli", Icons.Outlined.CloudDownload, Routes.models(1)),
     DrawerEntry("Modelli installati", Icons.Outlined.CheckCircle, Routes.models(2)),
+    DrawerEntry("Diagnostica", Icons.Outlined.Speed, Routes.DIAGNOSTICS),
     DrawerEntry("Plugin e integrazioni", Icons.Outlined.Extension, Routes.PLUGINS),
     DrawerEntry("Impostazioni", Icons.Outlined.Settings, Routes.SETTINGS),
     DrawerEntry("Informazioni sull'app", Icons.Outlined.Info, Routes.ABOUT),

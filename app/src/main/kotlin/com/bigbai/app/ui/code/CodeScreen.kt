@@ -49,6 +49,7 @@ import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Stop
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -381,13 +382,43 @@ private fun CodeChatTab(state: CodeUiState, viewModel: CodeViewModel) {
         ) {
             if (state.messages.isEmpty() && !state.generating) {
                 item {
-                    Text(
-                        "Descrivi l'obiettivo, non i file: «Crea un'app per gestire le attività». " +
-                            "BIG B Code pianifica, crea i file, scrive il codice e controlla il risultato. " +
-                            "Le eliminazioni richiedono sempre una conferma.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Column {
+                        Text(
+                            "Descrivi l'obiettivo, non i file: «Crea un'app per gestire le attività». " +
+                                "BIG B Code pianifica, crea i file, scrive il codice e controlla il risultato. " +
+                                "Le eliminazioni richiedono sempre una conferma.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            AssistChip(
+                                onClick = {
+                                    viewModel.onInputChange(
+                                        "Rivedi il codice del progetto: cerca bug, errori di gestione e problemi " +
+                                            "di sicurezza, poi correggi ciò che trovi e riporta le verifiche fatte.",
+                                    )
+                                },
+                                label = { Text("Rivedi il codice") },
+                            )
+                            AssistChip(
+                                onClick = {
+                                    viewModel.onInputChange(
+                                        "Spiega la struttura del progetto: file principali, responsabilità e flusso " +
+                                            "dei dati. Non modificare nulla.",
+                                    )
+                                },
+                                label = { Text("Struttura") },
+                            )
+                            AssistChip(
+                                onClick = viewModel::runProjectAnalysis,
+                                label = { Text("Analisi progetto") },
+                            )
+                        }
+                    }
                 }
             }
             items(state.messages, key = { it.id }) { message ->
@@ -666,6 +697,7 @@ private fun EditorPane(state: CodeUiState, viewModel: CodeViewModel) {
             IconButton(onClick = viewModel::runSandbox) {
                 Icon(Icons.Outlined.PlayArrow, contentDescription = "Esegui nella sandbox")
             }
+            TextButton(onClick = viewModel::generateTests) { Text("Test") }
             IconButton(onClick = viewModel::exportCurrentFile) {
                 Icon(Icons.Outlined.SaveAlt, contentDescription = "Esporta in Download")
             }
@@ -914,6 +946,59 @@ private fun ToolsTab(state: CodeUiState, viewModel: CodeViewModel) {
         if (state.sandbox != null) {
             Spacer(Modifier.height(6.dp))
             SandboxPane(state, viewModel)
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 14.dp))
+
+        Text("Analisi del progetto", style = MaterialTheme.typography.titleSmall)
+        Text(
+            "Cerca blocchi duplicati tra file, import senza dipendenza dichiarata, TODO e file troppo grandi. " +
+                "È analisi statica: non è una compilazione.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(6.dp))
+        Button(onClick = viewModel::runProjectAnalysis) {
+            Icon(Icons.Outlined.Psychology, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(4.dp))
+            Text("Analizza il progetto")
+        }
+        state.projectSummary?.let { summary ->
+            Spacer(Modifier.height(8.dp))
+            Text(
+                summary,
+                style = MaterialTheme.typography.labelSmall,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        state.insights.take(12).forEach { insight ->
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            ) {
+                Column(modifier = Modifier.padding(10.dp)) {
+                    Text(
+                        "${insight.path}:${insight.line}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Text(insight.message, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+        state.changeReport?.let { report ->
+            Spacer(Modifier.height(10.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+            ) {
+                Text(
+                    report,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.padding(12.dp),
+                )
+            }
         }
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 14.dp))

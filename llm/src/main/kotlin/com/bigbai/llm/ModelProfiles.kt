@@ -6,9 +6,10 @@ import com.bigbai.core.model.AppSettings
  * Per-model generation profile.
  *
  * Small instruct models do not behave like 7 B models: they need lower
- * temperature, a shorter answer budget and a different top-p/top-k to avoid
- * loops. The profile is chosen from the model family and parameter count, so
- * the app never applies one global configuration to every model.
+ * temperature, a shorter answer budget, stronger repetition control and a
+ * different top-p/top-k to avoid loops. The profile is chosen from the model
+ * family and parameter count, so the app never applies one global configuration
+ * to every model.
  */
 data class ModelProfile(
     val family: String,
@@ -22,6 +23,8 @@ data class ModelProfile(
     val codeFriendly: Boolean,
     /** True when the model is small enough that long explanations degrade. */
     val limitedReasoning: Boolean,
+    val repeatPenalty: Float,
+    val minP: Float,
 ) {
     /**
      * Manual settings only win when the user unlocked advanced controls: this
@@ -37,7 +40,21 @@ data class ModelProfile(
         val temperature = if (settings.advancedUnlocked) settings.temperature.coerceIn(0f, 2f) else temperature
         val topP = if (settings.advancedUnlocked) settings.topP.coerceIn(0.1f, 1f) else topP
         val topK = if (settings.advancedUnlocked) settings.topK.coerceIn(1, 200) else topK
-        return GenerationParams(maxTokens = maxTokens, temperature = temperature, topP = topP, topK = topK)
+        val repeat = if (settings.advancedUnlocked) {
+            settings.repeatPenalty.coerceIn(1f, 1.6f)
+        } else {
+            repeatPenalty
+        }
+        val minPValue = if (settings.advancedUnlocked) settings.minP.coerceIn(0f, 0.5f) else minP
+        return GenerationParams(
+            maxTokens = maxTokens,
+            temperature = temperature,
+            topP = topP,
+            topK = topK,
+            repeatPenalty = repeat,
+            minP = minPValue,
+            seed = -1,
+        )
     }
 
     /** Extra sentence appended to the system prompt for small models. */
@@ -86,6 +103,8 @@ object ModelProfiles {
                 concise = false,
                 codeFriendly = true,
                 limitedReasoning = tiny,
+                repeatPenalty = 1.05f,
+                minP = 0.02f,
             )
             TINY.containsMatchIn(id) || tiny -> ModelProfile(
                 family = "tiny",
@@ -98,11 +117,13 @@ object ModelProfiles {
                 concise = true,
                 codeFriendly = false,
                 limitedReasoning = true,
+                repeatPenalty = 1.22f,
+                minP = 0.05f,
             )
             small -> ModelProfile(
                 family = "small",
                 label = "Piccolo",
-                temperature = 0.6f,
+                temperature = 0.55f,
                 topP = 0.9f,
                 topK = 30,
                 maxTokens = 768,
@@ -110,6 +131,8 @@ object ModelProfiles {
                 concise = true,
                 codeFriendly = false,
                 limitedReasoning = true,
+                repeatPenalty = 1.18f,
+                minP = 0.04f,
             )
             QWEN.containsMatchIn(id) -> ModelProfile(
                 family = "qwen",
@@ -122,6 +145,8 @@ object ModelProfiles {
                 concise = false,
                 codeFriendly = false,
                 limitedReasoning = false,
+                repeatPenalty = 1.1f,
+                minP = 0.03f,
             )
             GEMMA.containsMatchIn(id) -> ModelProfile(
                 family = "gemma",
@@ -134,6 +159,8 @@ object ModelProfiles {
                 concise = false,
                 codeFriendly = false,
                 limitedReasoning = false,
+                repeatPenalty = 1.08f,
+                minP = 0.0f,
             )
             PHI.containsMatchIn(id) -> ModelProfile(
                 family = "phi",
@@ -146,6 +173,8 @@ object ModelProfiles {
                 concise = true,
                 codeFriendly = false,
                 limitedReasoning = false,
+                repeatPenalty = 1.15f,
+                minP = 0.03f,
             )
             MISTRAL.containsMatchIn(id) -> ModelProfile(
                 family = "mistral",
@@ -158,6 +187,8 @@ object ModelProfiles {
                 concise = false,
                 codeFriendly = false,
                 limitedReasoning = false,
+                repeatPenalty = 1.1f,
+                minP = 0.02f,
             )
             LLAMA.containsMatchIn(id) -> ModelProfile(
                 family = "llama",
@@ -170,6 +201,8 @@ object ModelProfiles {
                 concise = false,
                 codeFriendly = false,
                 limitedReasoning = false,
+                repeatPenalty = 1.1f,
+                minP = 0.02f,
             )
             else -> ModelProfile(
                 family = "generic",
@@ -182,6 +215,8 @@ object ModelProfiles {
                 concise = false,
                 codeFriendly = false,
                 limitedReasoning = small,
+                repeatPenalty = 1.12f,
+                minP = 0.03f,
             )
         }
     }

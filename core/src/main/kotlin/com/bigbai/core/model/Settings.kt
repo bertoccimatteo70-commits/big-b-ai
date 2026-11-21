@@ -24,7 +24,11 @@ data class AppSettings(
     val temperature: Float = 0.7f,
     val topP: Float = 0.95f,
     val topK: Int = 40,
+    val repeatPenalty: Float = 1.12f,
+    val minP: Float = 0.0f,
     val maxTokens: Int = 1024,
+    /** Local semantic retrieval over documents and saved memories. */
+    val semanticMemoryEnabled: Boolean = true,
     val threads: Int = 0,
     val contextOverride: Int = 0,
     val batchSize: Int = 256,

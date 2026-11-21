@@ -32,6 +32,7 @@ import com.bigbai.app.ui.about.AboutScreen
 import com.bigbai.app.ui.chat.ChatScreen
 import com.bigbai.app.ui.chat.ChatViewModel
 import com.bigbai.app.ui.code.CodeScreen
+import com.bigbai.app.ui.diagnostics.DiagnosticsScreen
 import com.bigbai.app.ui.history.HistoryScreen
 import com.bigbai.app.ui.memory.MemoryScreen
 import com.bigbai.app.ui.models.ModelManagerScreen
@@ -53,6 +54,7 @@ object Routes {
     const val MEMORY = "memory"
     const val SETTINGS = "settings"
     const val CODE = "code"
+    const val DIAGNOSTICS = "diagnostics"
     const val PLUGINS = "plugins"
     const val ABOUT = "about"
 
@@ -205,6 +207,9 @@ fun AppRoot(container: AppContainer, settings: AppSettings) {
                 }
                 composable(Routes.CODE) {
                     CodeScreen(container = container, onBack = { navController.popBackStack() })
+                }
+                composable(Routes.DIAGNOSTICS) {
+                    DiagnosticsScreen(container = container, onBack = { navController.popBackStack() })
                 }
                 composable(Routes.PLUGINS) {
                     PluginsScreen(container = container, onBack = { navController.popBackStack() })

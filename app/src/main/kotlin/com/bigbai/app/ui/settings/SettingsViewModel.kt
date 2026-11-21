@@ -72,6 +72,9 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     fun setTemperature(value: Float) = update { it.copy(temperature = value.coerceIn(0f, 1.5f)) }
     fun setTopP(value: Float) = update { it.copy(topP = value.coerceIn(0.1f, 1f)) }
     fun setTopK(value: Int) = update { it.copy(topK = value.coerceIn(1, 200)) }
+    fun setRepeatPenalty(value: Float) = update { it.copy(repeatPenalty = value.coerceIn(1f, 1.6f)) }
+    fun setMinP(value: Float) = update { it.copy(minP = value.coerceIn(0f, 0.5f)) }
+    fun setSemanticMemory(value: Boolean) = update { it.copy(semanticMemoryEnabled = value) }
     fun setMaxTokens(value: Int) = update { it.copy(maxTokens = value.coerceIn(64, 4096)) }
     fun setThreads(value: Int) = update { it.copy(threads = value.coerceIn(0, cores)) }
     fun setContext(value: Int) = update { it.copy(contextOverride = value.coerceIn(0, 32768)) }

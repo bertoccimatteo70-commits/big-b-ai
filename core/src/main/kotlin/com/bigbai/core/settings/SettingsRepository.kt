@@ -54,6 +54,9 @@ class SettingsRepository(private val context: Context) {
     suspend fun setTutorEnabled(value: Boolean) = update { it.copy(tutorEnabled = value) }
     suspend fun setTutorTarget(value: String) = update { it.copy(tutorTarget = value) }
     suspend fun setTutorLevel(value: TutorLevel) = update { it.copy(tutorLevel = value) }
+    suspend fun setRepeatPenalty(value: Float) = update { it.copy(repeatPenalty = value.coerceIn(1f, 1.6f)) }
+    suspend fun setMinP(value: Float) = update { it.copy(minP = value.coerceIn(0f, 0.5f)) }
+    suspend fun setSemanticMemoryEnabled(value: Boolean) = update { it.copy(semanticMemoryEnabled = value) }
 
     /**
      * BIG B Code daily quota, stored as raw values so the core module does not
@@ -86,6 +89,9 @@ class SettingsRepository(private val context: Context) {
         private val KEY_TEMP = floatPreferencesKey("temperature")
         private val KEY_TOP_P = floatPreferencesKey("top_p")
         private val KEY_TOP_K = intPreferencesKey("top_k")
+        private val KEY_REPEAT_PENALTY = floatPreferencesKey("repeat_penalty")
+        private val KEY_MIN_P = floatPreferencesKey("min_p")
+        private val KEY_SEMANTIC_MEMORY = booleanPreferencesKey("semantic_memory")
         private val KEY_MAX_TOKENS = intPreferencesKey("max_tokens")
         private val KEY_THREADS = intPreferencesKey("threads")
         private val KEY_CONTEXT = intPreferencesKey("context_override")
@@ -124,6 +130,9 @@ class SettingsRepository(private val context: Context) {
             temperature = this[KEY_TEMP] ?: 0.7f,
             topP = this[KEY_TOP_P] ?: 0.95f,
             topK = this[KEY_TOP_K] ?: 40,
+            repeatPenalty = this[KEY_REPEAT_PENALTY] ?: 1.12f,
+            minP = this[KEY_MIN_P] ?: 0.0f,
+            semanticMemoryEnabled = this[KEY_SEMANTIC_MEMORY] ?: true,
             maxTokens = this[KEY_MAX_TOKENS] ?: 1024,
             threads = this[KEY_THREADS] ?: 0,
             contextOverride = this[KEY_CONTEXT] ?: 0,
@@ -161,6 +170,9 @@ class SettingsRepository(private val context: Context) {
             this[KEY_TEMP] = s.temperature
             this[KEY_TOP_P] = s.topP
             this[KEY_TOP_K] = s.topK
+            this[KEY_REPEAT_PENALTY] = s.repeatPenalty
+            this[KEY_MIN_P] = s.minP
+            this[KEY_SEMANTIC_MEMORY] = s.semanticMemoryEnabled
             this[KEY_MAX_TOKENS] = s.maxTokens
             this[KEY_THREADS] = s.threads
             this[KEY_CONTEXT] = s.contextOverride

@@ -14,14 +14,19 @@ import com.bigbai.core.repo.ChatRepository
 import com.bigbai.core.repo.MemoryRepository
 import com.bigbai.core.search.WebSearchClient
 import com.bigbai.core.security.CryptoManager
+import com.bigbai.core.model.GenerationMetrics
 import com.bigbai.core.settings.SettingsRepository
+import com.bigbai.llm.BundledModelInstaller
+import com.bigbai.llm.EmbeddingEngine
 import com.bigbai.llm.LlamaEngine
 import com.bigbai.llm.ModelCatalog
 import com.bigbai.llm.ModelDownloadManager
 import com.bigbai.llm.ModelStore
+import com.bigbai.llm.SemanticRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
  * Manual dependency container.
@@ -55,6 +60,17 @@ class AppContainer(private val app: Application) {
         ModelDownloadManager(app, modelStore, database.downloadDao())
     }
     val engine: LlamaEngine by lazy { LlamaEngine(app, memorySampler) }
+
+    /** Last measured generation, shared with the diagnostics screen. */
+    val lastMetrics = MutableStateFlow<GenerationMetrics?>(null)
+
+    /**
+     * The embedding model ships inside the APK. It is extracted and verified on
+     * first use, then used for local retrieval over documents and memories.
+     */
+    val bundledModels: BundledModelInstaller by lazy { BundledModelInstaller(app) }
+    val embedder: EmbeddingEngine by lazy { EmbeddingEngine(app, bundledModels, memorySampler) }
+    val semantic: SemanticRepository by lazy { SemanticRepository(app, embedder) }
 
     val pdf: PdfExtractor by lazy { PdfExtractor(app) }
     val search: WebSearchClient by lazy { WebSearchClient(app) }

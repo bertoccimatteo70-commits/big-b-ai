@@ -20,6 +20,12 @@ data class GenerationParams(
     val temperature: Float,
     val topP: Float,
     val topK: Int,
+    /** 1.0 disables repetition control; small models need 1.1-1.25. */
+    val repeatPenalty: Float = 1.12f,
+    /** 0.0 disables min-p; 0.02-0.08 trims the low-probability tail. */
+    val minP: Float = 0.0f,
+    /** -1 means a fresh random seed for every answer. */
+    val seed: Int = -1,
 )
 
 data class VisionInput(
@@ -193,12 +199,14 @@ class LlamaEngine(
         val started = if (vision != null) {
             NativeLlama.nativeBeginVision(
                 handle, prompt.text, vision.rgb, vision.width, vision.height,
-                params.maxTokens, params.temperature, params.topP, params.topK, addSpecial,
+                params.maxTokens, params.temperature, params.topP, params.topK,
+                params.repeatPenalty, params.minP, params.seed, addSpecial,
             )
         } else {
             NativeLlama.nativeBegin(
                 handle, prompt.text, params.maxTokens,
-                params.temperature, params.topP, params.topK, addSpecial,
+                params.temperature, params.topP, params.topK,
+                params.repeatPenalty, params.minP, params.seed, addSpecial,
             )
         }
         if (!started) {

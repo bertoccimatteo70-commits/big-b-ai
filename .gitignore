@@ -34,3 +34,8 @@ keystore.properties
 
 # Local build logs
 /logs/
+
+# Bundled embedding model: downloaded and verified by
+# scripts/fetch-bundled-model.sh, never committed (132 MB).
+/models/
+/app/src/main/assets/models/*.gguf

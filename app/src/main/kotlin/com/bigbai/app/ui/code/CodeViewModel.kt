@@ -17,6 +17,8 @@ import com.bigbai.code.JsSandbox
 import com.bigbai.code.PatchEngine
 import com.bigbai.code.ProposedChange
 import com.bigbai.code.ProjectFiles
+import com.bigbai.code.ProjectInsight
+import com.bigbai.code.ProjectInsights
 import com.bigbai.code.ProjectNaming
 import com.bigbai.code.SandboxResult
 import com.bigbai.code.StaticAnalyzers
@@ -75,6 +77,12 @@ data class CodeUiState(
     val pendingDelete: String? = null,
     val codeModelLabel: String? = null,
     val chatModelLabel: String? = null,
+    /** Project-wide findings: duplicated blocks, undeclared imports, TODO. */
+    val insights: List<ProjectInsight> = emptyList(),
+    /** Human-readable project shape, produced by the last analysis. */
+    val projectSummary: String? = null,
+    /** Report of the last agent task: files written, checks, static errors. */
+    val changeReport: String? = null,
 )
 
 class CodeViewModel(private val container: AppContainer) : ViewModel() {
@@ -249,6 +257,9 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
                     sandbox = null,
                     steps = emptyList(),
                     pendingDelete = null,
+                    insights = emptyList(),
+                    projectSummary = null,
+                    changeReport = null,
                 )
             }
             container.projects.touch(id)
@@ -461,6 +472,11 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
                     val result = container.engine.generate(prompt, params) { token -> builder.append(token) }
                     cancelTimeout()
                     val answer = AnswerSanitizer.clean(builder.toString()).trim()
+                    result.getOrNull()?.let { metrics ->
+                        if (metrics.completionTokens > 0 || metrics.promptTokens > 0) {
+                            container.lastMetrics.value = metrics
+                        }
+                    }
 
                     if (cancelledByUser || timedOut) {
                         appendInterrupted(project.id, builder.toString())
@@ -750,9 +766,11 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
     private suspend fun analyzeWritten(project: Project, paths: List<String>) {
         val root = container.projectFiles.root(project.treeUri) ?: return
         var problems = 0
+        val collected = LinkedHashMap<String, List<Diagnostic>>()
         for (path in paths.distinct()) {
             val text = container.projectFiles.readText(root, path) ?: continue
             val diagnostics = StaticAnalyzers.analyze(path, text)
+            collected[path] = diagnostics
             problems += diagnostics.count { it.severity == com.bigbai.code.DiagnosticSeverity.ERROR }
             if (diagnostics.isNotEmpty()) {
                 _state.update {
@@ -776,6 +794,95 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
                 it.copy(steps = it.steps + AgentStep("Controlli completati", "Nessun errore statico rilevato"))
             }
         }
+
+        // Real execution where the platform allows it: an HTML entry point is
+        // run in the isolated WebView so the agent cannot claim it works without
+        // the page having actually loaded.
+        val htmlPath = paths.firstOrNull { it.endsWith(".html", true) || it.endsWith(".htm", true) }
+            ?: "index.html".takeIf { container.projectFiles.readText(root, it) != null }
+        val checks = mutableListOf("Analisi statica dei file scritti")
+        if (htmlPath != null) {
+            val html = container.projectFiles.readText(root, htmlPath)
+            if (html != null) {
+                val allowNetwork = project.networkAllowed || container.settings.current().codeNetworkAllowed
+                val sandbox = container.sandbox.run(html, timeoutMs = 8000, allowNetwork = allowNetwork)
+                checks.add("Esecuzione in sandbox di $htmlPath")
+                _state.update {
+                    it.copy(
+                        sandbox = sandbox,
+                        steps = it.steps + AgentStep(
+                            if (sandbox.success) "Sandbox: $htmlPath eseguito" else "Sandbox: errori in $htmlPath",
+                            "${sandbox.errors.size} errori · ${sandbox.blockedRequests} richieste di rete bloccate",
+                            if (sandbox.success) AgentStepStatus.DONE else AgentStepStatus.FAILED,
+                        ),
+                    )
+                }
+            }
+        }
+
+        val report = ProjectInsights.changeReport(paths, collected, checks)
+        val snapshot = container.projectFiles.snapshot(root, maxFiles = 120, maxBytesPerFile = 120_000)
+        val insights = ProjectInsights.analyze(snapshot)
+        _state.update {
+            it.copy(
+                changeReport = report,
+                insights = insights,
+                projectSummary = ProjectInsights.summary(snapshot),
+            )
+        }
+        if (insights.isNotEmpty()) {
+            _state.update {
+                it.copy(
+                    steps = it.steps + AgentStep(
+                        "Analisi del progetto",
+                        "${insights.size} segnalazioni: duplicati, dipendenze mancanti, TODO",
+                    ),
+                )
+            }
+        }
+    }
+
+    /** On-demand project analysis from the Tools tab. */
+    fun runProjectAnalysis() {
+        val project = _state.value.project ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(busy = true, status = "Analisi del progetto…") }
+            val root = container.projectFiles.root(project.treeUri)
+            val snapshot = root?.let {
+                container.projectFiles.snapshot(it, maxFiles = 150, maxBytesPerFile = 120_000)
+            }.orEmpty()
+            val insights = ProjectInsights.analyze(snapshot)
+            _state.update {
+                it.copy(
+                    busy = false,
+                    status = if (snapshot.isEmpty()) {
+                        "Nessun file di testo da analizzare"
+                    } else {
+                        "Analisi completata: ${insights.size} segnalazioni su ${snapshot.size} file"
+                    },
+                    insights = insights,
+                    projectSummary = ProjectInsights.summary(snapshot),
+                )
+            }
+        }
+    }
+
+    /**
+     * Asks the agent for tests on the open file. It is a normal task: it uses
+     * the same quota and the same tools, and the model is told to write real
+     * test files rather than describe them.
+     */
+    fun generateTests() {
+        val path = _state.value.openPath ?: return
+        if (_state.value.generating) return
+        _state.update {
+            it.copy(
+                input = "Genera test automatici per il file $path. Crea i file di test necessari " +
+                    "nello stesso progetto, con casi validi e casi limite, poi esegui i controlli disponibili " +
+                    "e riporta cosa hai verificato e cosa no.",
+            )
+        }
+        send()
     }
 
     fun applyProposals() {
