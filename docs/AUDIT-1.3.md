@@ -30,19 +30,22 @@ architetture:
 
 | ABI | `libbigbai.so` (stripped) | `libsqlcipher.so` | Destinazione |
 |---|---:|---:|---|
-| `arm64-v8a` | 5.945.248 B | 5.797.528 B | telefoni e tablet 64-bit (target primario) |
-| `armeabi-v7a` | 4.184.696 B | 4.035.640 B | dispositivi 32-bit |
-| `x86_64` | 6.611.800 B | 6.372.968 B | emulatore Android |
+| `arm64-v8a` | 5.943.904 B | 5.797.528 B | telefoni e tablet 64-bit (target primario) |
+| `armeabi-v7a` | 4.183.272 B | 4.035.640 B | dispositivi 32-bit |
+| `x86_64` | 6.610.376 B | 6.372.968 B | emulatore Android |
 
 Nessun file è stato aggiunto per gonfiare l'APK: ogni ABI è una libreria compilata da sorgenti
 llama.cpp e usata a runtime da quella architettura. `x86_64` rende l'app eseguibile nell'emulatore,
 `armeabi-v7a` copre i dispositivi 32-bit che prima installavano l'APK e andavano in crash con
 `UnsatisfiedLinkError`.
 
-**Risultato misurato:** `dist/BIG-B-AI-debug-1.3.0.apk` = **119.987.886 byte = 114,43 MiB =
-119,99 MB**. Verificato con `unzip -l`: presenti `libbigbai.so` e `libsqlcipher.so` per tutte e tre
-le ABI; lo SHA-256 di ogni `.so` nell'APK coincide con quello del file compilato in
-`llm/src/main/jniLibs/`.
+**Risultato misurato sull'artifact CI** (run 44894826291, commit `606797a`):
+`BIG-B-AI-debug-1.3.0.apk` = **114.028.656 byte = 108,75 MiB = 114,03 MB**. Verificato con
+`unzip -l` dopo aver scaricato l'artifact: 735 file, 25 `classes*.dex` (74,4 MB) e sei librerie
+native reali, cioè `libbigbai.so` e `libsqlcipher.so` per ognuna delle tre ABI, per un totale di
+32,9 MB. Nella build locale gli SHA-256 dei `.so` dentro l'APK coincidono con quelli compilati in
+`llm/src/main/jniLibs/`; le librerie dell'APK CI sono ricompilate dalle stesse sorgenti e misurano
+1.408 byte in meno per ABI, differenza del `strip` del runner.
 
 **Problema tecnico incontrato e risolto.** La build `armeabi-v7a` falliva in
 `ggml-cpu/llamafile/sgemm.cpp` (`vld1q_f16` non dichiarato): i kernel FP16 NEON di llamafile
@@ -224,8 +227,8 @@ Test: `AnswerSanitizerTest` (5 test), incluso il caso di marker spezzato tra due
 | Copertura linee | **8,0%** (838/10.434) |
 | Copertura branch | **5,4%** (395/7.253) |
 | Copertura per modulo | `core/chat` 94,7%, `core/lang` 99,1%, `code` 33,7%, `llm` 23,5%, `app/files` 29,6% |
-| APK | **119.987.886 byte / 114,43 MiB / 119,99 MB** |
-| SHA-256 APK locale | `58f98efa4cef80328e5ac16b83c0758b1dcaeb921670bdc618afd6e014677d18` |
+| APK artifact CI | **114.028.656 byte / 108,75 MiB / 114,03 MB** |
+| SHA-256 APK artifact CI | `170905bb50813a4d6e7e619c27fec40e123604bcb33f0f2b109f33558a76badf` |
 | Libreria nativa | 3 ABI, 4,18–6,61 MB ciascuna (stripped), hash verificato dentro l'APK |
 | Build | `assembleDebug`, `jacocoTestReport`, `lintDebug` → BUILD SUCCESSFUL |
 
