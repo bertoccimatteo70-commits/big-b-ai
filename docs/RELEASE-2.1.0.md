@@ -60,6 +60,9 @@ repository né nell'APK.
   `article:published_time`, `article:modified_time`. Google News non viene arricchito perché il
   link è un redirect.
 - Limiti di rete espliciti: 10 s connect, 15 s read, 25 s call.
+- Rifiuto degli URL loopback e di rete privata (`localhost`, `127.*`, `10.*`, `192.168.*`,
+  `169.254.*`, `172.16–31.*`, `::1`, `*.local`) per non trasformare un risultato ostile in una
+  sonda SSRF verso la rete locale.
 - Parser separati e puri in `SearchParsing`, testati su JVM.
 
 UI:
@@ -218,7 +221,7 @@ dell'APK non è la dimensione dello ZIP GitHub.
 | Personalizzazione | **PARZIALE** (impostazioni esistenti) |
 | Cronologia migliorata | **PARZIALE** (ricerca/archivio esistenti) |
 | Produttività migliorata | **PARZIALE** (export/copia/condivisione esistenti) |
-| Diagnostica disponibile | **COMPLETATO E VERIFICATO** (compilazione) |
+| Diagnostica disponibile | **IMPLEMENTATO NON VERIFICATO SU DEVICE** (compila; schermata non aperta) |
 | Onboarding curato | **PARZIALE** (senza modello incluso) |
 | Animazioni/interazioni | **PARZIALE** |
 | Accessibilità | **PARZIALE** (contentDescription e target; nessun audit) |
