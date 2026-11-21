@@ -182,20 +182,23 @@ class LlamaEngine(
 
         cancelled.set(false)
         val prompt = buildPrompt(messages)
-        if (prompt.isBlank()) {
+        if (prompt.text.isBlank()) {
             return@withContext Result.failure(IllegalStateException("Prompt vuoto"))
         }
+        // A rendered chat template already starts with the model's BOS token;
+        // asking the tokenizer to add another one degraded the first tokens.
+        val addSpecial = !prompt.fromTemplate
 
         val promptStarted = SystemClock.elapsedRealtime()
         val started = if (vision != null) {
             NativeLlama.nativeBeginVision(
-                handle, prompt, vision.rgb, vision.width, vision.height,
-                params.maxTokens, params.temperature, params.topP, params.topK,
+                handle, prompt.text, vision.rgb, vision.width, vision.height,
+                params.maxTokens, params.temperature, params.topP, params.topK, addSpecial,
             )
         } else {
             NativeLlama.nativeBegin(
-                handle, prompt, params.maxTokens,
-                params.temperature, params.topP, params.topK,
+                handle, prompt.text, params.maxTokens,
+                params.temperature, params.topP, params.topK, addSpecial,
             )
         }
         if (!started) {
@@ -211,6 +214,7 @@ class LlamaEngine(
         }
 
         val decoder = Utf8Stream()
+        val sanitizer = AnswerSanitizer()
         var tokens = 0
         var firstTokenAt = 0L
         var peakRam = memorySampler.current()
@@ -226,14 +230,25 @@ class LlamaEngine(
                 firstTokenAt = SystemClock.elapsedRealtime()
             }
             val text = decoder.feed(bytes)
-            if (text.isNotEmpty()) onToken(text)
+            if (text.isNotEmpty()) {
+                val visible = sanitizer.feed(text)
+                if (visible.isNotEmpty()) onToken(visible)
+                // Stop on a chat-template marker even when the model did not
+                // declare it as an EOG token.
+                if (sanitizer.finished) break
+            }
             tokens += 1
             if (tokens % 8 == 0) {
                 peakRam = max(peakRam, memorySampler.current())
             }
         }
         val tail = decoder.flush()
-        if (tail.isNotEmpty()) onToken(tail)
+        if (tail.isNotEmpty()) {
+            val visible = sanitizer.feed(tail)
+            if (visible.isNotEmpty()) onToken(visible)
+        }
+        val held = sanitizer.flush()
+        if (held.isNotEmpty()) onToken(held)
 
         val finished = SystemClock.elapsedRealtime()
         // llama.cpp's own counters are authoritative for prompt evaluation and
@@ -263,19 +278,22 @@ class LlamaEngine(
         }
     }
 
-    private fun buildPrompt(messages: List<PromptMessage>): String {
-        if (messages.isEmpty()) return ""
+    private data class RenderedPrompt(val text: String, val fromTemplate: Boolean)
+
+    private fun buildPrompt(messages: List<PromptMessage>): RenderedPrompt {
+        if (messages.isEmpty()) return RenderedPrompt("", false)
         val roles = Array(messages.size) { messages[it].role }
         val contents = Array(messages.size) { messages[it].content }
         val templated = NativeLlama.nativeApplyChatTemplate(handle, roles, contents, true)
-        if (!templated.isNullOrBlank()) return templated
+        if (!templated.isNullOrBlank()) return RenderedPrompt(templated, true)
         // Conservative fallback for models without a usable template.
-        return buildString {
+        val fallback = buildString {
             for (message in messages) {
                 append(message.role).append(": ").append(message.content).append("\n\n")
             }
             append("assistant:")
         }
+        return RenderedPrompt(fallback, false)
     }
 
     private fun parseInfo(raw: String): Map<String, String> =

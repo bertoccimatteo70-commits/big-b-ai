@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bigbai.app.AppContainer
+import com.bigbai.app.files.FileExport
 import com.bigbai.code.Diagnostic
 import com.bigbai.code.FileNode
 import com.bigbai.code.GitCommitInfo
@@ -11,6 +12,7 @@ import com.bigbai.code.JsSandbox
 import com.bigbai.code.PatchEngine
 import com.bigbai.code.ProposedChange
 import com.bigbai.code.ProjectFiles
+import com.bigbai.code.ProjectNaming
 import com.bigbai.code.SandboxResult
 import com.bigbai.code.StaticAnalyzers
 import com.bigbai.core.model.Project
@@ -19,6 +21,7 @@ import com.bigbai.core.model.ProjectLanguage
 import com.bigbai.core.model.ProjectMemoryItem
 import com.bigbai.core.model.ProjectMemoryKind
 import com.bigbai.core.model.Role
+import com.bigbai.llm.AnswerSanitizer
 import com.bigbai.llm.GenerationParams
 import com.bigbai.llm.ModelRole
 import com.bigbai.llm.PromptMessage
@@ -32,6 +35,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 data class CodeUiState(
     val project: Project? = null,
@@ -81,6 +85,112 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
             val name = container.projectFiles.displayName(uri.toString()) ?: "Progetto"
             val id = container.projects.addProject(uri.toString(), name, ProjectLanguage.OTHER)
             openProject(id)
+        }
+    }
+
+    /**
+     * Creates a complete project without asking for a folder, a name or a file:
+     * the folder is named from the date, `index.html` is written and opened, and
+     * the project appears in the list. This is the "automatic files" path.
+     */
+    fun createProject() {
+        viewModelScope.launch {
+            val base = File(
+                container.context.getExternalFilesDir(null) ?: container.context.filesDir,
+                "projects",
+            )
+            if (!base.isDirectory && !base.mkdirs()) {
+                _state.update { it.copy(error = "Impossibile creare la cartella dei progetti") }
+                return@launch
+            }
+            var folder = File(base, ProjectNaming.folderName(System.currentTimeMillis()))
+            var suffix = 2
+            while (folder.exists()) {
+                folder = File(base, "${ProjectNaming.folderName(System.currentTimeMillis())}-${suffix}")
+                suffix += 1
+            }
+            if (!folder.mkdirs()) {
+                _state.update { it.copy(error = "Impossibile creare la cartella del progetto") }
+                return@launch
+            }
+            val uri = Uri.fromFile(folder).toString()
+            val root = container.projectFiles.root(uri)
+            if (root == null) {
+                _state.update { it.copy(error = "Cartella del progetto non accessibile") }
+                return@launch
+            }
+            container.projectFiles.writeText(
+                root,
+                ProjectNaming.ENTRY_FILE,
+                ProjectNaming.starterHtml(folder.name),
+            )
+            val id = container.projects.addProject(uri, folder.name, ProjectLanguage.HTML)
+            openProject(id)
+            _state.update {
+                it.copy(status = "Progetto «${folder.name}» creato con ${ProjectNaming.ENTRY_FILE}")
+            }
+        }
+    }
+
+    fun renameFile(node: FileNode, newName: String) {
+        val project = _state.value.project ?: return
+        val clean = newName.trim().replace("/", "_")
+        if (clean.isBlank()) return
+        viewModelScope.launch {
+            val root = container.projectFiles.root(project.treeUri) ?: return@launch
+            val ok = container.projectFiles.rename(root, node.path, clean)
+            if (ok && _state.value.openPath == node.path) {
+                val parent = node.path.substringBeforeLast('/', "")
+                val newPath = if (parent.isEmpty()) clean else "$parent/$clean"
+                _state.update { it.copy(openPath = newPath) }
+            }
+            if (ok) refreshTree()
+            _state.update {
+                it.copy(
+                    status = if (ok) "File rinominato in «$clean»" else null,
+                    error = if (ok) null else "Rinomina non riuscita",
+                )
+            }
+        }
+    }
+
+    /** Copies the open file to Download/BIG B AI with its own name. */
+    fun exportCurrentFile() {
+        val path = _state.value.openPath ?: return
+        val name = path.substringAfterLast('/')
+        val content = _state.value.editorText
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                FileExport.saveToDownloads(
+                    container.context,
+                    name,
+                    ProjectFiles.mimeFor(name),
+                    content,
+                )
+            }
+            _state.update { current ->
+                result.fold(
+                    onSuccess = {
+                        current.copy(status = "Esportato in Download/BIG B AI/$name", error = null)
+                    },
+                    onFailure = { error ->
+                        current.copy(error = error.message ?: "Esportazione non riuscita")
+                    },
+                )
+            }
+        }
+    }
+
+    fun shareCurrentFile() {
+        val path = _state.value.openPath ?: return
+        val name = path.substringAfterLast('/')
+        FileExport.share(
+            container.context,
+            name,
+            ProjectFiles.mimeFor(name),
+            _state.value.editorText,
+        ).onFailure { error ->
+            _state.update { it.copy(error = error.message ?: "Condivisione non riuscita") }
         }
     }
 
@@ -276,10 +386,10 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
                     ),
                 ) { token ->
                     builder.append(token)
-                    _state.update { it.copy(streamingText = builder.toString()) }
+                    _state.update { it.copy(streamingText = AnswerSanitizer.clean(builder.toString())) }
                 }
 
-                val answer = builder.toString().trim()
+                val answer = AnswerSanitizer.clean(builder.toString()).trim()
                 if (answer.isNotEmpty()) {
                     container.projects.appendMessage(project.id, Role.ASSISTANT, answer)
                 }

@@ -94,6 +94,13 @@ class ModelManagerViewModel(private val container: AppContainer) : ViewModel() {
         } ?: options.minByOrNull { it.totalBytes }
     }
 
+    fun variantById(id: String): ModelVariant? = container.catalog.byId(id)
+
+    /** Active, paused and failed downloads, in catalog order. */
+    fun pendingDownloads(): List<ModelVariant> = _state.value.downloads.values
+        .filter { it.status == "DOWNLOADING" || it.status == "PAUSED" || it.status == "FAILED" }
+        .mapNotNull { container.catalog.byId(it.modelId) }
+
     fun variantsFor(role: ModelRole): List<ModelVariant> =
         container.catalog.forRole(role).sortedWith(
             compareBy({ it.tier.ordinal }, { -rank(it.quant) }),
@@ -127,6 +134,24 @@ class ModelManagerViewModel(private val container: AppContainer) : ViewModel() {
 
     fun pause(variant: ModelVariant) {
         com.bigbai.app.service.ModelDownloadService.pause(container.context, variant.id)
+    }
+
+    /**
+     * Cancels a download and removes its partial data, so the next attempt starts
+     * from a clean state instead of resuming a corrupt fragment.
+     */
+    fun cancel(variant: ModelVariant) {
+        com.bigbai.app.service.ModelDownloadService.pause(container.context, variant.id)
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { container.modelStore.discardPartial(variant) }
+            refreshInstalled()
+            _state.update {
+                it.copy(
+                    message = "Download annullato: ${variant.family} ${variant.quant}. " +
+                        "I dati parziali sono stati rimossi.",
+                )
+            }
+        }
     }
 
     fun delete(variant: ModelVariant) {

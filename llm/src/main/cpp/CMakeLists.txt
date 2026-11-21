@@ -26,7 +26,13 @@ set(LLAMA_BUILD_SERVER OFF CACHE BOOL "" FORCE)
 set(LLAMA_CURL OFF CACHE BOOL "" FORCE)
 set(GGML_OPENMP OFF CACHE BOOL "" FORCE)
 set(GGML_NATIVE OFF CACHE BOOL "" FORCE)
-set(GGML_LLAMAFILE ON CACHE BOOL "" FORCE)
+# llamafile's small-GEMM kernels use FP16 NEON intrinsics (vld1q_f16), which
+# only exist on ARMv8. 32-bit ARMv7 must build without them.
+if(ANDROID_ABI STREQUAL "armeabi-v7a")
+    set(GGML_LLAMAFILE OFF CACHE BOOL "" FORCE)
+else()
+    set(GGML_LLAMAFILE ON CACHE BOOL "" FORCE)
+endif()
 set(GGML_CCACHE OFF CACHE BOOL "" FORCE)
 set(GGML_VULKAN OFF CACHE BOOL "" FORCE)
 

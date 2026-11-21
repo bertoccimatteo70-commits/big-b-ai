@@ -21,17 +21,30 @@ versione senza dipendere da un Gradle installato nel `PATH`.
 
 ```bash
 bash scripts/fetch-llama.sh     # clona llama.cpp al commit fissato in third_party/
-bash scripts/build-native.sh    # compila e strippa libbigbai.so
+bash scripts/build-native.sh    # compila e strippa libbigbai.so per tutte le ABI
 ```
 
-`build-native.sh` usa CMake + NDK, ABI `arm64-v8a`, `-DGGML_VULKAN=OFF`, `-DGGML_OPENMP=OFF`,
-`-DLLAMA_CURL=OFF`, e produce:
+`build-native.sh` usa CMake + NDK, `-DGGML_VULKAN=OFF`, `-DGGML_OPENMP=OFF`,
+`-DLLAMA_CURL=OFF`, e produce una libreria per ogni ABI spedita:
 
 ```
-llm/src/main/jniLibs/arm64-v8a/libbigbai.so   (~5,7 MB stripped)
+llm/src/main/jniLibs/arm64-v8a/libbigbai.so     (~5,9 MB stripped)
+llm/src/main/jniLibs/armeabi-v7a/libbigbai.so   (~4,2 MB stripped)
+llm/src/main/jniLibs/x86_64/libbigbai.so        (~6,6 MB stripped)
 ```
 
-La build richiede circa 3,5 GB di RAM con `JOBS=2`. Su macchine piccole:
+Per compilare un sottoinsieme:
+
+```bash
+ABIS="arm64-v8a" bash scripts/build-native.sh
+ABIS="arm64-v8a x86_64" JOBS=4 bash scripts/build-native.sh
+```
+
+`armeabi-v7a` compila con `GGML_LLAMAFILE=OFF`: i kernel FP16 NEON di llamafile richiedono ARMv8,
+mentre i dispositivi 32-bit sono ARMv7. La scelta è nel `CMakeLists.txt` del modulo `llm`.
+
+La build completa delle tre ABI richiede alcuni minuti e circa 1–2 GB di RAM per processo con
+`JOBS=2`. Su macchine piccole:
 
 ```bash
 JOBS=1 bash scripts/build-native.sh
@@ -75,12 +88,13 @@ La consegna è un APK di debug, firmato con la chiave debug Android (`CN=Android
 bash scripts/package-debug-apk.sh
 ```
 
-Lo script copia l'APK in `dist/BIG-B-AI-debug-<versione>.apk`, verifica che
-`lib/arm64-v8a/libbigbai.so` sia davvero dentro l'APK (un APK senza motore nativo non deve mai
-essere pubblicato), calcola lo SHA-256 e scrive `dist/BIG-B-AI-debug-<versione>.txt` con
-dimensione, data, package e firma.
+Lo script copia l'APK in `dist/BIG-B-AI-debug-<versione>.apk`, verifica che `libbigbai.so` **e**
+`libsqlcipher.so` siano presenti per `arm64-v8a`, `armeabi-v7a` e `x86_64` (un APK senza motore
+nativo, o con un'ABI incompleta, non deve mai essere pubblicato), calcola lo SHA-256 e scrive
+`dist/BIG-B-AI-debug-<versione>.txt` con dimensione, data, package e firma. Lo script **fallisce**
+se l'APK è sotto i 100 MiB richiesti dal progetto.
 
-La variante debug usa `applicationId` `com.bigbai.app.debug` e `versionName` `1.2.0-debug`, quindi
+La variante debug usa `applicationId` `com.bigbai.app.debug` e `versionName` `1.3.0-debug`, quindi
 convive con una eventuale build di release sullo stesso dispositivo.
 
 `app/build.gradle.kts` supporta ancora la firma di release (`keystore.properties` o variabili
@@ -104,8 +118,12 @@ I test unitari JVM coprono la logica pura, senza Android framework:
 - `PatchEngineTest` (8 test): parsing del protocollo patch, path, blocchi non chiusi, diff e statistiche.
 - `StaticAnalyzersTest` (10 test): HTML, Java, C++, CSS.
 - `HtmlTextTest` (4 test): rimozione script/style, entità, spazi.
+- `AnswerSanitizerTest` (5 test): stop marker completi e spezzati, testo trattenuto, casi vuoti.
+- `ChatStateTransitionsTest` (3 test): nuova chat e cambio conversazione senza stato ereditato.
+- `FileExportTest` (8 test): slug, timestamp, estensioni dal blocco di codice, MIME.
+- `ProjectNamingTest` (4 test): nome cartella, HTML iniziale, escaping del titolo.
 
-Totale: **71 test JVM, 0 falliti** (core 26, code 22, llm 18, app 5), eseguiti anche dalla pipeline CI.
+Totale: **91 test JVM, 0 falliti** (core 26, code 26, llm 23, app 16), eseguiti anche dalla pipeline CI.
 Non esistono test strumentali: richiederebbero un device.
 
 ## 4.1 Copertura
@@ -115,9 +133,9 @@ Non esistono test strumentali: richiederebbero un device.
 ```
 
 Report aggregato in `build/reports/jacoco/jacocoTestReport/html` (XML e CSV accanto). Misurazione
-corrente: **7,2% delle linee** (672 coperte, 8.632 mancanti) e 5,7% dei branch. La copertura è
+corrente: **8,0% delle linee** (838 coperte, 9.596 mancanti) e 5,4% dei branch. La copertura è
 concentrata sulla logica pura verificabile senza device: `core/chat` 94,7%, `core/lang` 99,1%,
-`code` 33,0%, `llm` 18,4%. UI Compose, Room, PDF, backup e Keystore richiedono test strumentali e
+`code` 33,7%, `llm` 23,5%, `app/files` 29,6%. UI Compose, Room, PDF, backup e Keystore richiedono test strumentali e
 non sono coperti. Il dato è basso ed è riportato così com'è: non viene presentato come obiettivo
 raggiunto.
 
@@ -127,11 +145,12 @@ raggiunto.
 
 1. JDK 17, Android SDK con `android-actions/setup-android@v4` (niente pacchetto `tools`, rimosso da
    Google), NDK 27.2.12479018 e CMake 3.22.1;
-2. `fetch-llama.sh` e `build-native.sh`;
+2. `fetch-llama.sh` e `build-native.sh` per `arm64-v8a`, `armeabi-v7a` e `x86_64`;
 3. test JVM dei quattro moduli (`:core`, `:code`, `:llm`, `:app`);
-4. `./gradlew assembleDebug`;
-5. `package-debug-apk.sh` e upload dell'artifact **BIG-B-AI-Debug-APK** (APK + `.sha256`,
-   retention 30 giorni).
+4. `:app:lintDebug`;
+5. `./gradlew assembleDebug`;
+6. `package-debug-apk.sh` (verifica ABI e dimensione ≥ 100 MiB) e upload dell'artifact
+   **BIG-B-AI-Debug-APK** (APK + `.sha256` + `.txt`, retention 30 giorni).
 
 La copertura JaCoCo è riproducibile in locale con `./gradlew jacocoTestReport`; la pipeline non
 carica un artifact di copertura separato, per non affiancare un secondo artifact a quello APK.
@@ -142,7 +161,7 @@ carica un artifact di copertura separato, per non affiancare un secondo artifact
 |---|---|
 | `Could not find com.tom-roush:pdfbox-android:2.0.27.3` | La versione pubblica è `2.0.27.0`; il catalogo versioni è fissato a quella. |
 | `Cannot access androidx.room.RoomDatabase` in `:code` o `:app` | `AppDatabase` è API pubblica di `:core`: il modulo consumatore deve avere `room-runtime`. Già configurato. |
-| `UnsatisfiedLinkError: libbigbai.so` | La libreria non è stata costruita o l'ABI non è `arm64-v8a`. Rieseguire `build-native.sh`. |
+| `UnsatisfiedLinkError: libbigbai.so` | La libreria non è stata costruita per quell'ABI. Rieseguire `build-native.sh` e controllare che `libbigbai.so` esista in `llm/src/main/jniLibs/<abi>/`. |
 | `apksigner: java: not found` | `JAVA_HOME` non impostato nella shell. Esportare il JDK 17. |
 | Build nativa uccisa (OOM) | Ridurre `JOBS` a 1 e chiudere altri processi. |
 | `Failed to find package 'tools'` | `android-actions/setup-android@v3` chiedeva il pacchetto `tools`, rimosso dal repository Android. Il workflow usa `v4` e dichiara i pacchetti esplicitamente. |

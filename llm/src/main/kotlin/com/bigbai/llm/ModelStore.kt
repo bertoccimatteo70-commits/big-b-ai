@@ -88,6 +88,14 @@ class ModelStore(private val context: Context) {
         return deleted
     }
 
+    /** Deletes only the partial `.part` files of an interrupted download. */
+    fun discardPartial(variant: ModelVariant) {
+        for (file in variant.files + listOfNotNull(variant.mmproj)) {
+            val target = fileFor(variant, file)
+            File(target.parentFile, "${target.name}.part").delete()
+        }
+    }
+
     fun totalBytes(): Long = root.walkTopDown().filter { it.isFile }.sumOf { it.length() }
 
     fun freeSpaceBytes(): Long = context.filesDir.usableSpace

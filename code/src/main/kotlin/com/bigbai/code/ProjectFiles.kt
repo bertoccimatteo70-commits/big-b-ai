@@ -25,10 +25,23 @@ data class FileNode(
  */
 class ProjectFiles(private val context: Context) {
 
-    fun root(treeUri: String): DocumentFile? =
-        runCatching { DocumentFile.fromTreeUri(context, Uri.parse(treeUri)) }
+    /**
+     * Resolves a project root. Two kinds of roots are supported:
+     *  * a SAF tree URI chosen by the user (any folder they authorise);
+     *  * a `file://` directory created by the app itself under its documents
+     *    folder, so "Nuovo progetto" needs no folder picker at all.
+     */
+    fun root(treeUri: String): DocumentFile? {
+        val uri = Uri.parse(treeUri)
+        if (uri.scheme == "file") {
+            val path = uri.path ?: return null
+            val file = File(path)
+            return if (file.isDirectory) DocumentFile.fromFile(file) else null
+        }
+        return runCatching { DocumentFile.fromTreeUri(context, uri) }
             .getOrNull()
             ?.takeIf { it.exists() && it.isDirectory }
+    }
 
     /** Returns a normalised relative path, or null when it is unsafe. */
     fun sanitize(path: String): String? {
@@ -129,6 +142,8 @@ class ProjectFiles(private val context: Context) {
     }
 
     suspend fun displayName(treeUri: String): String? = withContext(Dispatchers.IO) {
+        val uri = Uri.parse(treeUri)
+        if (uri.scheme == "file") return@withContext uri.lastPathSegment
         runCatching {
             context.contentResolver.query(Uri.parse(treeUri), null, null, null, null)?.use { cursor ->
                 val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)

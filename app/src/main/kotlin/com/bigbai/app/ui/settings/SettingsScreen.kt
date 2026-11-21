@@ -18,7 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bigbai.app.AppContainer
 import com.bigbai.app.ui.AppViewModelFactory
+import com.bigbai.app.ui.LocalAppDrawer
 import com.bigbai.core.lang.LanguageCoach
 import com.bigbai.core.lang.TutorLevel
 import com.bigbai.core.model.PerformanceMode
@@ -74,6 +75,7 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit) {
     val settings by viewModel.settings.collectAsState()
     val backup by viewModel.backup.collectAsState()
 
+    val openDrawer = LocalAppDrawer.current
     var passwordAction by remember { mutableStateOf<PasswordAction?>(null) }
     var advanced by remember { mutableStateOf(settings.advancedUnlocked) }
 
@@ -114,8 +116,8 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit) {
         topBar = {
             TopAppBar(
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Indietro")
+                    IconButton(onClick = openDrawer) {
+                        Icon(Icons.Outlined.Menu, contentDescription = "Menu")
                     }
                 },
                 title = { Text("Impostazioni") },

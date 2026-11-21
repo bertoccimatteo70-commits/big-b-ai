@@ -19,10 +19,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
@@ -51,6 +51,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bigbai.app.AppContainer
+import com.bigbai.app.ui.LocalAppDrawer
 import com.bigbai.app.ui.AppViewModelFactory
 import com.bigbai.core.model.MemoryCategory
 import com.bigbai.core.model.MemoryItem
@@ -136,12 +137,14 @@ fun MemoryScreen(container: AppContainer, onBack: () -> Unit) {
         )
     }
 
+    val openDrawer = LocalAppDrawer.current
+
     Scaffold(
         topBar = {
             TopAppBar(
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Indietro")
+                    IconButton(onClick = openDrawer) {
+                        Icon(Icons.Outlined.Menu, contentDescription = "Menu")
                     }
                 },
                 title = { Text("Memoria") },

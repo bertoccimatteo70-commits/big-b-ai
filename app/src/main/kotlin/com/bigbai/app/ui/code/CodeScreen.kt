@@ -34,14 +34,18 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.DriveFileRenameOutline
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Save
+import androidx.compose.material.icons.outlined.SaveAlt
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Stop
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.AlertDialog
@@ -71,6 +75,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -81,6 +86,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bigbai.app.AppContainer
 import com.bigbai.app.ui.AppViewModelFactory
+import com.bigbai.app.ui.LocalAppDrawer
 import com.bigbai.code.Diagnostic
 import com.bigbai.code.DiagnosticSeverity
 import com.bigbai.code.FileNode
@@ -117,6 +123,7 @@ fun CodeScreen(container: AppContainer, onBack: () -> Unit) {
         ProjectsHome(
             state = state,
             onBack = onBack,
+            onCreate = viewModel::createProject,
             onAdd = { treePicker.launch(null) },
             onOpen = viewModel::openProject,
             onDelete = viewModel::removeProject,
@@ -139,11 +146,13 @@ fun CodeScreen(container: AppContainer, onBack: () -> Unit) {
 private fun ProjectsHome(
     state: CodeUiState,
     onBack: () -> Unit,
+    onCreate: () -> Unit,
     onAdd: () -> Unit,
     onOpen: (Long) -> Unit,
     onDelete: (Project) -> Unit,
 ) {
     var pendingDelete by remember { mutableStateOf<Project?>(null) }
+    val openDrawer = LocalAppDrawer.current
 
     pendingDelete?.let { project ->
         AlertDialog(
@@ -166,8 +175,8 @@ private fun ProjectsHome(
         topBar = {
             TopAppBar(
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Indietro")
+                    IconButton(onClick = openDrawer) {
+                        Icon(Icons.Outlined.Menu, contentDescription = "Menu")
                     }
                 },
                 title = { Text("BIG B Code") },
@@ -194,8 +203,8 @@ private fun ProjectsHome(
                         )
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            "Editor, file explorer, analisi statica, versionamento Git e assistente AI " +
-                                "condiviso con la chat. L'accesso ai file è limitato alla cartella che autorizzi.",
+                            "Crea un progetto con un tocco: la cartella e il file index.html vengono " +
+                                "creati automaticamente, senza percorsi da inventare.",
                             style = MaterialTheme.typography.bodySmall,
                         )
                         Spacer(Modifier.height(10.dp))
@@ -209,10 +218,17 @@ private fun ProjectsHome(
                 }
             }
             item {
-                Button(onClick = onAdd, modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = onCreate, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Nuovo progetto")
+                }
+            }
+            item {
+                OutlinedButton(onClick = onAdd, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Outlined.FolderOpen, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Apri una cartella come progetto")
+                    Text("Apri una cartella già esistente")
                 }
             }
             item {
@@ -221,8 +237,8 @@ private fun ProjectsHome(
             if (state.projects.isEmpty()) {
                 item {
                     Text(
-                        "Nessun progetto. Scegli una cartella con il selettore di sistema: " +
-                            "BIG B Code riceve solo il permesso su quella cartella.",
+                        "Nessun progetto. Usa «Nuovo progetto» per iniziare subito, oppure apri una " +
+                            "cartella esistente: BIG B Code riceve solo il permesso su quella cartella.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -349,29 +365,40 @@ private fun CodeChatTab(state: CodeUiState, viewModel: CodeViewModel) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (isUser) MaterialTheme.colorScheme.primaryContainer
-                        else MaterialTheme.colorScheme.surfaceVariant,
+                        containerColor = Color.White,
+                        contentColor = Color.Black,
                     ),
                 ) {
                     Text(
                         text = message.content,
-                        style = MaterialTheme.typography.bodySmall,
-                        fontFamily = if (!isUser && message.content.contains("<<<<<<<")) FontFamily.Monospace else null,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = if (!isUser && message.content.contains("<<<<<<<")) {
+                                FontFamily.Monospace
+                            } else {
+                                FontFamily.Serif
+                            },
+                        ),
+                        color = Color.Black,
                         modifier = Modifier.padding(12.dp),
                     )
                 }
             }
             if (state.generating) {
                 item {
-                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color.White,
+                            contentColor = Color.Black,
+                        ),
+                    ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             if (state.streamingText.isBlank()) {
-                                Text("AI sta pensando…", style = MaterialTheme.typography.labelMedium)
+                                Text("AI sta pensando…", style = MaterialTheme.typography.labelMedium, color = Color.Black)
                             } else {
                                 Text(
                                     state.streamingText,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontFamily = FontFamily.Monospace,
+                                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Serif),
+                                    color = Color.Black,
                                 )
                             }
                         }
@@ -449,6 +476,33 @@ private fun CodeChatTab(state: CodeUiState, viewModel: CodeViewModel) {
 @Composable
 private fun FilesTab(state: CodeUiState, viewModel: CodeViewModel) {
     var newFileDialog by remember { mutableStateOf(false) }
+    var renameNode by remember { mutableStateOf<FileNode?>(null) }
+
+    renameNode?.let { node ->
+        var value by remember(node.path) { mutableStateOf(node.name) }
+        AlertDialog(
+            onDismissRequest = { renameNode = null },
+            title = { Text("Rinomina file") },
+            text = {
+                OutlinedTextField(
+                    value = value,
+                    onValueChange = { value = it.take(120) },
+                    label = { Text("Nuovo nome") },
+                    singleLine = true,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.renameFile(node, value)
+                        renameNode = null
+                    },
+                    enabled = value.isNotBlank(),
+                ) { Text("Rinomina") }
+            },
+            dismissButton = { TextButton(onClick = { renameNode = null }) { Text("Annulla") } },
+        )
+    }
 
     if (newFileDialog) {
         var path by remember { mutableStateOf("") }
@@ -524,6 +578,13 @@ private fun FilesTab(state: CodeUiState, viewModel: CodeViewModel) {
                             modifier = Modifier.weight(1f),
                         )
                         if (!entry.node.isDirectory) {
+                            IconButton(onClick = { renameNode = entry.node }, modifier = Modifier.size(30.dp)) {
+                                Icon(
+                                    Icons.Outlined.DriveFileRenameOutline,
+                                    contentDescription = "Rinomina",
+                                    modifier = Modifier.size(15.dp),
+                                )
+                            }
                             IconButton(onClick = { viewModel.deleteFile(entry.node) }, modifier = Modifier.size(30.dp)) {
                                 Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(15.dp))
                             }
@@ -564,6 +625,12 @@ private fun EditorPane(state: CodeUiState, viewModel: CodeViewModel) {
             }
             IconButton(onClick = viewModel::runSandbox) {
                 Icon(Icons.Outlined.PlayArrow, contentDescription = "Esegui nella sandbox")
+            }
+            IconButton(onClick = viewModel::exportCurrentFile) {
+                Icon(Icons.Outlined.SaveAlt, contentDescription = "Esporta in Download")
+            }
+            IconButton(onClick = viewModel::shareCurrentFile) {
+                Icon(Icons.Outlined.Share, contentDescription = "Condividi il file")
             }
         }
         OutlinedTextField(

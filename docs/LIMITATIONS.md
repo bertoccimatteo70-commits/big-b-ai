@@ -8,9 +8,11 @@ L'obiettivo è che nessuno scopra un limite solo dopo aver installato l'APK.
 | Cosa | Stato |
 |---|---|
 | Compilazione debug | Verificata in questo ambiente |
-| Test unitari JVM (71) | Verificati, 0 falliti |
-| Copertura JVM (JaCoCo) | Misurata: 7,2% delle linee; UI, Room, PDF e backup non coperti |
-| Libreria nativa arm64 | Compilata e strippata |
+| Test unitari JVM (91) | Verificati, 0 falliti |
+| Lint debug | 0 errori, 66 warning |
+| Copertura JVM (JaCoCo) | Misurata: 8,0% delle linee; UI, Room, PDF e backup non coperti |
+| Librerie native arm64-v8a, armeabi-v7a, x86_64 | Compilate e strippate, presenti nell'APK |
+| Caricamento delle librerie su hardware reale | **Non verificato** |
 | Avvio dell'app su dispositivo | **Non verificato** |
 | Inferenza reale (testo) | **Non verificata** su device |
 | Inferenza multimodale | **Non verificata** su device |
@@ -25,8 +27,11 @@ implementate e compilano, ma non sono state eseguite: non vengono dichiarate "fu
 
 ## Piattaforma
 
-- **Solo arm64-v8a.** Nessuna build x86_64 o armeabi-v7a: l'APK non si installa su emulatori x86
-  senza traduzione.
+- **Tre ABI, ma verifica solo in compilazione.** L'APK è universale (arm64-v8a, armeabi-v7a,
+  x86_64) e ogni ABI ha il proprio `libbigbai.so`. Le librerie non sono state caricate su un
+  dispositivo reale: un problema di runtime specifico di un'ABI non è stato escluso.
+- **armv7 limitato dalla RAM.** Su 32-bit lo spazio di indirizzamento è ridotto: solo i modelli
+  piccoli (Q2/Q3) entrano nel budget; gli altri vengono rifiutati con un messaggio.
 - **Android 12+ (minSdk 31).** Richiesto per il comportamento delle foreground service e delle
   API di sicurezza usate.
 - **GPU non disponibile.** Il backend Vulkan è escluso: la build di llama.cpp usata non include
@@ -38,15 +43,15 @@ implementate e compilano, ma non sono state eseguite: non vengono dichiarate "fu
 
 ## Consegna
 
-- **Solo APK di debug.** La consegna è `BIG-B-AI-debug-1.2.0.apk`, firmato con `CN=Android Debug`:
+- **Solo APK di debug.** La consegna è `BIG-B-AI-debug-1.3.0.apk`, firmato con `CN=Android Debug`:
   installabile, ma non adatto a Play Store né a una distribuzione "ufficiale". Non vengono
   prodotti AAB né release firmate.
 - **R8/minify disattivato.** Scelta deliberata: non è stato possibile verificare su device che le
   regole di offuscamento non rompessero JGit, Room o il ponte JNI. Meglio un APK più grande che un
   crash non diagnosticabile.
 - **Nessun test strumentale.** Non ci sono test Android (`androidTest`) eseguiti.
-- **Copertura JVM bassa e parziale.** JaCoCo misura 7,2% delle linee complessive. La logica pura è
-  coperta bene (`core/chat` 94,7%, `core/lang` 99,1%, `code` 33,0%, `llm` 18,4%), ma UI Compose,
+- **Copertura JVM bassa e parziale.** JaCoCo misura 8,0% delle linee complessive. La logica pura è
+  coperta bene (`core/chat` 94,7%, `core/lang` 99,1%, `code` 33,7%, `llm` 23,5%), ma UI Compose,
   Room, PDF, backup, Keystore e sandbox non hanno test eseguibili sulla JVM. Il numero è misurato,
   non stimato, e non sostituisce i test su device.
 - **Paging non introdotto.** La lista è lazy e il prompt è limitato, ma una conversazione con
@@ -88,3 +93,5 @@ implementate e compilano, ma non sono state eseguite: non vengono dichiarate "fu
 2. Un keystore di release per firmare l'APK.
 3. Shader SPIR-V verificati per abilitare Vulkan.
 4. Una suite `androidTest` per SAF, Keystore e sandbox.
+5. Un dispositivo per ogni ABI (arm64, armv7, x86_64) per verificare il caricamento di
+   `libbigbai.so` e `libsqlcipher.so`.

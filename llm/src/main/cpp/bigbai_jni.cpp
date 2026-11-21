@@ -96,6 +96,13 @@ bool create_sampler(Session * session, float temperature, float top_p, int32_t t
     params.no_perf = false;
     llama_sampler * chain = llama_sampler_chain_init(params);
     if (chain == nullptr) return false;
+    // Repetition control first: small quantized models otherwise fall into a
+    // loop that repeats the same sentence until max_tokens is reached. The
+    // penalty is applied to the last 64 tokens with a mild strength so normal
+    // prose is unaffected.
+    llama_sampler_chain_add(chain, llama_sampler_init_penalties(
+        static_cast<int32_t>(llama_vocab_n_tokens(session->vocab)),
+        64, 1.12f, 0.0f, 0.0f));
     if (top_k > 0) {
         llama_sampler_chain_add(chain, llama_sampler_init_top_k(top_k));
     }
@@ -361,7 +368,7 @@ Java_com_bigbai_llm_NativeLlama_nativeCountTokens(JNIEnv * env, jclass, jlong ha
 JNIEXPORT jboolean JNICALL
 Java_com_bigbai_llm_NativeLlama_nativeBegin(
     JNIEnv * env, jclass, jlong handle, jstring prompt, jint max_tokens,
-    jfloat temperature, jfloat top_p, jint top_k) {
+    jfloat temperature, jfloat top_p, jint top_k, jboolean add_special) {
     Session * session = from_handle(handle);
     if (session == nullptr) return JNI_FALSE;
 
@@ -370,7 +377,10 @@ Java_com_bigbai_llm_NativeLlama_nativeBegin(
     session->max_tokens = std::max<int32_t>(1, max_tokens);
 
     const std::string text = jstring_to_string(env, prompt);
-    const auto tokens = tokenize(session->vocab, text, true);
+    // The chat template already contains the BOS token when the model declares
+    // one; tokenizing with add_special=true on top of that produced a double BOS
+    // and degraded the first tokens of every answer.
+    const auto tokens = tokenize(session->vocab, text, add_special == JNI_TRUE);
     if (tokens.empty()) {
         set_error("Prompt tokenization produced no tokens");
         return JNI_FALSE;
@@ -400,7 +410,7 @@ Java_com_bigbai_llm_NativeLlama_nativeBegin(
 JNIEXPORT jboolean JNICALL
 Java_com_bigbai_llm_NativeLlama_nativeBeginVision(
     JNIEnv * env, jclass, jlong handle, jstring prompt, jbyteArray rgb, jint width, jint height,
-    jint max_tokens, jfloat temperature, jfloat top_p, jint top_k) {
+    jint max_tokens, jfloat temperature, jfloat top_p, jint top_k, jboolean add_special) {
     Session * session = from_handle(handle);
     if (session == nullptr) return JNI_FALSE;
     if (session->mctx == nullptr || !session->has_vision) {
@@ -432,7 +442,7 @@ Java_com_bigbai_llm_NativeLlama_nativeBeginVision(
 
     mtmd_input_text input{};
     input.text = text.c_str();
-    input.add_special = true;
+    input.add_special = add_special == JNI_TRUE;
     input.parse_special = true;
 
     mtmd_input_chunks * chunks = mtmd_input_chunks_init();

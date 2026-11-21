@@ -25,6 +25,7 @@ import com.bigbai.core.repo.MemoryProposal
 import com.bigbai.core.search.SearchConfig
 import com.bigbai.core.search.SearchFailure
 import com.bigbai.core.search.SearchResult
+import com.bigbai.llm.AnswerSanitizer
 import com.bigbai.llm.GenerationParams
 import com.bigbai.llm.InstalledModel
 import com.bigbai.llm.LlamaEngine
@@ -107,6 +108,21 @@ class ChatViewModel(
     private var messagesJob: Job? = null
     private var generationJob: Job? = null
 
+    /**
+     * Invalidates the updates of an in-flight generation when the user starts a
+     * new chat or switches conversation. Without it, the tail of the previous
+     * answer could paint metrics, errors or streaming text into the new chat:
+     * that is exactly the "new chat inherits the previous one" bug.
+     */
+    private var generationSeq = 0
+    private var activeGeneration = 0
+
+    private inline fun updateIfCurrent(generation: Int, transform: (ChatUiState) -> ChatUiState) {
+        _state.update { current ->
+            if (generation == activeGeneration) transform(current) else current
+        }
+    }
+
     init {
         if (restoredConversationId > 0L) {
             session.bind(restoredConversationId)
@@ -152,52 +168,35 @@ class ChatViewModel(
 
     fun dismissLexiconNotice() = _state.update { it.copy(lexiconSaved = 0) }
 
+    /**
+     * Opens a brand-new chat. Any running generation is stopped first, so the
+     * button always works and never leaves a half-written answer behind. The
+     * state is rebuilt from scratch: no messages, no attachments, no draft, no
+     * metrics, no error and no streaming text from the previous chat.
+     */
     fun newChat() {
-        if (_state.value.isGenerating) {
-            _state.update { it.copy(error = "Interrompi la generazione prima di aprire una nuova chat.") }
-            return
-        }
+        activeGeneration = ++generationSeq
+        container.engine.stop()
+        generationJob?.cancel()
         messagesJob?.cancel()
         session.reset()
         savedState?.set(KEY_CONVERSATION, 0L)
         savedState?.set(KEY_INPUT, "")
-        _state.update {
-            it.copy(
-                conversationId = 0L,
-                messages = emptyList(),
-                streamingText = "",
-                input = "",
-                attachments = emptyList(),
-                metrics = null,
-                sources = emptyList(),
-                proposals = emptyList(),
-                error = null,
-                lexiconSaved = 0,
-            )
-        }
+        _state.update { it.afterNewChat() }
     }
 
     fun openConversation(id: Long) {
+        if (id <= 0L || id == session.conversationId) return
         if (_state.value.isGenerating) {
             _state.update { it.copy(error = "Interrompi la generazione prima di cambiare conversazione.") }
             return
         }
-        if (id <= 0L || id == session.conversationId) return
+        activeGeneration = ++generationSeq
         session.bind(id)
         savedState?.set(KEY_CONVERSATION, id)
+        savedState?.set(KEY_INPUT, "")
         messagesJob?.cancel()
-        _state.update {
-            it.copy(
-                conversationId = id,
-                messages = emptyList(),
-                streamingText = "",
-                metrics = null,
-                sources = emptyList(),
-                proposals = emptyList(),
-                error = null,
-                lexiconSaved = 0,
-            )
-        }
+        _state.update { it.afterOpenConversation(id) }
         observeMessages(id)
     }
 
@@ -273,6 +272,9 @@ class ChatViewModel(
         val text = snapshot.input.trim()
         if (text.isEmpty() && snapshot.attachments.isEmpty()) return
 
+        val generation = ++generationSeq
+        activeGeneration = generation
+
         generationJob = viewModelScope.launch {
             _state.update {
                 it.copy(
@@ -298,9 +300,11 @@ class ChatViewModel(
                 val settings = container.settings.current()
                 val loaded = ensureModel(settings)
                 if (loaded == null) {
-                    restoreDraft(text, snapshot.attachments)
+                    restoreDraft(text, snapshot.attachments, generation)
                     return@launch
                 }
+                // The user may have pressed + while the model was loading.
+                if (generation != activeGeneration) return@launch
 
                 // The database is authoritative. Reading `state.messages` here
                 // could miss history right after process death, before the Room
@@ -322,7 +326,7 @@ class ChatViewModel(
                             status = null,
                         )
                     }
-                    restoreDraft(text, snapshot.attachments)
+                    restoreDraft(text, snapshot.attachments, generation)
                     return@launch
                 }
                 if (vision != null && !loaded.vision) {
@@ -334,7 +338,7 @@ class ChatViewModel(
                             status = null,
                         )
                     }
-                    restoreDraft(text, snapshot.attachments)
+                    restoreDraft(text, snapshot.attachments, generation)
                     return@launch
                 }
 
@@ -392,12 +396,12 @@ class ChatViewModel(
                 val result = container.engine.generate(prompt, params, vision) { token ->
                     val snapshotText = buffer.append(token, SystemClock.elapsedRealtime())
                     if (snapshotText != null) {
-                        _state.update {
+                        updateIfCurrent(generation) {
                             it.copy(streamingText = snapshotText, isThinking = false, status = null)
                         }
                     }
                 }
-                val finalText = buffer.flush().trim()
+                val finalText = AnswerSanitizer.clean(buffer.flush()).trim()
 
                 result.onSuccess { metrics ->
                     if (finalText.isNotEmpty()) {
@@ -416,7 +420,7 @@ class ChatViewModel(
                     val measured = metrics.takeIf {
                         it.completionTokens > 0 || it.promptTokens > 0 || finalText.isNotEmpty()
                     }
-                    _state.update {
+                    updateIfCurrent(generation) {
                         it.copy(
                             metrics = measured,
                             streamingText = "",
@@ -435,8 +439,8 @@ class ChatViewModel(
                             sources = sources,
                         )
                     }
-                    if (!userMessagePersisted) restoreDraft(text, snapshot.attachments)
-                    _state.update {
+                    if (!userMessagePersisted) restoreDraft(text, snapshot.attachments, generation)
+                    updateIfCurrent(generation) {
                         it.copy(
                             error = error.message ?: "Generazione non riuscita",
                             streamingText = "",
@@ -448,8 +452,8 @@ class ChatViewModel(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
-                if (!userMessagePersisted) restoreDraft(text, snapshot.attachments)
-                _state.update {
+                if (!userMessagePersisted) restoreDraft(text, snapshot.attachments, generation)
+                updateIfCurrent(generation) {
                     it.copy(
                         error = error.message ?: "Errore imprevisto",
                         streamingText = "",
@@ -458,7 +462,9 @@ class ChatViewModel(
                     )
                 }
             } finally {
-                _state.update { it.copy(isGenerating = false, isThinking = false, status = null) }
+                updateIfCurrent(generation) {
+                    it.copy(isGenerating = false, isThinking = false, status = null)
+                }
             }
         }
     }
@@ -713,7 +719,9 @@ class ChatViewModel(
         return saved
     }
 
-    private fun restoreDraft(text: String, attachments: List<Attachment>) {
+    private fun restoreDraft(text: String, attachments: List<Attachment>, generation: Int) {
+        // Never restore a draft into a chat the user has already left.
+        if (generation != activeGeneration) return
         _state.update {
             it.copy(
                 input = if (it.input.isBlank()) text else it.input,

@@ -29,6 +29,13 @@ class ModelDownloadService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    /**
+     * Number of transfers running in this service instance. Two models can be
+     * downloaded at once; stopping the service as soon as the first one finished
+     * cancelled the second, so the service is stopped only when this reaches 0.
+     */
+    private val active = java.util.concurrent.atomic.AtomicInteger(0)
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -46,7 +53,9 @@ class ModelDownloadService : Service() {
                     return START_NOT_STICKY
                 }
                 startForegroundNotification(variant.family, 0)
+                active.incrementAndGet()
                 scope.launch {
+                    try {
                     val outcome = container.downloader.download(variant) { downloaded, total ->
                         val percent = if (total > 0) ((downloaded * 100) / total).toInt() else 0
                         container.notifications.download(
@@ -80,14 +89,19 @@ class ModelDownloadService : Service() {
                             )
                         }
                     }
-                    ServiceCompat.stopForeground(this@ModelDownloadService, ServiceCompat.STOP_FOREGROUND_DETACH)
-                    stopSelf()
+                    } finally {
+                        finishOne()
+                    }
                 }
             }
             ACTION_PAUSE -> {
                 modelId?.let { container.downloader.pause(it) }
-                ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_DETACH)
-                stopSelf()
+                // The running coroutine records PAUSED and calls finishOne();
+                // only a pause with nothing running stops the service directly.
+                if (active.get() == 0) {
+                    ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_DETACH)
+                    stopSelf()
+                }
             }
             ACTION_CANCEL_NOTIFICATION -> {
                 container.notifications.cancelDownload()
@@ -116,6 +130,14 @@ class ModelDownloadService : Service() {
     }
 
     private fun contextString(resource: Int): String = getString(resource)
+
+    private fun finishOne() {
+        if (active.decrementAndGet() <= 0) {
+            active.set(0)
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_DETACH)
+            stopSelf()
+        }
+    }
 
     override fun onDestroy() {
         scope.cancel()

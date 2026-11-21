@@ -31,3 +31,6 @@ keystore.properties
 
 # Kotlin build metadata
 .kotlin/
+
+# Local build logs
+/logs/

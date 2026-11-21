@@ -33,6 +33,8 @@ import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Psychology
+import androidx.compose.material.icons.outlined.SaveAlt
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -72,9 +74,16 @@ fun MessageBubble(
     message: ChatMessage,
     modifier: Modifier = Modifier,
     onSaveToMemory: (() -> Unit)? = null,
+    onSaveFile: (() -> Unit)? = null,
+    onShare: (() -> Unit)? = null,
 ) {
     val clipboard = LocalClipboardManager.current
     val isUser = message.role == Role.USER
+    // Every message bubble is pure white with black text and a serif face, in
+    // light and dark mode alike. Only fenced code keeps a monospaced face.
+    val bubbleColor = Color.White
+    val bubbleText = Color.Black
+    val bubbleMeta = Color(0xFF4A4A4A)
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -91,17 +100,9 @@ fun MessageBubble(
                 Spacer(Modifier.width(8.dp))
             }
             Surface(
-                color = if (isUser) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.surface
-                },
-                contentColor = if (isUser) {
-                    MaterialTheme.colorScheme.onPrimary
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
-                border = if (isUser) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                color = bubbleColor,
+                contentColor = bubbleText,
+                border = BorderStroke(1.dp, Color(0xFFD7DCE6)),
                 shape = RoundedCornerShape(
                     topStart = 20.dp,
                     topEnd = 20.dp,
@@ -117,20 +118,20 @@ fun MessageBubble(
                                 imageVector = Icons.Outlined.Link,
                                 contentDescription = null,
                                 modifier = Modifier.size(14.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                tint = bubbleMeta,
                             )
                             Spacer(Modifier.width(6.dp))
                             Text(
                                 text = attachment.name,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = bubbleMeta,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
                         Spacer(Modifier.height(6.dp))
                     }
-                    MarkdownText(message.content)
+                    MarkdownText(message.content, color = bubbleText, fontFamily = FontFamily.Serif)
                     if (message.sources.isNotEmpty()) {
                         Spacer(Modifier.height(8.dp))
                         CompactSources(message.sources)
@@ -162,6 +163,26 @@ fun MessageBubble(
                     modifier = Modifier.size(14.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+            if (onSaveFile != null) {
+                IconButton(onClick = onSaveFile, modifier = Modifier.size(30.dp)) {
+                    Icon(
+                        Icons.Outlined.SaveAlt,
+                        contentDescription = "Salva come file",
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (onShare != null) {
+                IconButton(onClick = onShare, modifier = Modifier.size(30.dp)) {
+                    Icon(
+                        Icons.Outlined.Share,
+                        contentDescription = "Condividi",
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             if (onSaveToMemory != null && !isUser) {
                 IconButton(onClick = onSaveToMemory, modifier = Modifier.size(30.dp)) {
@@ -205,8 +226,9 @@ fun StreamingBubble(text: String, thinking: Boolean) {
         AssistantAvatar()
         Spacer(Modifier.width(8.dp))
         Surface(
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
+            color = Color.White,
+            contentColor = Color.Black,
+            border = BorderStroke(1.dp, Color(0xFFD7DCE6)),
             shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomEnd = 20.dp, bottomStart = 6.dp),
             modifier = Modifier.fillMaxWidth(0.94f),
         ) {
@@ -214,7 +236,7 @@ fun StreamingBubble(text: String, thinking: Boolean) {
                 if (thinking && text.isEmpty()) {
                     ThinkingIndicator()
                 } else {
-                    MarkdownText(if (text.isEmpty()) "…" else text)
+                    MarkdownText(if (text.isEmpty()) "…" else text, color = Color.Black, fontFamily = FontFamily.Serif)
                     val transition = rememberInfiniteTransition(label = "cursor")
                     val alpha by transition.animateFloat(
                         initialValue = 0.15f,
@@ -264,7 +286,11 @@ fun ThinkingIndicator() {
 }
 
 @Composable
-fun MarkdownText(text: String) {
+fun MarkdownText(
+    text: String,
+    color: Color = Color.Unspecified,
+    fontFamily: FontFamily? = null,
+) {
     val blocks = remember(text) { splitFences(text) }
     SelectionContainer {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -275,8 +301,10 @@ fun MarkdownText(text: String) {
                     if (block.text.isNotBlank()) {
                         Text(
                             text = block.text.trim(),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                fontFamily = fontFamily ?: FontFamily.Default,
+                            ),
+                            color = color,
                         )
                     }
                 }
@@ -315,9 +343,10 @@ private fun splitFences(text: String): List<Block> {
 private fun CodeBlock(code: String, language: String = "") {
     val clipboard = LocalClipboardManager.current
     Surface(
-        color = MaterialTheme.colorScheme.surface,
+        color = Color(0xFFF1F3F7),
+        contentColor = Color(0xFF111111),
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        border = BorderStroke(1.dp, Color(0xFFD7DCE6)),
     ) {
         Column {
             Row(
@@ -329,7 +358,7 @@ private fun CodeBlock(code: String, language: String = "") {
                 Text(
                     text = language.ifBlank { "codice" },
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = Color(0xFF2F4BDB),
                 )
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick = { clipboard.setText(AnnotatedString(code)) }, modifier = Modifier.size(30.dp)) {
@@ -343,6 +372,7 @@ private fun CodeBlock(code: String, language: String = "") {
             Text(
                 text = code,
                 fontFamily = FontFamily.Monospace,
+                color = Color(0xFF111111),
                 fontSize = 12.5.sp,
                 lineHeight = 18.sp,
                 modifier = Modifier

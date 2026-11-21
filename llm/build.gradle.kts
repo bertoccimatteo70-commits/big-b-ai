@@ -12,9 +12,10 @@ android {
         minSdk = 31
         consumerProguardFiles("consumer-rules.pro")
         ndk {
-            // All reference devices are 64-bit ARM. Shipping a single ABI keeps
-            // the APK small and the native build reproducible on CI runners.
-            abiFilters += listOf("arm64-v8a")
+            // One native engine per shipped ABI: 64-bit ARM, 32-bit ARM and the
+            // x86_64 Android emulator. A missing ABI would make the app crash on
+            // that architecture with UnsatisfiedLinkError.
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
         }
     }
 

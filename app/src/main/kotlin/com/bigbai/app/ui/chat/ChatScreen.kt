@@ -1,6 +1,6 @@
 package com.bigbai.app.ui.chat
 
-import androidx.activity.compose.BackHandler
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -48,7 +48,6 @@ import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -58,7 +57,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
@@ -69,7 +67,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -83,48 +80,43 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.createSavedStateHandle
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import com.bigbai.app.AppContainer
+import com.bigbai.app.files.FileExport
+import com.bigbai.app.ui.LocalAppDrawer
 import com.bigbai.app.ui.theme.BigBBrand
 import com.bigbai.core.lang.LanguageCoach
 import com.bigbai.core.model.AppSettings
 import com.bigbai.core.model.Attachment
+import com.bigbai.core.model.ChatMessage
 import com.bigbai.core.model.Conversation
+import com.bigbai.core.model.Role
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
     container: AppContainer,
+    viewModel: ChatViewModel,
     onOpenModels: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenMemory: () -> Unit,
     onOpenCode: () -> Unit,
 ) {
-    val viewModel: ChatViewModel = viewModel(
-        factory = viewModelFactory {
-            initializer { ChatViewModel(container, createSavedStateHandle()) }
-        },
-    )
     val state by viewModel.state.collectAsState()
     val conversations by viewModel.conversations.collectAsState()
-    val archivedConversations by viewModel.archivedConversations.collectAsState()
-    val searchResults by viewModel.searchResults.collectAsState()
-    val folders by viewModel.folders.collectAsState()
     val installed by viewModel.installed.collectAsState()
     val settings by container.settings.settings.collectAsState(initial = AppSettings())
 
-    val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    val openDrawer = LocalAppDrawer.current
+    val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     val haptics = LocalHapticFeedback.current
     val listState = rememberLazyListState()
@@ -159,13 +151,54 @@ fun ChatScreen(
         }
     }
 
-    // Back must close the history drawer first, never leave the conversation.
-    BackHandler(enabled = drawerState.isOpen) {
-        scope.launch { drawerState.close() }
+    // A different conversation is a different screen state: return to the end of
+    // the list instead of keeping the scroll position of the previous chat.
+    LaunchedEffect(state.conversationId) {
+        stickToBottom = true
+        runCatching { listState.scrollToItem(0) }
     }
 
     val currentTitle = conversations.firstOrNull { it.id == state.conversationId }?.title
         ?.takeIf { it.isNotBlank() && it != "—" }
+
+    fun saveMessage(message: ChatMessage) {
+        val extension = FileExport.extensionFor(message.content)
+        val name = FileExport.suggestedFileName(currentTitle ?: "risposta", extension, message.createdAt)
+        FileExport.saveToDownloads(context, name, FileExport.mimeFor(extension), message.content)
+            .onSuccess { Toast.makeText(context, "Salvato in Download/BIG B AI/$name", Toast.LENGTH_LONG).show() }
+            .onFailure { error ->
+                Toast.makeText(context, error.message ?: "Salvataggio non riuscito", Toast.LENGTH_LONG).show()
+            }
+    }
+
+    fun shareMessage(message: ChatMessage) {
+        val extension = FileExport.extensionFor(message.content)
+        val name = FileExport.suggestedFileName(currentTitle ?: "risposta", extension, message.createdAt)
+        FileExport.share(context, name, FileExport.mimeFor(extension), message.content)
+            .onFailure { error ->
+                Toast.makeText(context, error.message ?: "Condivisione non riuscita", Toast.LENGTH_LONG).show()
+            }
+    }
+
+    fun exportConversation() {
+        if (state.messages.isEmpty()) return
+        val markdown = buildString {
+            appendLine("# ${currentTitle ?: "Conversazione"}")
+            appendLine()
+            state.messages.forEach { message ->
+                appendLine(if (message.role == Role.USER) "## Utente" else "## AI")
+                appendLine()
+                appendLine(message.content)
+                appendLine()
+            }
+        }
+        val name = FileExport.suggestedFileName(currentTitle, "md", System.currentTimeMillis())
+        FileExport.saveToDownloads(context, name, FileExport.MIME_MARKDOWN, markdown)
+            .onSuccess { Toast.makeText(context, "Conversazione salvata in Download/BIG B AI/$name", Toast.LENGTH_LONG).show() }
+            .onFailure { error ->
+                Toast.makeText(context, error.message ?: "Esportazione non riuscita", Toast.LENGTH_LONG).show()
+            }
+    }
 
     pendingDelete?.let { conversation ->
         DeleteConversationDialog(
@@ -178,45 +211,13 @@ fun ChatScreen(
         )
     }
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            HistoryDrawer(
-                conversations = conversations,
-                archived = archivedConversations,
-                searchResults = searchResults,
-                folders = folders,
-                currentId = state.conversationId,
-                onSelect = {
-                    viewModel.openConversation(it.id)
-                    scope.launch { drawerState.close() }
-                },
-                onNewChat = {
-                    viewModel.newChat()
-                    scope.launch { drawerState.close() }
-                },
-                onToggleFavorite = viewModel::toggleFavorite,
-                onArchive = viewModel::archive,
-                onUnarchive = viewModel::unarchive,
-                onRename = viewModel::rename,
-                onMove = viewModel::moveToFolder,
-                onDelete = { pendingDelete = it },
-                onCreateFolder = viewModel::createFolder,
-                onSearch = viewModel::searchConversations,
-                onOpenSettings = {
-                    scope.launch { drawerState.close() }
-                    onOpenSettings()
-                },
-            )
-        },
-    ) {
-        Scaffold(
+    Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             topBar = {
                 TopAppBar(
                     navigationIcon = {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Outlined.Menu, contentDescription = "Cronologia")
+                        IconButton(onClick = openDrawer) {
+                            Icon(Icons.Outlined.Menu, contentDescription = "Menu")
                         }
                     },
                     title = {
@@ -316,6 +317,11 @@ fun ChatScreen(
                                     onClick = { showOverflow = false; onOpenCode() },
                                 )
                                 DropdownMenuItem(
+                                    text = { Text("Esporta conversazione") },
+                                    leadingIcon = { Icon(Icons.Outlined.Description, null) },
+                                    onClick = { showOverflow = false; exportConversation() },
+                                )
+                                DropdownMenuItem(
                                     text = { Text("Impostazioni") },
                                     leadingIcon = { Icon(Icons.Outlined.Settings, null) },
                                     onClick = { showOverflow = false; onOpenSettings() },
@@ -397,11 +403,13 @@ fun ChatScreen(
                             MessageBubble(
                                 message = message,
                                 modifier = Modifier.animateItem(),
-                                onSaveToMemory = if (message.role == com.bigbai.core.model.Role.ASSISTANT) {
+                                onSaveToMemory = if (message.role == Role.ASSISTANT) {
                                     { viewModel.saveMessageToMemory(message) }
                                 } else {
                                     null
                                 },
+                                onSaveFile = { saveMessage(message) },
+                                onShare = { shareMessage(message) },
                             )
                         }
                         if (state.isGenerating) {
@@ -456,7 +464,6 @@ fun ChatScreen(
                 }
             }
         }
-    }
 }
 
 @Composable

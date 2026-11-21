@@ -46,6 +46,7 @@ internal object NativeLlama {
         temperature: Float,
         topP: Float,
         topK: Int,
+        addSpecial: Boolean,
     ): Boolean
 
     external fun nativeBeginVision(
@@ -58,6 +59,7 @@ internal object NativeLlama {
         temperature: Float,
         topP: Float,
         topK: Int,
+        addSpecial: Boolean,
     ): Boolean
 
     /** Returns the next token as raw UTF-8 bytes, or null at end of stream. */

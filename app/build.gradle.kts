@@ -40,12 +40,15 @@ android {
         applicationId = "com.bigbai.app"
         minSdk = 31
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.2.0"
+        versionCode = 4
+        versionName = "1.3.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         resourceConfigurations += listOf("en", "it")
+        // Universal debug APK: every supported architecture gets its own native
+        // engine. arm64-v8a is the primary target, armeabi-v7a covers 32-bit ARM
+        // devices and x86_64 makes the app usable in the Android emulator.
         ndk {
-            abiFilters += listOf("arm64-v8a")
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
         }
     }
 

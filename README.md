@@ -14,9 +14,10 @@ viene da calcoli reali, dal database locale o dal motore di inferenza.
 | Area | Stato |
 |---|---|
 | Compilazione debug | ✅ verificata (`assembleDebug`); APK generato, firmato e ispezionato |
-| Test unitari JVM | ✅ 71 test, 0 falliti (`:core`, `:code`, `:llm`, `:app`) |
-| Copertura JVM (JaCoCo) | ✅ misurata: **7,2%** delle linee complessive; logica pura coperta (core/chat 94,7%, core/lang 99,1%, code 33,0%, llm 18,4%), UI e Room non coperte da test JVM |
-| Libreria nativa `libbigbai.so` (llama.cpp, arm64-v8a) | ✅ compilata, 5,7 MB (stripped) |
+| Test unitari JVM | ✅ 91 test, 0 falliti (`:core` 26, `:code` 26, `:llm` 23, `:app` 16) |
+| Lint debug | ✅ 0 errori, 66 warning (dipendenze/AGP non aggiornate) |
+| Copertura JVM (JaCoCo) | ✅ misurata: **8,0%** delle linee complessive; logica pura coperta (core/chat 94,7%, core/lang 99,1%, code 33,7%, llm 23,5%), UI e Room non coperte da test JVM |
+| Librerie native `libbigbai.so` (llama.cpp) | ✅ compilate e strippate per **arm64-v8a, armeabi-v7a e x86_64** (4,2–6,6 MB ciascuna) |
 | Inferenza su dispositivo reale | ⛔ non verificata: nessun dispositivo/emulatore disponibile |
 | UI su dispositivo | ⛔ non verificata: nessuno screenshot da device |
 | Download modelli, SAF, Keystore, sandbox WebView | ⛔ non verificati a runtime |
@@ -28,19 +29,24 @@ ambiente di build. I dettagli sono in [docs/LIMITATIONS.md](docs/LIMITATIONS.md)
 
 | Campo | Valore |
 |---|---|
-| File | `BIG-B-AI-debug-1.2.0.apk` |
-| Versione | 1.2.0-debug (versionCode 3) |
-| Dimensione | 92.821.934 byte (88,5 MiB) |
-| SHA-256 | `26cc238baf4e92b664d050b0660f6ad9cd03cdbf9b6f78b11eeef9117106436a` |
+| File | `BIG-B-AI-debug-1.3.0.apk` |
+| Versione | 1.3.0-debug (versionCode 4) |
+| Dimensione | **119.987.886 byte (114,43 MiB / 119,99 MB)** |
+| SHA-256 | `58f98efa4cef80328e5ac16b83c0758b1dcaeb921670bdc618afd6e014677d18` |
 | minSdk / targetSdk | 31 (Android 12) / 35 |
-| ABI | arm64-v8a |
+| ABI | **arm64-v8a, armeabi-v7a, x86_64** (APK universale) |
 | Firma | chiave **debug** Android (`CN=Android Debug`) |
 
-L'APK è installabile su Android 12+ con architettura arm64. È la variante **debug**
-(`com.bigbai.app.debug`), firmata con la chiave debug Android (`CN=Android Debug`): è dichiarato,
-non nascosto. I valori qui sopra sono la build locale di riferimento; la CI produce un APK
-equivalente e lo pubblica come artifact `BIG-B-AI-Debug-APK` (retention 30 giorni) con il proprio
-file `.sha256` accanto. L'hash può cambiare tra una build e l'altra per i timestamp di firma.
+L'APK è installabile su Android 12+ con architettura ARM 64-bit, ARM 32-bit o x86_64 (emulatore).
+È la variante **debug** (`com.bigbai.app.debug`), firmata con la chiave debug Android
+(`CN=Android Debug`): è dichiarato, non nascosto. I valori qui sopra sono la build locale di
+riferimento; la CI produce un APK equivalente e lo pubblica come artifact
+`BIG-B-AI-Debug-APK` (retention 30 giorni) con `.sha256` e `.txt` accanto. L'hash può cambiare tra
+una build e l'altra per i timestamp di firma.
+
+La dimensione supera i 100 MB perché l'APK contiene il motore nativo reale per **tre** ABI: non
+c'è alcun file aggiunto per gonfiarlo. `scripts/package-debug-apk.sh` verifica la presenza di
+`libbigbai.so` e `libsqlcipher.so` in ogni ABI e rifiuta un APK sotto i 100 MiB.
 
 I modelli **non** sono inclusi nell'APK: si scaricano dall'app, con ripresa del download e verifica
 SHA-256. L'APK contiene solo il motore.
@@ -48,8 +54,17 @@ SHA-256. L'APK contiene solo il motore.
 ## Funzionalità
 
 **Chat**
+- Menu laterale unico con dieci destinazioni (nuova chat, cronologia, ricerca, BIG B Code,
+  libreria/download/installati, plugin, impostazioni, informazioni) e conversazioni recenti.
+- Ogni nuova chat parte da zero: nessun messaggio, allegato, bozza, metrica o errore ereditato;
+  anche il passaggio tra conversazioni azzera lo stato e riporta la lista in cima.
+- Bolle bianche `#FFFFFF` con testo nero e font serif in entrambi i temi; il codice resta
+  monospaziato.
 - Streaming fluido con aggiornamenti UI limitati a ~25 fps e metriche misurate (token/s, tempo al
   primo token, RAM di processo).
+- Salvataggio automatico di una risposta come file (nome generato, estensione dal linguaggio del
+  blocco di codice) in `Download/BIG B AI`, condivisione e esportazione dell'intera conversazione
+  in Markdown.
 - La conversazione resta aperta tra un messaggio e l'altro, conserva cronologia, bozza e stato anche
   dopo rotazione o morte del processo; interruzione della generazione senza perdere il testo.
 - Cronologia persistente con cartelle, ricerca, preferiti, rinomina.
@@ -68,6 +83,9 @@ SHA-256. L'APK contiene solo il motore.
 - Non riaddestra i pesi del modello: è apprendimento in-context persistente, dichiarato nell'app.
 
 **Modelli**
+- Tre schede: **Libreria** (catalogo e profili), **Download** (progresso, pausa, ripresa,
+  annullamento con rimozione dei file parziali) e **Installati** (modello attivo, verifica,
+  eliminazione).
 - Catalogo con 7 famiglie Qwen2.5 (Instruct, Coder, VL) e quantizzazioni Q2–Q6/Q8.
 - Quattro profili: Veloce, Equilibrato, Intelligente, Massimo.
 - Download riprendibile, verifica SHA-256 del file completo, installazione atomica.
@@ -84,8 +102,10 @@ SHA-256. L'APK contiene solo il motore.
 - Ripristinabile su un altro dispositivo; deduplica tramite hash del contenuto.
 
 **BIG B Code**
-- Progetti su cartelle autorizzate via SAF (nessun accesso fuori dalla cartella scelta).
-- Editor, file explorer, creazione/eliminazione file, salvataggio.
+- «Nuovo progetto» crea cartella e `index.html` automaticamente, senza selettori né percorsi da
+  inventare; resta disponibile l'apertura di una cartella esistente via SAF.
+- Editor, file explorer, creazione/rinomina/eliminazione file, salvataggio, esportazione in
+  Download e condivisione del file aperto.
 - Analisi statica reale per HTML, CSS, Java e C++ (bilanciamento, regole strutturali, include guard).
 - Assistente AI con protocollo di patch esplicito: ogni modifica mostra il diff e richiede
   approvazione prima di essere scritta.
@@ -96,7 +116,9 @@ SHA-256. L'APK contiene solo il motore.
 ## Interfaccia
 
 Design system indigo/ciano, tema chiaro/scuro/sistema, tipografia e forme coerenti, transizioni
-brevi disattivabili con «Riduci animazioni». Primo avvio in 5 schermate. L'interfaccia è
+brevi disattivabili con «Riduci animazioni». Primo avvio in 5 schermate. Navigazione a menu
+laterale, con le funzioni principali a un tocco. Le bolle della chat sono bianche con testo nero
+e font serif per scelta esplicita di leggibilità, anche in modalità scura. L'interfaccia è
 tradotta in italiano; il selettore lingua imposta la lingua delle risposte del modello (la
 localizzazione completa delle stringhe è nella tabella dei limiti). Il tutor di lingua si
 configura dalle impostazioni e si usa dalla chat.
@@ -113,9 +135,9 @@ scripts/ fetch-llama.sh, build-native.sh, package-debug-apk.sh
 docs/    architettura, build, modelli, limiti
 ```
 
-Dettagli: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Audit 1.2.0 con cause, correzioni,
-metriche e limiti verificati: [docs/AUDIT-1.2.md](docs/AUDIT-1.2.md); audit precedente:
-[docs/AUDIT-1.1.md](docs/AUDIT-1.1.md).
+Dettagli: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Audit 1.3.0 con cause, correzioni,
+metriche e limiti verificati: [docs/AUDIT-1.3.md](docs/AUDIT-1.3.md); audit precedenti:
+[docs/AUDIT-1.2.md](docs/AUDIT-1.2.md), [docs/AUDIT-1.1.md](docs/AUDIT-1.1.md).
 
 ## Build rapida
 
@@ -123,11 +145,12 @@ Requisiti: JDK 17, Android SDK 35, NDK 27.2.12479018, CMake 3.22.1, Gradle 8.11.
 
 ```bash
 bash scripts/fetch-llama.sh          # scarica llama.cpp al commit fissato
-bash scripts/build-native.sh         # produce llm/src/main/jniLibs/arm64-v8a/libbigbai.so
+bash scripts/build-native.sh         # produce libbigbai.so per arm64-v8a, armeabi-v7a, x86_64
 ./gradlew :core:testDebugUnitTest :code:testDebugUnitTest :llm:testDebugUnitTest :app:testDebugUnitTest
+./gradlew :app:lintDebug             # lint (0 errori attesi)
 ./gradlew jacocoTestReport           # copertura JVM aggregata (build/reports/jacoco)
 ./gradlew assembleDebug              # APK di debug
-bash scripts/package-debug-apk.sh    # dist/ + SHA-256 + metadata
+bash scripts/package-debug-apk.sh    # verifica ABI e >=100 MiB, dist/ + SHA-256 + metadata
 ```
 
 Guida completa: [docs/BUILD.md](docs/BUILD.md). Catalogo modelli: [docs/MODELS.md](docs/MODELS.md).
@@ -148,7 +171,8 @@ motivato in [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
 ## CI
 
 [`.github/workflows/android.yml`](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/workflows/android.yml)
-compila la libreria nativa, esegue i 71 test JVM dei quattro moduli, produce l'APK debug
-e lo pubblica come artifact **BIG-B-AI-Debug-APK** (APK + SHA-256, retention 30 giorni). Il setup
+compila la libreria nativa per le tre ABI, esegue i 91 test JVM dei quattro moduli, esegue il lint,
+produce l'APK debug e lo pubblica come artifact **BIG-B-AI-Debug-APK** (APK + SHA-256 + metadata,
+retention 30 giorni). Il setup
 dell'SDK usa `android-actions/setup-android@v4`, che non richiede più il pacchetto `tools` rimosso
 da Google (causa del precedente errore "Failed to find package 'tools'").
