@@ -11,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import com.bigbai.app.AppContainer
 import com.bigbai.core.chat.ConversationSession
 import com.bigbai.core.chat.StreamingBuffer
+import com.bigbai.core.documents.DocumentTextExtractor
 import com.bigbai.core.lang.Calculator
 import com.bigbai.core.lang.ItalianCheck
 import com.bigbai.core.lang.LanguageCoach
@@ -227,7 +228,12 @@ class ChatViewModel(
             }
             val kind = AttachmentPolicy.kindFor(name, mime)
             if (kind == null) {
-                _state.update { it.copy(error = "Formato non supportato. Allega un'immagine o un PDF.") }
+                _state.update {
+                    it.copy(
+                        error = "Formato non supportato. Allega un'immagine, un PDF, un DOCX, " +
+                            "un XLSX, un CSV o un file di testo.",
+                    )
+                }
                 return@launch
             }
             AttachmentPolicy.sizeError(kind, size)?.let { message ->
@@ -235,6 +241,9 @@ class ChatViewModel(
                 return@launch
             }
             if (kind == Attachment.Kind.IMAGE) {
+                _state.update { it.copy(status = "Riconoscimento del testo nell'immagine…") }
+                val ocr = container.ocr.recognizeImage(uri)
+                val recognized = ocr.getOrNull()?.text?.take(40_000)
                 _state.update {
                     it.copy(
                         attachments = it.attachments + Attachment(
@@ -242,17 +251,56 @@ class ChatViewModel(
                             uri = uri.toString(),
                             name = name,
                             mimeType = mime.ifBlank { "image/*" },
+                            sizeBytes = size,
+                            extractedText = recognized,
                         ),
+                        status = if (recognized != null) {
+                            "Testo OCR disponibile: ${recognized.length} caratteri."
+                        } else {
+                            null
+                        },
+                        error = ocr.exceptionOrNull()?.let { "OCR immagine: ${it.message}" },
                     )
                 }
-            } else {
+            } else if (kind == Attachment.Kind.PDF) {
                 _state.update { it.copy(status = "Estrazione del testo dal PDF…") }
-                container.pdf.extract(uri, name).onSuccess { pdf ->
-                    if (!pdf.hasExtractableText) {
+                val extracted = container.pdf.extract(uri, name)
+                val pdf = extracted.getOrNull()
+                if (pdf == null) {
+                    _state.update {
+                        it.copy(
+                            error = extracted.exceptionOrNull()?.message ?: "PDF non leggibile",
+                            status = null,
+                        )
+                    }
+                    return@launch
+                }
+                if (pdf.hasExtractableText) {
+                    _state.update {
+                        it.copy(
+                            attachments = it.attachments + Attachment(
+                                kind = Attachment.Kind.PDF,
+                                uri = uri.toString(),
+                                name = name,
+                                mimeType = "application/pdf",
+                                sizeBytes = size,
+                                extractedText = pdf.fullText,
+                            ),
+                            status = null,
+                        )
+                    }
+                } else {
+                    // A scanned PDF has no text layer. Render up to 20 pages and
+                    // run the same offline OCR used for images instead of
+                    // telling the user that the document is unsupported.
+                    _state.update { it.copy(status = "PDF scansionato: OCR pagina per pagina…") }
+                    val ocr = container.ocr.recognizePdf(uri)
+                    val recognized = ocr.getOrNull()?.text
+                    if (recognized.isNullOrBlank()) {
                         _state.update {
                             it.copy(
-                                error = "Il PDF non contiene testo estraibile (probabilmente è scansionato). " +
-                                    "L'OCR non è supportato in questa versione.",
+                                error = ocr.exceptionOrNull()?.message
+                                    ?: "Nessun testo riconosciuto nel PDF scansionato.",
                                 status = null,
                             )
                         }
@@ -264,14 +312,49 @@ class ChatViewModel(
                                     uri = uri.toString(),
                                     name = name,
                                     mimeType = "application/pdf",
-                                    extractedText = pdf.fullText,
+                                    sizeBytes = size,
+                                    extractedText = recognized,
                                 ),
-                                status = null,
+                                status = "PDF scansionato: ${recognized.length} caratteri riconosciuti via OCR.",
+                                error = null,
                             )
                         }
                     }
-                }.onFailure { error ->
-                    _state.update { it.copy(error = error.message ?: "PDF non leggibile", status = null) }
+                }
+            } else {
+                _state.update { it.copy(status = "Estrazione del testo dal documento…") }
+                val extracted = withContext(Dispatchers.IO) {
+                    resolver.openInputStream(uri)?.use { input ->
+                        DocumentTextExtractor.extract(name, input)
+                    } ?: Result.failure(IllegalStateException("Documento non accessibile."))
+                }
+                val document = extracted.getOrNull()
+                if (document == null) {
+                    _state.update {
+                        it.copy(
+                            error = extracted.exceptionOrNull()?.message ?: "Documento non leggibile.",
+                            status = null,
+                        )
+                    }
+                    return@launch
+                }
+                _state.update {
+                    it.copy(
+                        attachments = it.attachments + Attachment(
+                            kind = Attachment.Kind.DOCUMENT,
+                            uri = uri.toString(),
+                            name = name,
+                            mimeType = mime.ifBlank { "application/octet-stream" },
+                            sizeBytes = size,
+                            extractedText = document.text,
+                        ),
+                        status = if (document.truncated) {
+                            "Documento letto: ${document.characters} caratteri (testo troncato al limite)."
+                        } else {
+                            "Documento letto: ${document.characters} caratteri."
+                        },
+                        error = null,
+                    )
                 }
             }
         }
@@ -399,8 +482,16 @@ class ChatViewModel(
                 }
 
                 val imageAttachment = attachments.firstOrNull { it.kind == Attachment.Kind.IMAGE }
-                val vision = imageAttachment?.let { attachment -> loadVisionInput(attachment) }
-                if (imageAttachment != null && vision == null) {
+                // Only decode a vision bitmap when the loaded model can use it.
+                // A text-only model still answers through the OCR text extracted
+                // when the image was attached; that is not a fallback, it is the
+                // documented behaviour of the bundled model.
+                val vision = if (loaded.vision) {
+                    imageAttachment?.let { attachment -> loadVisionInput(attachment) }
+                } else {
+                    null
+                }
+                if (loaded.vision && imageAttachment != null && vision == null) {
                     _state.update {
                         it.copy(
                             error = "Immagine non leggibile o troppo grande. Prova con un'altra immagine.",
@@ -412,10 +503,11 @@ class ChatViewModel(
                     if (reuse == null) restoreDraft(text, attachments, generation)
                     return@launch
                 }
-                if (vision != null && !loaded.vision) {
+                if (imageAttachment != null && !loaded.vision && imageAttachment.extractedText.isNullOrBlank()) {
                     _state.update {
                         it.copy(
-                            error = "Il modello attivo non è multimodale. Installa Qwen2.5 VL per analizzare le immagini.",
+                            error = "Il modello attivo non è multimodale e l'OCR non ha trovato testo " +
+                                "nell'immagine. Installa Qwen2.5 VL per analizzarla visivamente.",
                             isGenerating = false,
                             isThinking = false,
                             status = null,
@@ -471,7 +563,8 @@ class ChatViewModel(
                 // Index the document that was attached in this turn under the
                 // real conversation id, so follow-up questions can retrieve it.
                 val documents = attachments.filter {
-                    it.kind == Attachment.Kind.PDF && !it.extractedText.isNullOrBlank()
+                    (it.kind == Attachment.Kind.PDF || it.kind == Attachment.Kind.DOCUMENT) &&
+                        !it.extractedText.isNullOrBlank()
                 }
                 var indexError: String? = null
                 if (settings.semanticMemoryEnabled && documents.isNotEmpty()) {
@@ -795,11 +888,39 @@ class ChatViewModel(
 
     private suspend fun ensureModel(settings: AppSettings): com.bigbai.llm.LoadedModel? {
         container.engine.current()?.let { return it }
-        val installed = installedModels()
+        var installed = installedModels()
+        if (installed.isEmpty() && container.bundledChat.variant != null) {
+            // First run: the model is inside the APK, not downloaded. Copying
+            // 491 MB takes a few seconds, so the UI gets real progress instead
+            // of a static "thinking" indicator.
+            var lastPercent = -1
+            val prepared = container.bundledChat.ensure { copied, total ->
+                val percent = if (total > 0) ((copied * 100) / total).toInt() else 0
+                if (percent != lastPercent) {
+                    lastPercent = percent
+                    _state.update {
+                        it.copy(status = "Preparazione del modello incluso… $percent%")
+                    }
+                }
+            }
+            if (prepared.isFailure) {
+                _state.update {
+                    it.copy(
+                        error = prepared.exceptionOrNull()?.message
+                            ?: "Preparazione del modello incluso non riuscita.",
+                        isGenerating = false,
+                        isThinking = false,
+                        status = null,
+                    )
+                }
+                return null
+            }
+            installed = installedModels()
+        }
         if (installed.isEmpty()) {
             _state.update {
                 it.copy(
-                    error = "Nessun modello installato. Apri Modelli per scaricare «Veloce» (circa 490 MB).",
+                    error = "Nessun modello installato. Apri Modelli per scaricare un modello.",
                     isGenerating = false,
                     isThinking = false,
                     status = null,
@@ -903,9 +1024,13 @@ class ChatViewModel(
         verified: List<Calculator.Verified> = emptyList(),
     ): List<PromptMessage> {
         val memory = if (settings.memoryEnabled) container.memory.promptContext() else ""
-        val document = attachments.firstOrNull { it.kind == Attachment.Kind.PDF }?.extractedText
+        val document = attachments.firstOrNull {
+            it.kind == Attachment.Kind.PDF || it.kind == Attachment.Kind.DOCUMENT
+        }?.extractedText
             ?: priorMessages.asReversed().firstNotNullOfOrNull { message ->
-                message.attachments.firstOrNull { it.kind == Attachment.Kind.PDF }?.extractedText
+                message.attachments.firstOrNull {
+                    it.kind == Attachment.Kind.PDF || it.kind == Attachment.Kind.DOCUMENT
+                }?.extractedText
             }
         val tutor = if (settings.tutorEnabled) {
             val lexicon = container.memory.forCategory(
@@ -916,6 +1041,10 @@ class ChatViewModel(
         } else {
             ""
         }
+        val profile = ModelProfiles.forVariant(loaded.variant)
+        val ocrContext = attachments
+            .filter { it.kind == Attachment.Kind.IMAGE && !it.extractedText.isNullOrBlank() }
+            .joinToString("\n\n") { image -> "[${image.name}]\n${image.extractedText}" }
         val system = PromptTemplates.chatSystemPrompt(
             language = settings.language,
             memory = memory,
@@ -924,8 +1053,7 @@ class ChatViewModel(
             visionAvailable = loaded.vision,
             hasImage = attachments.any { it.kind == Attachment.Kind.IMAGE },
             tutor = tutor,
-            modelStyle = ModelProfiles.forVariant(loaded.variant)
-                .styleHint(settings.language.startsWith("it")),
+            modelStyle = profile.styleHint(settings.language.startsWith("it")),
             retrievedContext = retrieved.joinToString("\n\n") { passage ->
                 "[${passage.label}] ${passage.text}"
             },
@@ -933,6 +1061,9 @@ class ChatViewModel(
                 verified,
                 settings.language.startsWith("it"),
             ),
+            // Long rule lists are counter-productive on the bundled 1.5B model.
+            compact = profile.limitedReasoning,
+            ocrContext = ocrContext,
         )
 
         val budget = (loaded.contextSize - settings.maxTokens - 48).coerceAtLeast(512)

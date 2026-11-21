@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -26,10 +27,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.ArrowDownward
@@ -85,9 +89,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -130,13 +136,26 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     val speechPlayer = remember { SpeechPlayer(context) }
     var speakingMessageId by remember { mutableStateOf<Long?>(null) }
-    val speechLanguageTag = if (settings.language.startsWith("it")) {
-        "it-IT"
-    } else {
-        Locale.getDefault().toLanguageTag()
+    var lastAutoSpokenId by remember { mutableStateOf<Long?>(null) }
+    val speechLanguageTag = when (settings.voiceLanguage) {
+        "it" -> "it-IT"
+        "en" -> "en-US"
+        else -> if (settings.language.startsWith("it")) "it-IT" else Locale.getDefault().toLanguageTag()
     }
     DisposableEffect(Unit) {
         onDispose { speechPlayer.shutdown() }
+    }
+    LaunchedEffect(state.conversationId) { lastAutoSpokenId = null }
+    // A new completed answer is read automatically only when the user enabled
+    // it. Opening an old conversation does not replay it.
+    LaunchedEffect(settings.autoSpeak, state.metrics, state.messages.lastOrNull()?.id) {
+        if (!settings.autoSpeak || state.metrics == null || state.isGenerating) return@LaunchedEffect
+        val last = state.messages.lastOrNull { it.role == Role.ASSISTANT } ?: return@LaunchedEffect
+        if (last.id == lastAutoSpokenId) return@LaunchedEffect
+        if (speechPlayer.speak(AnswerSanitizer.clean(last.content), speechLanguageTag)) {
+            lastAutoSpokenId = last.id
+            speakingMessageId = last.id
+        }
     }
 
     var showModelMenu by remember { mutableStateOf(false) }
@@ -145,12 +164,16 @@ fun ChatScreen(
     var metricsExpanded by remember { mutableStateOf(settings.showPerfPanel) }
     var pendingDelete by remember { mutableStateOf<Conversation?>(null) }
     var editingMessage by remember { mutableStateOf<ChatMessage?>(null) }
+    var ocrPreview by remember { mutableStateOf<Attachment?>(null) }
     var stickToBottom by remember { mutableStateOf(true) }
 
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) viewModel.attach(uri)
     }
     val pdfPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) viewModel.attach(uri)
+    }
+    val documentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) viewModel.attach(uri)
     }
     // System dictation: the recognizer app owns the microphone permission, so
@@ -295,6 +318,53 @@ fun ChatScreen(
                 ) { Text("Salva e rigenera") }
             },
             dismissButton = { TextButton(onClick = { editingMessage = null }) { Text("Annulla") } },
+        )
+    }
+
+    ocrPreview?.let { attachment ->
+        val text = attachment.extractedText.orEmpty()
+        val clipboard = LocalClipboardManager.current
+        AlertDialog(
+            onDismissRequest = { ocrPreview = null },
+            title = { Text("Testo riconosciuto") },
+            text = {
+                Column {
+                    Text(
+                        "${attachment.name} · ${text.length} caratteri · OCR locale",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    SelectionContainer {
+                        Text(
+                            text = text,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier
+                                .heightIn(max = 360.dp)
+                                .verticalScroll(rememberScrollState()),
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        clipboard.setText(AnnotatedString(text))
+                        Toast.makeText(context, "Testo OCR copiato", Toast.LENGTH_SHORT).show()
+                    },
+                ) { Text("Copia") }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(
+                        onClick = {
+                            viewModel.onInputChange(text)
+                            ocrPreview = null
+                        },
+                    ) { Text("Inserisci nel messaggio") }
+                    TextButton(onClick = { ocrPreview = null }) { Text("Chiudi") }
+                }
+            },
         )
     }
 
@@ -469,17 +539,30 @@ fun ChatScreen(
                     },
                     onStop = {
                         haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        speechPlayer.stop()
+                        speakingMessageId = null
                         viewModel.stop()
                     },
                     onRemoveAttachment = viewModel::removeAttachment,
                     onAttachClick = { showAttachmentMenu = true },
                     onDictate = { startDictation() },
+                    onPreviewOcr = { ocrPreview = it },
                 )
                 AttachmentMenu(
                     expanded = showAttachmentMenu,
                     onDismiss = { showAttachmentMenu = false },
                     onImage = { showAttachmentMenu = false; imagePicker.launch(arrayOf("image/*")) },
                     onPdf = { showAttachmentMenu = false; pdfPicker.launch(arrayOf("application/pdf")) },
+                    onDocument = {
+                        showAttachmentMenu = false
+                        documentPicker.launch(
+                            arrayOf(
+                                "text/*",
+                                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            ),
+                        )
+                    },
                 )
             },
         ) { padding ->
@@ -816,6 +899,7 @@ private fun Composer(
     onRemoveAttachment: (Attachment) -> Unit,
     onAttachClick: () -> Unit,
     onDictate: () -> Unit,
+    onPreviewOcr: (Attachment) -> Unit,
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surface,
@@ -841,7 +925,11 @@ private fun Composer(
                             onClick = { onRemoveAttachment(attachment) },
                             label = {
                                 Text(
-                                    text = attachment.name,
+                                    text = if (attachment.extractedText.isNullOrBlank()) {
+                                        attachment.name
+                                    } else {
+                                        "${attachment.name} · OCR"
+                                    },
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     style = MaterialTheme.typography.labelSmall,
@@ -849,7 +937,11 @@ private fun Composer(
                             },
                             leadingIcon = {
                                 Icon(
-                                    if (attachment.kind == Attachment.Kind.PDF) Icons.Outlined.Description else Icons.Outlined.Image,
+                                    if (attachment.kind == Attachment.Kind.IMAGE) {
+                                        Icons.Outlined.Image
+                                    } else {
+                                        Icons.Outlined.Description
+                                    },
                                     contentDescription = null,
                                     modifier = Modifier.size(14.dp),
                                 )
@@ -859,6 +951,21 @@ private fun Composer(
                             },
                         )
                     }
+                }
+            }
+            state.attachments.firstOrNull { !it.extractedText.isNullOrBlank() }?.let { attachment ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 6.dp, bottom = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "Testo OCR: ${attachment.extractedText!!.length} caratteri",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    TextButton(onClick = { onPreviewOcr(attachment) }) { Text("Anteprima e copia") }
                 }
             }
             Row(verticalAlignment = Alignment.Bottom) {
@@ -921,6 +1028,7 @@ private fun AttachmentMenu(
     onDismiss: () -> Unit,
     onImage: () -> Unit,
     onPdf: () -> Unit,
+    onDocument: () -> Unit,
 ) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
         DropdownMenuItem(
@@ -932,6 +1040,11 @@ private fun AttachmentMenu(
             text = { Text("PDF") },
             leadingIcon = { Icon(Icons.Outlined.Description, null) },
             onClick = onPdf,
+        )
+        DropdownMenuItem(
+            text = { Text("Documento DOCX, XLSX, CSV o testo") },
+            leadingIcon = { Icon(Icons.Outlined.Description, null) },
+            onClick = onDocument,
         )
     }
 }

@@ -50,6 +50,10 @@ data class AppSettings(
     val showPerfPanel: Boolean = false,
     val codeNetworkAllowed: Boolean = false,
     val reduceMotion: Boolean = false,
+    /** "auto", "it" or "en". Controls TTS and dictation language. */
+    val voiceLanguage: String = "auto",
+    /** Reads each new assistant answer with the system TTS engine. */
+    val autoSpeak: Boolean = false,
     val tutorEnabled: Boolean = false,
     val tutorTarget: String = "es",
     val tutorLevel: TutorLevel = TutorLevel.BASE,

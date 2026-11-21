@@ -82,25 +82,45 @@ object BundledModels {
         label = "multilingual-e5-small · Q8_0",
         license = "MIT (intfloat/multilingual-e5-small; GGUF TwinSunsLLC, MIT)",
     )
+
+    /**
+     * Entry chat model shipped in the APK so a fresh install can answer without
+     * a download or an API key. Qwen2.5 1.5B Instruct Q4_K_M is Apache-2.0 and
+     * the smallest model that passed the Italian/grammar/reasoning evaluation
+     * acceptably; 0.5B looped and produced unreliable Italian on the same suite.
+     * Larger 3B/7B variants remain downloadable from the model manager.
+     */
+    val CHAT = BundledModelSpec(
+        assetPath = "models/qwen2.5-1.5b-instruct-q4_k_m.gguf",
+        fileName = "qwen2.5-1.5b-instruct-q4_k_m.gguf",
+        sizeBytes = 1_117_320_736L,
+        sha256 = "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e",
+        label = "Qwen2.5 1.5B Instruct · Q4_K_M",
+        license = "Apache-2.0 (Qwen/Qwen2.5-1.5B-Instruct-GGUF)",
+    )
+
+    /** Catalog id of the bundled chat variant. */
+    const val CHAT_VARIANT_ID = "qwen2.5-1.5b-instruct-q4_k_m"
 }
 
 class BundledModelInstaller(private val context: Context) {
 
     private val root = File(context.filesDir, "bundled")
 
-    fun targetFile(spec: BundledModelSpec): File = File(root, spec.fileName)
+    fun targetFile(spec: BundledModelSpec, directory: File = root): File = File(directory, spec.fileName)
 
-    fun markerFile(spec: BundledModelSpec): File = File(root, "${spec.fileName}.sha256")
+    fun markerFile(spec: BundledModelSpec, directory: File = root): File =
+        File(directory, "${spec.fileName}.sha256")
 
     /**
      * Fast check used on every start: size, recorded digest and unchanged
      * modification time. A missing or legacy marker returns false, so [ensure]
      * performs one real hash before trusting the file.
      */
-    fun isInstalled(spec: BundledModelSpec): Boolean {
-        val file = targetFile(spec)
+    fun isInstalled(spec: BundledModelSpec, directory: File = root): Boolean {
+        val file = targetFile(spec, directory)
         if (!file.isFile || file.length() != spec.sizeBytes) return false
-        val marker = readMarker(spec) ?: return false
+        val marker = readMarker(spec, directory) ?: return false
         return marker.sha256.equals(spec.sha256, ignoreCase = true) &&
             marker.sizeBytes == spec.sizeBytes &&
             marker.matches(file)
@@ -109,11 +129,12 @@ class BundledModelInstaller(private val context: Context) {
     /** Copies and verifies the asset. Returns the usable file or a failure. */
     suspend fun ensure(
         spec: BundledModelSpec,
+        directory: File = root,
         onProgress: (copied: Long, total: Long) -> Unit = { _, _ -> },
     ): Result<File> = withContext(Dispatchers.IO) {
-        val target = targetFile(spec)
-        if (isInstalled(spec)) return@withContext Result.success(target)
-        if (!root.exists() && !root.mkdirs()) {
+        val target = targetFile(spec, directory)
+        if (isInstalled(spec, directory)) return@withContext Result.success(target)
+        if (!directory.exists() && !directory.mkdirs()) {
             return@withContext Result.failure(IllegalStateException("Impossibile creare la cartella dei modelli"))
         }
         if (target.isFile && target.length() == spec.sizeBytes) {
@@ -121,12 +142,12 @@ class BundledModelInstaller(private val context: Context) {
             // file): verify before trusting it.
             val digest = sha256(target)
             if (digest != null && digest.equals(spec.sha256, ignoreCase = true)) {
-                writeMarker(spec, target)
+                writeMarker(spec, target, directory)
                 return@withContext Result.success(target)
             }
             target.delete()
         }
-        val partial = File(root, "${spec.fileName}.part")
+        val partial = File(directory, "${spec.fileName}.part")
         partial.delete()
         try {
             context.assets.open(spec.assetPath).use { input ->
@@ -168,7 +189,7 @@ class BundledModelInstaller(private val context: Context) {
                     )
                 }
             }
-            writeMarker(spec, target)
+            writeMarker(spec, target, directory)
             Result.success(target)
         } catch (error: Exception) {
             partial.delete()
@@ -177,37 +198,40 @@ class BundledModelInstaller(private val context: Context) {
     }
 
     /** Re-hashes the extracted copy. Used by diagnostics and after failures. */
-    suspend fun verify(spec: BundledModelSpec): Boolean = withContext(Dispatchers.IO) {
-        val file = targetFile(spec)
-        if (!file.isFile || file.length() != spec.sizeBytes) return@withContext false
-        val digest = sha256(file) ?: return@withContext false
-        val ok = digest.equals(spec.sha256, ignoreCase = true)
-        if (ok) writeMarker(spec, file) else markerFile(spec).delete()
-        ok
+    suspend fun verify(spec: BundledModelSpec, directory: File = root): Boolean =
+        withContext(Dispatchers.IO) {
+            val file = targetFile(spec, directory)
+            if (!file.isFile || file.length() != spec.sizeBytes) return@withContext false
+            val digest = sha256(file) ?: return@withContext false
+            val ok = digest.equals(spec.sha256, ignoreCase = true)
+            if (ok) writeMarker(spec, file, directory) else markerFile(spec, directory).delete()
+            ok
+        }
+
+    fun markerText(spec: BundledModelSpec, directory: File = root): String? =
+        readMarker(spec, directory)?.encode()
+
+    fun delete(spec: BundledModelSpec, directory: File = root) {
+        targetFile(spec, directory).delete()
+        markerFile(spec, directory).delete()
+        File(directory, "${spec.fileName}.part").delete()
+        File(directory, "${markerFile(spec, directory).name}.part").delete()
     }
 
-    fun markerText(spec: BundledModelSpec): String? = readMarker(spec)?.encode()
-
-    fun delete(spec: BundledModelSpec) {
-        targetFile(spec).delete()
-        markerFile(spec).delete()
-        File(root, "${spec.fileName}.part").delete()
-        File(root, "${markerFile(spec).name}.part").delete()
-    }
-
-    private fun readMarker(spec: BundledModelSpec): InstallMarker? = runCatching {
-        InstallMarker.parse(markerFile(spec).readText())
-    }.getOrNull()
+    private fun readMarker(spec: BundledModelSpec, directory: File = root): InstallMarker? =
+        runCatching {
+            InstallMarker.parse(markerFile(spec, directory).readText())
+        }.getOrNull()
 
     /**
      * Marker writes are atomic and best-effort: if the marker cannot be
      * written the model is still valid, it will simply be hashed again on the
      * next start instead of being trusted.
      */
-    private fun writeMarker(spec: BundledModelSpec, file: File) {
+    private fun writeMarker(spec: BundledModelSpec, file: File, directory: File = root) {
         val marker = InstallMarker.of(spec, file)
-        val target = markerFile(spec)
-        val temp = File(root, "${target.name}.part")
+        val target = markerFile(spec, directory)
+        val temp = File(directory, "${target.name}.part")
         runCatching {
             temp.writeText(marker.encode())
             if (!temp.renameTo(target)) {

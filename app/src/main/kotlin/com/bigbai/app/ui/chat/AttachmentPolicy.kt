@@ -15,6 +15,9 @@ object AttachmentPolicy {
     /** PDFBox loads the document in memory, so the source file must stay bounded. */
     const val MAX_PDF_BYTES: Long = 32L * 1024 * 1024
 
+    /** DOCX/XLSX/CSV/TXT are parsed with bounded buffers. */
+    const val MAX_DOCUMENT_BYTES: Long = 32L * 1024 * 1024
+
     fun kindFor(name: String, mimeType: String): Attachment.Kind? {
         val lower = name.lowercase()
         val mime = mimeType.lowercase()
@@ -25,6 +28,17 @@ object AttachmentPolicy {
                 lower.endsWith(".jpeg") ||
                 lower.endsWith(".webp") -> Attachment.Kind.IMAGE
             mime == "application/pdf" || lower.endsWith(".pdf") -> Attachment.Kind.PDF
+            mime == "text/plain" ||
+                mime == "text/markdown" ||
+                mime == "text/csv" ||
+                mime == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+                mime == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+                lower.endsWith(".txt") ||
+                lower.endsWith(".md") ||
+                lower.endsWith(".markdown") ||
+                lower.endsWith(".csv") ||
+                lower.endsWith(".docx") ||
+                lower.endsWith(".xlsx") -> Attachment.Kind.DOCUMENT
             else -> null
         }
     }
@@ -44,6 +58,11 @@ object AttachmentPolicy {
             }
             Attachment.Kind.PDF -> if (bytes > MAX_PDF_BYTES) {
                 "PDF troppo grande: il limite è 32 MB."
+            } else {
+                null
+            }
+            Attachment.Kind.DOCUMENT -> if (bytes > MAX_DOCUMENT_BYTES) {
+                "Documento troppo grande: il limite è 32 MB."
             } else {
                 null
             }

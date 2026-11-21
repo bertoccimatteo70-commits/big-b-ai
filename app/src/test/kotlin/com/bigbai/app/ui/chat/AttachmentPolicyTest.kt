@@ -22,8 +22,15 @@ class AttachmentPolicyTest {
     }
 
     @Test
+    fun `classifies supported document formats`() {
+        assertEquals(Attachment.Kind.DOCUMENT, AttachmentPolicy.kindFor("note.txt", "text/plain"))
+        assertEquals(Attachment.Kind.DOCUMENT, AttachmentPolicy.kindFor("dati.csv", "text/csv"))
+        assertEquals(Attachment.Kind.DOCUMENT, AttachmentPolicy.kindFor("contratto.docx", ""))
+        assertEquals(Attachment.Kind.DOCUMENT, AttachmentPolicy.kindFor("budget.xlsx", ""))
+    }
+
+    @Test
     fun `rejects unsupported formats`() {
-        assertNull(AttachmentPolicy.kindFor("note.txt", "text/plain"))
         assertNull(AttachmentPolicy.kindFor("video.mp4", "video/mp4"))
         assertNull(AttachmentPolicy.kindFor("senza-estensione", ""))
     }
@@ -38,6 +45,13 @@ class AttachmentPolicyTest {
         assertNull(AttachmentPolicy.sizeError(Attachment.Kind.PDF, AttachmentPolicy.MAX_PDF_BYTES))
         assertTrue(
             AttachmentPolicy.sizeError(Attachment.Kind.PDF, AttachmentPolicy.MAX_PDF_BYTES + 1)
+                ?.contains("32 MB") == true,
+        )
+        assertNull(
+            AttachmentPolicy.sizeError(Attachment.Kind.DOCUMENT, AttachmentPolicy.MAX_DOCUMENT_BYTES),
+        )
+        assertTrue(
+            AttachmentPolicy.sizeError(Attachment.Kind.DOCUMENT, AttachmentPolicy.MAX_DOCUMENT_BYTES + 1)
                 ?.contains("32 MB") == true,
         )
     }

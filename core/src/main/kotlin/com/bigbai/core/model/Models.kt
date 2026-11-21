@@ -15,7 +15,7 @@ data class Attachment(
     val sizeBytes: Long = 0L,
     val extractedText: String? = null,
 ) {
-    enum class Kind { IMAGE, PDF }
+    enum class Kind { IMAGE, PDF, DOCUMENT }
 }
 
 @Serializable

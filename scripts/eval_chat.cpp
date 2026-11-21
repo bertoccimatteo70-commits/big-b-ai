@@ -16,7 +16,7 @@ int main(int argc, char ** argv) {
         return 2;
     }
     const int n_predict = argc > 3 ? std::atoi(argv[3]) : 220;
-    const float temperature = argc > 4 ? std::atof(argv[4]) : 0.7f;
+    const float temperature = argc > 4 ? std::atof(argv[4]) : 0.55f;
 
     std::ifstream input(argv[2]);
     std::stringstream buffer;
@@ -66,10 +66,17 @@ int main(int argc, char ** argv) {
         return 1;
     }
 
+    // Same sampling chain as the app's tiny-model profile: a repetition
+    // penalty and min-p matter more than raw temperature on a 0.5B model.
     llama_sampler_chain_params sp = llama_sampler_chain_default_params();
     llama_sampler * sampler = llama_sampler_chain_init(sp);
-    llama_sampler_chain_add(sampler, llama_sampler_init_top_k(40));
-    llama_sampler_chain_add(sampler, llama_sampler_init_top_p(0.9f, 1));
+    llama_sampler_chain_add(
+        sampler,
+        llama_sampler_init_penalties(llama_vocab_n_tokens(vocab), 64, 1.15f, 0.0f, 0.0f)
+    );
+    llama_sampler_chain_add(sampler, llama_sampler_init_top_k(30));
+    llama_sampler_chain_add(sampler, llama_sampler_init_top_p(0.90f, 1));
+    llama_sampler_chain_add(sampler, llama_sampler_init_min_p(0.03f, 1));
     llama_sampler_chain_add(sampler, llama_sampler_init_temp(temperature));
     llama_sampler_chain_add(sampler, llama_sampler_init_dist(1234));
 

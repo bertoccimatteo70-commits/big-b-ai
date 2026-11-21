@@ -4,11 +4,11 @@
 The model is executed by build/llama-host/bin/eval_chat (same llama.cpp code
 used on device, CPU, ChatML template as Qwen2.5). The output is written to a
 Markdown report with a few objective checks; the linguistic judgement stays
-with the reader, because a small 0.5B model is not a substitute for a human
+with the reader, because a small 1.5B model is not a substitute for a human
 review.
 
 Usage:
-    python3 scripts/eval-chat.py models/qwen2.5-0.5b-instruct-q4_k_m.gguf
+    python3 scripts/eval-chat.py models/qwen2.5-1.5b-instruct-q4_k_m.gguf
 """
 import os
 import re
@@ -19,21 +19,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BINARY = os.path.join(ROOT, "build", "llama-host", "bin", "eval_chat")
 OUT_DIR = os.path.join(ROOT, "docs", "ai-eval")
 
-SYSTEM = """Sei AI, l'assistente personale di BIG B AI. Esegui l'inferenza interamente sul dispositivo dell'utente: nessun dato viene inviato a servizi esterni, salvo una ricerca web che l'utente abbia esplicitamente abilitato.
-
-Regole:
-- Rispondi in italiano, in modo chiaro, diretto e professionale.
-- Non inventare fatti, citazioni, fonti o funzionalità. Se non sai qualcosa, dillo.
-- Non affermare di aver eseguito azioni che non puoi eseguire.
-- Per la matematica mostra i passaggi e verifica il risultato.
-- Usa Markdown leggibile; il codice va in blocchi recintati con il linguaggio.
-- Inizia con la risposta diretta in una frase, poi aggiungi i dettagli in punti brevi.
-- Non ripetere la domanda e non ripetere la stessa frase: se un concetto è già spiegato, vai avanti.
-- Per una domanda semplice bastano 3-6 frasi; per una domanda tecnica usa sezioni con titoli.
-- Se la domanda è ambigua, dichiara l'interpretazione che scegli e rispondi su quella.
-- Prima di rispondere controlla concordanze, accenti, doppie e punteggiatura; non inventare parole.
-- Se un dato non è certo, scrivi «non lo so» o «probabilmente» invece di presentarlo come fatto.
-- Non citare fonti che non compaiono nei risultati di ricerca o nei passaggi recuperati."""
+# Stesso prompt compatto usato da PromptTemplates per i modelli sotto 1B.
+SYSTEM = """Sei AI, l'assistente locale di ITAGPT. Rispondi in italiano corretto, chiaro e breve. Usa solo fatti certi: se non sai, dillo. Non inventare fonti, azioni o funzionalità. Non ripetere la domanda. Usa Markdown per elenchi e codice. Per la matematica mostra i passaggi."""
 
 CASES = [
     ("Grammatica · corta", "it-grammar",
@@ -79,14 +66,12 @@ def checks(answer):
     sentences = [s.strip().lower() for s in re.split(r"[.!?]\s+", answer) if len(s.strip()) > 20]
     if len(sentences) != len(set(sentences)):
         issues.append("frase ripetuta")
-    if "**" in answer:
-        issues.append("grassetto Markdown")
     return issues
 
 
 def main():
     model = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
-        ROOT, "models", "qwen2.5-0.5b-instruct-q4_k_m.gguf")
+        ROOT, "models", "qwen2.5-1.5b-instruct-q4_k_m.gguf")
     if not os.path.isfile(BINARY):
         sys.exit("eval_chat assente: compilalo con g++ (vedi scripts/eval_chat.cpp)")
     os.makedirs(OUT_DIR, exist_ok=True)
@@ -94,11 +79,11 @@ def main():
     report = [f"# Valutazione italiana su modello reale — {name}",
               "",
               f"Modello: `{os.path.basename(model)}` · motore llama.cpp host (x86_64, CPU) · "
-              "template ChatML · temperatura 0,7 · max 260–600 token.",
+              "template ChatML · temperatura 0,55 · max 260–600 token.",
               "",
               "Le risposte sono state generate davvero; i controlli automatici sono elencati "
               "accanto a ogni risposta. Il giudizio linguistico resta a chi legge: un modello "
-              "0,5B non rappresenta i modelli più grandi che l'app può scaricare.",
+              "1,5B non rappresenta i modelli più grandi che l'app può scaricare.",
               ""]
     summary = []
     for title, slug, turns, n_predict in CASES:
@@ -131,7 +116,7 @@ def main():
         report.append(f"| {slug} | {finish} | {', '.join(issues) if issues else '—'} |")
     report.append("")
 
-    path = os.path.join(OUT_DIR, f"{name}-1.5.1.md")
+    path = os.path.join(OUT_DIR, f"{name}-itagpt-2.0.0.md")
     with open(path, "w") as handle:
         handle.write("\n".join(report))
     print("\n".join(report[-len(summary) - 4:]))

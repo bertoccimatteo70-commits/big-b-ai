@@ -22,7 +22,7 @@ class ModelProfilesTest {
         val profile = ModelProfiles.detect("tinyllama-1.1b-chat-q4_k_m")
         assertTrue(profile.concise)
         assertTrue(profile.limitedReasoning)
-        assertTrue(profile.maxTokens <= 512)
+        assertTrue(profile.maxTokens in 512..768)
     }
 
     @Test
@@ -57,7 +57,7 @@ class ModelProfilesTest {
     fun `small models always keep a bounded answer budget`() {
         val profile = ModelProfiles.detect("qwen2.5-0.5b-instruct-q4_k_m")
         val params = profile.params(AppSettings(maxTokens = 4096))
-        assertTrue(params.maxTokens <= 512)
+        assertTrue(params.maxTokens in 512..768)
     }
 
     @Test

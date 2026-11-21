@@ -20,6 +20,10 @@ object PromptTemplates {
         modelStyle: String = "",
         retrievedContext: String = "",
         verifiedCalculations: String = "",
+        /** Shorter prompt for sub-1B models, which ignore long instructions. */
+        compact: Boolean = false,
+        /** Text recognised by on-device OCR from attached images or scanned PDFs. */
+        ocrContext: String = "",
     ): String {
         val italian = language.startsWith("it")
         val languageName = when {
@@ -31,7 +35,21 @@ object PromptTemplates {
             else -> "English"
         }
         val builder = StringBuilder()
-        if (italian) {
+        if (compact) {
+            builder.append(
+                if (italian) {
+                    "Sei AI, l'assistente locale di ITAGPT. Rispondi in italiano corretto, chiaro e breve. " +
+                        "Usa solo fatti certi: se non sai, dillo. Non inventare fonti, azioni o funzionalità. " +
+                        "Non ripetere la domanda. Usa Markdown per elenchi e codice. " +
+                        "Per la matematica mostra i passaggi.\n"
+                } else {
+                    "You are AI, ITAGPT's local assistant. Answer in $languageName, clearly and briefly. " +
+                        "Use only facts you know: if you do not know, say so. Never invent sources, actions " +
+                        "or capabilities. Do not restate the question. Use Markdown for lists and code. " +
+                        "Show the steps for mathematics.\n"
+                },
+            )
+        } else if (italian) {
             builder.append(
                 "Sei AI, l'assistente personale di ITAGPT. Esegui l'inferenza interamente sul dispositivo " +
                     "dell'utente: nessun dato viene inviato a servizi esterni, salvo una ricerca web che " +
@@ -82,13 +100,29 @@ object PromptTemplates {
         if (!documentContext.isNullOrBlank()) {
             builder.append(
                 if (italian) {
-                    "\nDocumento PDF allegato. Usa esclusivamente questo testo per le domande sul documento " +
-                        "e cita la pagina con [Pagina N]. Se l'informazione non è nel testo, dichiaralo.\n" +
+                    "\nDocumento allegato (PDF, DOCX, XLSX, CSV o testo). Usa esclusivamente questo testo " +
+                        "per le domande sul documento e, quando sono presenti, cita le pagine con [Pagina N]. " +
+                        "Se l'informazione non è nel testo, dichiaralo.\n" +
                         "<documento>\n$documentContext\n</documento>\n"
                 } else {
-                    "\nAttached PDF. Use only this text for questions about the document and cite pages as " +
-                        "[Page N]. If the information is not in the text, say so.\n" +
+                    "\nAttached document (PDF, DOCX, XLSX, CSV or text). Use only this text for questions " +
+                        "about the document and cite pages as [Page N] when present. If the information " +
+                        "is not in the text, say so.\n" +
                         "<document>\n$documentContext\n</document>\n"
+                },
+            )
+        }
+
+        if (ocrContext.isNotBlank()) {
+            builder.append(
+                if (italian) {
+                    "\nTesto riconosciuto localmente con OCR dagli allegati. Può contenere errori di " +
+                        "riconoscimento: usalo per rispondere e segnala i passaggi incerti.\n" +
+                        "<ocr>\n${ocrContext.take(8_000)}\n</ocr>\n"
+                } else {
+                    "\nText recognised on the device by OCR from the attachments. It may contain " +
+                        "recognition errors: use it to answer and flag uncertain parts.\n" +
+                        "<ocr>\n${ocrContext.take(8_000)}\n</ocr>\n"
                 },
             )
         }
@@ -133,10 +167,20 @@ object PromptTemplates {
                     if (italian) "\nL'utente ha allegato un'immagine. Descrivi solo ciò che è effettivamente visibile.\n"
                     else "\nThe user attached an image. Describe only what is actually visible.\n",
                 )
+            } else if (ocrContext.isNotBlank()) {
+                builder.append(
+                    if (italian) {
+                        "\nL'immagine è stata letta con OCR locale: rispondi usando il testo in <ocr>, " +
+                            "senza dire che non puoi vedere le immagini.\n"
+                    } else {
+                        "\nThe image was read with local OCR: answer from the text in <ocr>; do not say " +
+                            "that you cannot see images.\n"
+                    },
+                )
             } else {
                 builder.append(
-                    if (italian) "\nL'utente ha allegato un'immagine ma il modello attivo non è multimodale: spiega che serve un modello con supporto immagini.\n"
-                    else "\nThe user attached an image but the active model is not multimodal: explain that a vision model is required.\n",
+                    if (italian) "\nL'utente ha allegato un'immagine ma il modello attivo non è multimodale e l'OCR non ha trovato testo: spiega che serve un modello con supporto immagini.\n"
+                    else "\nThe user attached an image but the active model is not multimodal and OCR found no text: explain that a vision model is required.\n",
                 )
             }
         }

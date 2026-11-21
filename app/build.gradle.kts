@@ -16,7 +16,8 @@ val keystoreProperties = Properties().apply {
 
 // Release signing is optional. When no keystore is configured the release
 // variant falls back to the debug key so that a verifiable, installable APK can
-// always be produced; the build script and the workflow state this explicitly.
+// still be produced; scripts/package-release-apk.sh names that APK
+// "release-debug-signed" and never presents it as an official release.
 val signingStoreFile = System.getenv("SIGNING_STORE_FILE")
     ?: keystoreProperties.getProperty("storeFile")
 val signingStorePassword = System.getenv("SIGNING_STORE_PASSWORD")
@@ -40,7 +41,7 @@ android {
         applicationId = "com.bigbai.app"
         minSdk = 31
         targetSdk = 35
-        versionCode = 8
+        versionCode = 9
         versionName = "2.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         resourceConfigurations += listOf("en", "it")
@@ -70,8 +71,11 @@ android {
             isDebuggable = true
         }
         release {
-            isMinifyEnabled = false // v1: no unverifiable R8 passes on a device-less build host
-            isShrinkResources = false
+            // R8 and resource shrinking are enabled only for release. Debug stays
+            // unminified so stack traces remain readable. The keep rules cover
+            // JNI, Room, kotlinx.serialization, JGit and SQLCipher explicitly.
+            isMinifyEnabled = true
+            isShrinkResources = true
             isDebuggable = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = if (hasReleaseSigning) {
@@ -131,6 +135,9 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.documentfile)
+    implementation(libs.androidx.exifinterface)
+    // Bundled Latin OCR model: no Play Services download, works offline.
+    implementation(libs.mlkit.text.recognition)
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)

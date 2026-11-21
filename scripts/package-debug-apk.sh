@@ -21,6 +21,10 @@ MODEL_NAME="multilingual-e5-small-q8_0.gguf"
 MODEL_SIZE=132439008
 MODEL_SHA="e011debc1208e31bf7b6aebee2d9fc8bd2ca11694a77ed66ac9d0c9d0a877c93"
 
+CHAT_NAME="qwen2.5-1.5b-instruct-q4_k_m.gguf"
+CHAT_SIZE=1117320736
+CHAT_SHA="6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e"
+
 if [ ! -f "$APK" ]; then
   echo "ERRORE: $APK non trovato. Esegui prima: ./gradlew assembleDebug" >&2
   exit 1
@@ -58,9 +62,30 @@ if [ "$MODEL_ENTRY_SIZE" != "$MODEL_SIZE" ]; then
 fi
 MODEL_DIGEST="$(unzip -p "$APK" "$MODEL_ENTRY" | sha256sum | cut -d' ' -f1)"
 if [ "$MODEL_DIGEST" != "$MODEL_SHA" ]; then
-  echo "ERRORE: SHA-256 del modello dentro l'APK non corrisponde." >&2
+  echo "ERRORE: SHA-256 del modello di embedding dentro l'APK non corrisponde." >&2
   echo "  atteso: $MODEL_SHA" >&2
   echo "  trovato: $MODEL_DIGEST" >&2
+  exit 1
+fi
+
+# The chat model is what lets a fresh install answer immediately. It is as
+# mandatory as the native engine and is verified byte-for-byte inside the APK.
+CHAT_ENTRY="assets/models/${CHAT_NAME}"
+if ! grep -q "$CHAT_ENTRY" <<<"$APK_ENTRIES"; then
+  echo "ERRORE: modello chat incluso assente dall'APK ($CHAT_ENTRY)." >&2
+  echo "Esegui: bash scripts/fetch-bundled-chat.sh" >&2
+  exit 1
+fi
+CHAT_ENTRY_SIZE="$(awk -v name="$CHAT_ENTRY" '$NF == name { print $1 }' <<<"$APK_ENTRIES" | head -1)"
+if [ "$CHAT_ENTRY_SIZE" != "$CHAT_SIZE" ]; then
+  echo "ERRORE: dimensione del modello chat nell'APK non valida: ${CHAT_ENTRY_SIZE:-assente} invece di $CHAT_SIZE." >&2
+  exit 1
+fi
+CHAT_DIGEST="$(unzip -p "$APK" "$CHAT_ENTRY" | sha256sum | cut -d' ' -f1)"
+if [ "$CHAT_DIGEST" != "$CHAT_SHA" ]; then
+  echo "ERRORE: SHA-256 del modello chat dentro l'APK non corrisponde." >&2
+  echo "  atteso: $CHAT_SHA" >&2
+  echo "  trovato: $CHAT_DIGEST" >&2
   exit 1
 fi
 
@@ -138,7 +163,10 @@ Package:       com.bigbai.app.debug (suffisso .debug, convive con la release)
 Motore AI:     llama.cpp, CPU only (nessuna accelerazione GPU in questa build)
 Embedding:     ${MODEL_NAME}, ${MODEL_SIZE} byte, SHA-256 ${MODEL_SHA}
                Incluso negli asset, estratto e verificato al primo uso.
-Modelli chat:  NON inclusi nell'APK; si scaricano dall'app e sono verificati con SHA-256.
+Chat incluso:  ${CHAT_NAME}, ${CHAT_SIZE} byte, SHA-256 ${CHAT_SHA}
+               Qwen2.5 1.5B Instruct Q4_K_M, Apache-2.0. Estratto e verificato
+               al primo uso: la chat funziona senza download e senza API key.
+Altri modelli: scaricabili dall'app e verificati con SHA-256.
 Test eseguiti: test unitari JVM dei quattro moduli (0 falliti) + lint + build debug.
                Nessun test su dispositivo fisico o emulatore.
 Release note:  docs/RELEASE-2.0.0.md

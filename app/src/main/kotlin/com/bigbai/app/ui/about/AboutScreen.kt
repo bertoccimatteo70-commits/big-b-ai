@@ -137,9 +137,12 @@ fun AboutScreen(container: AppContainer, onBack: () -> Unit) {
                 Text(
                     "llama.cpp e ggml (MIT) · AndroidX e Jetpack Compose (Apache-2.0) · Room (Apache-2.0) · " +
                         "SQLCipher (BSD) · OkHttp (Apache-2.0) · PDFBox-Android (Apache-2.0) · JGit (EPL-2.0) · " +
-                        "Tinos (Apache-2.0).\n\n" +
-                        "I modelli non sono inclusi nell'APK: si scaricano dalle fonti originali indicate nel " +
-                        "catalogo e vengono verificati con SHA-256.",
+                        "Tinos (Apache-2.0) · ML Kit Text Recognition (Google, on-device) · Qwen2.5 1.5B " +
+                        "Instruct (Apache-2.0).\n\n" +
+                        "L'APK include Qwen2.5 1.5B Instruct Q4_K_M e l'embedder multilingue: la chat è " +
+                        "disponibile subito dopo l'installazione, senza account, API key o download. I modelli " +
+                        "più grandi restano scaricabili dal catalogo e sono verificati con SHA-256. L'OCR usa " +
+                        "ML Kit sul dispositivo, senza inviare immagini in rete.",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }

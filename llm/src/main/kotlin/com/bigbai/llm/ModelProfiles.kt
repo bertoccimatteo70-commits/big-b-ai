@@ -109,16 +109,18 @@ object ModelProfiles {
             TINY.containsMatchIn(id) || tiny -> ModelProfile(
                 family = "tiny",
                 label = "Molto piccolo",
-                temperature = 0.5f,
+                temperature = 0.55f,
                 topP = 0.9f,
-                topK = 20,
-                maxTokens = 512,
+                topK = 30,
+                maxTokens = 640,
                 contextCap = 4096,
                 concise = true,
                 codeFriendly = false,
                 limitedReasoning = true,
-                repeatPenalty = 1.22f,
-                minP = 0.05f,
+                // Qwen recommends a light repetition penalty. 1.22 distorted
+                // word choice on the 0.5B model; 1.15 still breaks loops.
+                repeatPenalty = 1.15f,
+                minP = 0.03f,
             )
             small -> ModelProfile(
                 family = "small",

@@ -168,6 +168,26 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit) {
                 ) { viewModel.setReduceMotion(it) }
             }
 
+            SectionCard("Voce") {
+                Text("Lingua di sintesi e dettatura", style = MaterialTheme.typography.labelLarge)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Chip("Automatica", settings.voiceLanguage == "auto") { viewModel.setVoiceLanguage("auto") }
+                    Chip("Italiano", settings.voiceLanguage == "it") { viewModel.setVoiceLanguage("it") }
+                    Chip("English", settings.voiceLanguage == "en") { viewModel.setVoiceLanguage("en") }
+                }
+                Spacer(Modifier.height(10.dp))
+                SwitchRow(
+                    "Leggi automaticamente le risposte",
+                    "Usa il motore TTS già installato sul dispositivo. Puoi interrompere la lettura dalla chat.",
+                    settings.autoSpeak,
+                ) { viewModel.setAutoSpeak(it) }
+                Text(
+                    "La dettatura usa il servizio di riconoscimento vocale di Android; ITAGPT non registra audio.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
             SectionCard("Tutor di lingua") {
                 SwitchRow(
                     "Tutor di lingua",

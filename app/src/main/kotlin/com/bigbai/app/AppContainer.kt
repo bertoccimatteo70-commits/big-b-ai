@@ -16,6 +16,8 @@ import com.bigbai.core.search.WebSearchClient
 import com.bigbai.core.security.CryptoManager
 import com.bigbai.core.model.GenerationMetrics
 import com.bigbai.core.settings.SettingsRepository
+import com.bigbai.app.ocr.OcrEngine
+import com.bigbai.llm.BundledChatModel
 import com.bigbai.llm.BundledModelInstaller
 import com.bigbai.llm.EmbeddingEngine
 import com.bigbai.llm.LlamaEngine
@@ -69,6 +71,19 @@ class AppContainer(private val app: Application) {
      * first use, then used for local retrieval over documents and memories.
      */
     val bundledModels: BundledModelInstaller by lazy { BundledModelInstaller(app) }
+
+    /**
+     * The entry chat model ships in the APK. It is extracted and verified on
+     * first use, then appears in the normal model store; no download and no API
+     * key are needed for the first conversation.
+     */
+    val bundledChat: BundledChatModel by lazy {
+        BundledChatModel(catalog, modelStore, bundledModels)
+    }
+
+    /** Offline OCR for images and scanned PDFs (bundled ML Kit Latin model). */
+    val ocr: OcrEngine by lazy { OcrEngine(app) }
+
     val embedder: EmbeddingEngine by lazy { EmbeddingEngine(app, bundledModels, memorySampler) }
     val semantic: SemanticRepository by lazy { SemanticRepository(app, embedder) }
 

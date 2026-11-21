@@ -93,6 +93,39 @@ class PromptTemplatesTest {
     }
 
     @Test
+    fun `compact prompt keeps the essentials without the long rule list`() {
+        val compact = PromptTemplates.chatSystemPrompt(
+            language = "it",
+            memory = "",
+            documentContext = null,
+            sources = emptyList(),
+            visionAvailable = false,
+            hasImage = false,
+            compact = true,
+        )
+        assertTrue(compact.contains("Rispondi in italiano corretto"))
+        assertTrue(compact.contains("Non inventare fonti"))
+        assertFalse(compact.contains("Se la domanda è ambigua"))
+        assertTrue(compact.length < 600)
+    }
+
+    @Test
+    fun `ocr text is supplied with a recognition-error caveat`() {
+        val prompt = PromptTemplates.chatSystemPrompt(
+            language = "it",
+            memory = "",
+            documentContext = null,
+            sources = emptyList(),
+            visionAvailable = false,
+            hasImage = true,
+            ocrContext = "Fattura 2026\nTotale: 120,00 euro",
+        )
+        assertTrue(prompt.contains("<ocr>"))
+        assertTrue(prompt.contains("Totale: 120,00 euro"))
+        assertTrue(prompt.contains("errori di riconoscimento"))
+    }
+
+    @Test
     fun `code prompt never claims to have modified files`() {
         val prompt = PromptTemplates.codeSystemPrompt(
             language = "it",

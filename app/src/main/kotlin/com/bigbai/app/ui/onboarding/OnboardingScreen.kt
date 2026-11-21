@@ -39,6 +39,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -71,14 +72,39 @@ fun OnboardingScreen(container: AppContainer, settings: AppSettings) {
     val downloads by container.database.downloadDao().observeAll().collectAsState(initial = emptyList())
     val profile = remember { container.deviceProfile }
     val budget = remember(profile, settings.ramMode) { profile.budgetBytes(settings.ramMode) }
-    val recommended = remember(budget) { pickRecommended(container, profile, budget) }
+    // The bundled model is always the starting point: it needs no network and
+    // no manual choice. Other models can be added later from the library.
+    val bundledVariant = remember { container.bundledChat.variant }
+    val recommended = remember(budget, bundledVariant) {
+        bundledVariant ?: pickRecommended(container, profile, budget)
+    }
+    val bundled = recommended != null && container.bundledChat.isBundled(recommended)
     val download = downloads.firstOrNull { it.modelId == recommended?.id }
-    val installed = remember(downloads, recommended) {
-        recommended?.let { container.modelStore.installed(it) }
+    var bundledReady by remember { mutableStateOf(container.bundledChat.isInstalled()) }
+    var bundledProgress by remember { mutableStateOf<Pair<Long, Long>?>(null) }
+    var bundledError by remember { mutableStateOf<String?>(null) }
+    var bundledAttempt by remember { mutableIntStateOf(0) }
+    val installed = bundledReady || remember(downloads, recommended) {
+        recommended?.let { container.modelStore.installed(it) != null } == true
     }
 
-    LaunchedEffect(download?.status, installed) {
-        if (installed != null && recommended != null && settings.activeModelId == null) {
+    // Extracting the 491 MB bundled model is part of onboarding, with real
+    // progress. The same call is idempotent, so a user who skips ahead is
+    // covered by the chat screen.
+    LaunchedEffect(step, recommended?.id, bundled, bundledAttempt) {
+        if (step == 3 && bundled && !bundledReady) {
+            bundledError = null
+            val prepared = container.bundledChat.ensure { copied, total ->
+                bundledProgress = copied to total
+            }
+            bundledProgress = null
+            bundledReady = prepared.isSuccess
+            bundledError = prepared.exceptionOrNull()?.message
+        }
+    }
+
+    LaunchedEffect(download?.status, installed, bundledReady) {
+        if (installed && recommended != null && settings.activeModelId == null) {
             container.settings.setActiveModel(recommended.id)
         }
     }
@@ -129,9 +155,14 @@ fun OnboardingScreen(container: AppContainer, settings: AppSettings) {
                         downloadStatus = download?.status,
                         downloaded = download?.bytesDownloaded ?: 0,
                         total = download?.totalBytes ?: (recommended?.totalBytes ?: 0),
-                        installed = installed != null,
+                        installed = installed,
+                        bundled = bundled,
+                        bundledProgress = bundledProgress,
+                        bundledError = bundledError,
                         onStart = {
-                            recommended?.let { ModelDownloadService.start(context, it.id) }
+                            if (bundled) bundledAttempt++ else {
+                                recommended?.let { ModelDownloadService.start(context, it.id) }
+                            }
                         },
                         onPause = {
                             recommended?.let { ModelDownloadService.pause(context, it.id) }
@@ -139,7 +170,8 @@ fun OnboardingScreen(container: AppContainer, settings: AppSettings) {
                     )
                     else -> ReadyStep(
                         installedName = recommended?.family,
-                        installed = installed != null,
+                        installed = installed,
+                        bundled = bundled,
                     )
                 }
                 Spacer(Modifier.height(24.dp))
@@ -161,6 +193,9 @@ fun OnboardingScreen(container: AppContainer, settings: AppSettings) {
                     Button(
                         onClick = {
                             scope.launch {
+                                if (recommended != null && container.settings.current().activeModelId == null) {
+                                    container.settings.setActiveModel(recommended.id)
+                                }
                                 container.settings.setOnboardingComplete(true)
                             }
                         },
@@ -302,6 +337,9 @@ private fun ModelStep(
     downloaded: Long,
     total: Long,
     installed: Boolean,
+    bundled: Boolean,
+    bundledProgress: Pair<Long, Long>?,
+    bundledError: String?,
     onStart: () -> Unit,
     onPause: () -> Unit,
 ) {
@@ -350,7 +388,10 @@ private fun ModelStep(
                 }
             }
             Spacer(Modifier.height(12.dp))
-            DetailRow("Dimensione download", ModelDownloadManager.formatBytes(variant.totalBytes))
+            DetailRow(
+                if (bundled) "Dimensione modello incluso" else "Dimensione download",
+                ModelDownloadManager.formatBytes(variant.totalBytes),
+            )
             DetailRow(
                 "RAM stimata",
                 ModelDownloadManager.formatBytes(
@@ -373,6 +414,41 @@ private fun ModelStep(
                         )
                         Spacer(Modifier.width(8.dp))
                         Text("Modello installato e pronto", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                bundled && !installed -> {
+                    val progress = bundledProgress
+                    if (progress != null && progress.second > 0) {
+                        LinearProgressIndicator(
+                            progress = { (progress.first.toFloat() / progress.second).coerceIn(0f, 1f) },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "Preparazione del modello incluso: " +
+                                "${ModelDownloadManager.formatBytes(progress.first)} / " +
+                                ModelDownloadManager.formatBytes(progress.second),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "Estrazione e verifica SHA-256 del modello incluso nell'APK…",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (bundledError != null) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            bundledError,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        OutlinedButton(onClick = onStart) { Text("Riprova") }
                     }
                 }
                 downloadStatus == "DOWNLOADING" || downloadStatus == "PAUSED" || downloadStatus == "FAILED" -> {
@@ -416,7 +492,7 @@ private fun ModelStep(
 }
 
 @Composable
-private fun ReadyStep(installedName: String?, installed: Boolean) {
+private fun ReadyStep(installedName: String?, installed: Boolean, bundled: Boolean) {
     Spacer(Modifier.height(34.dp))
     Icon(
         Icons.Outlined.CheckCircle,
@@ -429,9 +505,13 @@ private fun ReadyStep(installedName: String?, installed: Boolean) {
     Spacer(Modifier.height(8.dp))
     Text(
         text = if (installed && installedName != null) {
-            "«$installedName» è installato. Puoi iniziare subito."
+            if (bundled) {
+                "«$installedName» è incluso nell'app ed è pronto. Puoi iniziare subito, senza download."
+            } else {
+                "«$installedName» è installato. Puoi iniziare subito."
+            }
         } else {
-            "Puoi iniziare subito. Se non hai ancora scaricato un modello, potrai farlo dalla sezione Modelli."
+            "Puoi iniziare subito: il modello incluso viene preparato al primo messaggio."
         },
         style = MaterialTheme.typography.bodyLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant,

@@ -46,6 +46,8 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     fun setAutoTitle(value: Boolean) = update { it.copy(autoTitle = value) }
     fun setCodeNetwork(value: Boolean) = update { it.copy(codeNetworkAllowed = value) }
     fun setReduceMotion(value: Boolean) = update { it.copy(reduceMotion = value) }
+    fun setVoiceLanguage(value: String) = update { it.copy(voiceLanguage = value) }
+    fun setAutoSpeak(value: Boolean) = update { it.copy(autoSpeak = value) }
     fun setTutorEnabled(value: Boolean) = update { it.copy(tutorEnabled = value) }
     fun setTutorTarget(value: String) = update { it.copy(tutorTarget = value) }
     fun setTutorLevel(value: TutorLevel) = update { it.copy(tutorLevel = value) }

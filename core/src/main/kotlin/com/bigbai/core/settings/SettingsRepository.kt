@@ -52,6 +52,10 @@ class SettingsRepository(private val context: Context) {
     suspend fun setShowPerfPanel(value: Boolean) = update { it.copy(showPerfPanel = value) }
     suspend fun setLastBackupHash(value: String?) = update { it.copy(lastBackupHash = value) }
     suspend fun setReduceMotion(value: Boolean) = update { it.copy(reduceMotion = value) }
+    suspend fun setVoiceLanguage(value: String) = update {
+        it.copy(voiceLanguage = value.takeIf { tag -> tag in setOf("auto", "it", "en") } ?: "auto")
+    }
+    suspend fun setAutoSpeak(value: Boolean) = update { it.copy(autoSpeak = value) }
     suspend fun setTutorEnabled(value: Boolean) = update { it.copy(tutorEnabled = value) }
     suspend fun setTutorTarget(value: String) = update { it.copy(tutorTarget = value) }
     suspend fun setTutorLevel(value: TutorLevel) = update { it.copy(tutorLevel = value) }
