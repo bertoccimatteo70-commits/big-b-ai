@@ -41,16 +41,26 @@ class MemoryViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             val chosen = category.ifBlank { "Personale" }
             val id = container.memory.add(content, chosen)
-            container.semantic.indexMemory(id, content, chosen)
-            _message.value = "Ricordo salvato"
+            val outcome = container.semantic.indexMemory(id, content, chosen)
+            _message.value = if (outcome.persisted) {
+                "Ricordo salvato"
+            } else {
+                "Ricordo salvato, ma l'indice semantico non è stato aggiornato: " +
+                    (outcome.error ?: "errore sconosciuto")
+            }
         }
     }
 
     fun update(id: Long, content: String) {
         viewModelScope.launch {
             container.memory.update(id, content)
-            container.semantic.indexMemory(id, content, "Memoria")
-            _message.value = "Ricordo aggiornato"
+            val outcome = container.semantic.indexMemory(id, content, "Memoria")
+            _message.value = if (outcome.persisted) {
+                "Ricordo aggiornato"
+            } else {
+                "Ricordo aggiornato, ma l'indice semantico non è stato aggiornato: " +
+                    (outcome.error ?: "errore sconosciuto")
+            }
         }
     }
 
@@ -64,8 +74,13 @@ class MemoryViewModel(private val container: AppContainer) : ViewModel() {
     fun clearAll() {
         viewModelScope.launch {
             container.memory.clear()
-            container.semantic.clearMemories()
-            _message.value = "Memoria svuotata"
+            val outcome = container.semantic.clearMemories()
+            _message.value = if (outcome.persisted) {
+                "Memoria svuotata"
+            } else {
+                "Memoria svuotata, ma l'indice semantico non è stato aggiornato: " +
+                    (outcome.error ?: "errore sconosciuto")
+            }
         }
     }
 

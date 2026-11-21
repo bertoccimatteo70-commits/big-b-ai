@@ -12,6 +12,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -38,6 +39,10 @@ data class DiagnosticsUiState(
     val bundledInstalled: Boolean = false,
     val verifying: Boolean = false,
     val verificationResult: String? = null,
+    val embedderRequiredBytes: Long = 0,
+    val embedderAvailableBytes: Long = 0,
+    val embedderPressure: Int = 0,
+    val rebuilding: Boolean = false,
 )
 
 /**
@@ -118,12 +123,43 @@ class DiagnosticsViewModel(private val container: AppContainer) : ViewModel() {
     fun refresh() {
         viewModelScope.launch {
             val stats = container.semantic.stats()
+            val decision = container.embedder.decision()
             _state.update {
                 it.copy(
                     semantic = stats,
                     bundledInstalled = container.bundledModels.isInstalled(BundledModels.EMBEDDING),
+                    embedderRequiredBytes = decision.requiredBytes,
+                    embedderAvailableBytes = decision.availableBytes,
+                    embedderPressure = decision.pressureLevel,
                 )
             }
+        }
+    }
+
+    /** Rebuilds the memory vectors from the database after a corrupt index. */
+    fun rebuildIndex() {
+        if (_state.value.rebuilding) return
+        viewModelScope.launch {
+            _state.update { it.copy(rebuilding = true, verificationResult = null) }
+            val seeds = container.memory.memories().first().map { item ->
+                SemanticRepository.MemorySeed(
+                    id = item.id,
+                    text = item.content,
+                    label = item.categoryName,
+                )
+            }
+            val outcome = container.semantic.rebuildMemories(seeds)
+            _state.update {
+                it.copy(
+                    rebuilding = false,
+                    verificationResult = if (outcome.persisted) {
+                        "Indice ricostruito: ${outcome.passages} passaggi da ${seeds.size} ricordi."
+                    } else {
+                        "Ricostruzione non riuscita: ${outcome.error ?: "errore sconosciuto"}"
+                    },
+                )
+            }
+            refresh()
         }
     }
 

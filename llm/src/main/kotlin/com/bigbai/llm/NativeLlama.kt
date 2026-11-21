@@ -73,6 +73,9 @@ internal object NativeLlama {
 
     external fun nativeCancel(handle: Long)
 
+    /** 0 unknown, 1 EOS/EOG, 2 token limit, 3 cancelled. */
+    external fun nativeFinishReason(handle: Long): Int
+
     external fun nativePerf(handle: Long): LongArray?
 
     external fun nativeContextSize(handle: Long): Int

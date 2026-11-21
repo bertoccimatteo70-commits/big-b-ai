@@ -1,6 +1,7 @@
 package com.bigbai.llm
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayInputStream
@@ -60,5 +61,27 @@ class SemanticIndexTest {
         val restored = SemanticIndex.readFrom(ByteArrayInputStream(byteArrayOf(1, 2, 3, 4)))
         assertEquals(0, restored.size)
         assertTrue(restored.search(floatArrayOf(1f), limit = 3).isEmpty())
+        assertNull(SemanticIndex.readFromOrNull(ByteArrayInputStream(byteArrayOf(1, 2, 3, 4))))
+    }
+
+    @Test
+    fun `a truncated file is reported as corrupt, not as a valid empty index`() {
+        val index = SemanticIndex.empty()
+        index.add(entry("1", "testo", floatArrayOf(0.5f, 0.5f)))
+        val bytes = ByteArrayOutputStream().also { index.writeTo(it) }.toByteArray()
+        val truncated = bytes.copyOf(bytes.size - 3)
+        assertNull(SemanticIndex.readFromOrNull(ByteArrayInputStream(truncated)))
+    }
+
+    @Test
+    fun `copy isolates later mutations from the original`() {
+        val original = SemanticIndex.empty()
+        original.add(entry("1", "primo", floatArrayOf(1f, 0f)))
+        val copy = original.copy()
+        copy.add(entry("2", "secondo", floatArrayOf(0f, 1f)))
+        copy.removeSource("doc:1:a.pdf")
+        assertEquals(1, original.size)
+        assertEquals("1", original.all().first().id)
+        assertEquals(0, copy.size)
     }
 }

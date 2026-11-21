@@ -3,6 +3,7 @@ package com.bigbai.llm
 import android.content.Context
 import android.os.SystemClock
 import com.bigbai.core.device.MemorySampler
+import com.bigbai.core.model.FinishReason
 import com.bigbai.core.model.GenerationMetrics
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -215,7 +216,9 @@ class LlamaEngine(
             // not show "Prompt evaluation failed" after the user pressed Stop.
             if (cancelled.get()) {
                 cancelled.set(false)
-                return@withContext Result.success(GenerationMetrics(modelId = model.variant.id))
+                return@withContext Result.success(
+                    GenerationMetrics(modelId = model.variant.id, finishReason = FinishReason.CANCELLED),
+                )
             }
             val message = NativeLlama.nativeLastError().ifBlank { "Avvio della generazione non riuscito" }
             return@withContext Result.failure(IllegalStateException(message))
@@ -270,6 +273,19 @@ class LlamaEngine(
             perf = NativeLlama.nativePerf(handle),
         )
 
+        // The native loop records why it stopped: EOS, token budget, cancel.
+        // Kotlin's own stop marker (a template token) is a normal end too.
+        val finishReason = when {
+            stoppedByUser -> FinishReason.CANCELLED
+            sanitizer.finished -> FinishReason.EOS
+            else -> when (NativeLlama.nativeFinishReason(handle)) {
+                1 -> FinishReason.EOS
+                2 -> FinishReason.LENGTH
+                3 -> FinishReason.CANCELLED
+                else -> FinishReason.UNKNOWN
+            }
+        }
+
         Result.success(
             GenerationMetrics(
                 promptTokens = timing.promptTokens,
@@ -280,6 +296,7 @@ class LlamaEngine(
                 tokensPerSecond = timing.tokensPerSecond,
                 peakRamBytes = peakRam,
                 modelId = model.variant.id,
+                finishReason = finishReason,
             ),
         ).also {
             if (stoppedByUser) cancelled.set(false)

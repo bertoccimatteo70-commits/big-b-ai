@@ -14,9 +14,9 @@ viene da calcoli reali, dal database locale o dal motore di inferenza.
 | Area | Stato |
 |---|---|
 | Compilazione debug | ✅ verificata (`assembleDebug`); APK generato, firmato e ispezionato |
-| Test unitari JVM | ✅ 165 test, 0 falliti (`:core` 42, `:code` 48, `:llm` 59, `:app` 16) |
+| Test unitari JVM | ✅ 212 test, 0 falliti (`:core` 42, `:code` 48, `:llm` 106, `:app` 16) |
 | Lint debug | ✅ 0 errori, 66 warning (dipendenze/AGP non aggiornate) |
-| Copertura JVM (JaCoCo) | ✅ misurata in 1.3.0: **8,0%** delle linee complessive; la copertura non è stata ricalcolata in 1.5.0 |
+| Copertura JVM (JaCoCo) | ✅ **16,0%** delle linee (2.127 coperte, 11.202 mancanti); nuove logiche critiche al 91–100% |
 | Librerie native `libbigbai.so` (llama.cpp) | ✅ compilate e strippate per **arm64-v8a, armeabi-v7a e x86_64** (4,2–6,6 MB ciascuna) |
 | Modello di embedding incluso | ✅ multilingual-e5-small Q8_0, 132.439.008 byte, SHA-256 verificato nello script, nell'APK e a runtime |
 | Embedding su host | ✅ caricamento e vettori a 384 dimensioni verificati su x86_64; su dispositivo **non verificato** |
@@ -31,22 +31,22 @@ ambiente di build. I dettagli sono in [docs/LIMITATIONS.md](docs/LIMITATIONS.md)
 
 | Campo | Valore |
 |---|---|
-| File | `BIG-B-AI-debug-1.5.0.apk` |
-| Versione | 1.5.0-debug (versionCode 6) |
-| Dimensione | **248.075.965 byte (236,58 MiB / 248,08 MB)** |
-| SHA-256 | `23a47f3be138c6742da27392eb7ddd9f1b6d64a75419a10b6df00023ca05e064` |
+| File | `BIG-B-AI-debug-1.5.1.apk` |
+| Versione | 1.5.1-debug (versionCode 7) |
+| Dimensione (build locale) | **248.141.501 byte (236,65 MiB / 248,14 MB)** |
+| SHA-256 (build locale) | `ef820ffa7b79308c81318cb897d8fe76142f37b40f2637bedbc28ddab06436f6` |
 | minSdk / targetSdk | 31 (Android 12) / 35 |
 | ABI | **arm64-v8a, armeabi-v7a, x86_64** (APK universale) |
 | Firma | chiave **debug** Android (`CN=Android Debug`) |
-| Requisito 200 MiB | **soddisfatto**: 209.715.200 byte richiesti, 248.075.965 presenti |
+| Requisito 200 MiB | **soddisfatto**: 209.715.200 byte richiesti, 248.141.501 presenti |
 
 L'APK è installabile su Android 12+ con architettura ARM 64-bit, ARM 32-bit o x86_64 (emulatore).
 È la variante **debug** (`com.bigbai.app.debug`), firmata con la chiave debug Android
-(`CN=Android Debug`): è dichiarato, non nascosto. I valori qui sopra sono l'APK scaricato
-dall'artifact `BIG-B-AI-Debug-APK` della run CI
-[44904141926](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44904141926) sul
-commit `f27d723`; dimensione, SHA-256, firma, manifest, ABI e modello incluso sono stati
-ricontrollati dopo il download. L'hash cambia a ogni ricostruzione per i timestamp di firma.
+(`CN=Android Debug`): è dichiarato, non nascosto. I valori qui sopra sono la **build locale**
+1.5.1, verificata con `apksigner`, `aapt2` e il confronto SHA-256 del modello dentro l'APK.
+L'APK pubblicato dalla CI è nell'artifact `BIG-B-AI-Debug-APK` della run più recente del
+workflow `android.yml`; la dimensione può variare di poche centinaia di KB per l'ordinamento
+del dex e i timestamp di firma. L'hash cambia a ogni ricostruzione.
 
 La dimensione supera i 200 MiB perché l'APK contiene il motore nativo reale per **tre** ABI e il
 modello di embedding **multilingual-e5-small Q8_0** (132.439.008 byte) usato per il retrieval
@@ -57,11 +57,32 @@ firma e manifest, e **rifiuta un APK sotto i 200 MiB**.
 I modelli di **chat** non sono inclusi nell'APK: si scaricano dall'app, con ripresa del download e
 verifica SHA-256. L'APK contiene il motore e il modello di embedding.
 
+## Novità 1.5.1
+
+- **Nessun use-after-free nell'embedder.** Caricamento, inferenza e scaricamento passano da un
+  unico lock (`EmbedderSession`): `close()` attende l'embedding in corso e non libera più il
+  modello sotto una chiamata nativa. 8 test di concorrenza e ciclo di vita.
+- **Indice semantico persistito davvero.** Scrittura `.part`, `fsync`, rilettura e confronto,
+  backup, move atomico, quarantena dei file corrotti. Un salvataggio fallito non viene più
+  mostrato come riuscito; l'indice in memoria cambia solo dopo la verifica.
+- **Marker di installazione v2.** Il modello è valido solo se hash, dimensione **e** mtime
+  coincidono; un marker legacy o un file sostituito forza un hash reale una volta sola.
+- **Quality gate corretto.** Il motore espone il motivo di fine (EOS, lunghezza, annullato):
+  una risposta tagliata dal limite viene ritentata una volta con più token, una risposta
+  terminata con EOS non viene più riscritta. La prima risposta viene conservata se la
+  riscrittura è peggiore.
+- **Soglia di retrieval misurata.** Da 0,80 a **0,83** sulla base di precision/recall reali:
+  a 0,80 la precision era 0,769 con 3 falsi positivi, a 0,83 è 1,000 con recall 1,000.
+- **RAM più ragionevole.** La richiesta scende da 550 MiB a 236.439.008 byte (modello + 48 MiB
+  di runtime + 56 MiB di margine), con extra per dispositivi low-RAM e pressione memoria.
+- **Documentazione corretta**: modello di embedding incluso e licenza MIT, distinzione tra APK,
+  ZIP dell'artifact e build locale.
+
 ## Novità 1.5.0
 
 - **Retrieval semantico locale.** Il modello di embedding multilingual-e5-small Q8_0 è incluso
   nell'APK: documenti e memorie vengono indicizzati e i passaggi pertinenti entrano nel prompt,
-  filtrati per conversazione. Soglia alta (0,80) per non iniettare testo fuorviante.
+  filtrati per conversazione. Soglia alta (oggi 0,83, misurata) per non iniettare testo fuorviante.
 - **Controlli deterministici.** Le espressioni aritmetiche vengono calcolate dall'app e il
   risultato verificato entra nel prompt; un controllo italiano segnala spazi, duplicati,
   punteggiatura e bilanciamento; un quality gate riscrive una sola volta le risposte ripetitive

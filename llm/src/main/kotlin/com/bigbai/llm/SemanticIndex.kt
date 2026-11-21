@@ -64,6 +64,9 @@ class SemanticIndex private constructor(
 
     fun clear() = entries.clear()
 
+    /** Independent copy used to apply a change before it is persisted. */
+    fun copy(): SemanticIndex = SemanticIndex(entries.toMutableList())
+
     fun writeTo(output: OutputStream) {
         val data = DataOutputStream(output)
         data.writeInt(MAGIC)
@@ -95,14 +98,21 @@ class SemanticIndex private constructor(
          * stream is not a BIG B index, has an unknown version or is truncated:
          * a damaged cache must never prevent the app from starting.
          */
-        fun readFrom(input: InputStream): SemanticIndex {
+        fun readFrom(input: InputStream): SemanticIndex = readFromOrNull(input) ?: empty()
+
+        /**
+         * Like [readFrom] but returns null for a corrupt stream, so a store can
+         * distinguish "valid empty index" from "unreadable file" and restore a
+         * backup instead of silently discarding the data.
+         */
+        fun readFromOrNull(input: InputStream): SemanticIndex? {
             val index = empty()
-            runCatching {
+            try {
                 val data = DataInputStream(input)
-                if (data.readInt() != MAGIC) return empty()
-                if (data.readInt() != VERSION) return empty()
+                if (data.readInt() != MAGIC) return null
+                if (data.readInt() != VERSION) return null
                 val count = data.readInt()
-                if (count < 0 || count > MAX_ENTRIES) return empty()
+                if (count < 0 || count > MAX_ENTRIES) return null
                 repeat(count) {
                     val id = data.readUTF()
                     val kindOrdinal = data.readInt()
@@ -112,8 +122,9 @@ class SemanticIndex private constructor(
                     val text = data.readUTF()
                     val createdAt = data.readLong()
                     val dim = data.readInt()
-                    if (dim <= 0 || dim > 4096) return empty()
+                    if (dim <= 0 || dim > 4096) return null
                     val vector = FloatArray(dim) { data.readFloat() }
+                    if (vector.any { !it.isFinite() }) return null
                     index.add(
                         IndexEntry(
                             id = id,
@@ -126,7 +137,9 @@ class SemanticIndex private constructor(
                         ),
                     )
                 }
-            }.onFailure { return empty() }
+            } catch (_: Exception) {
+                return null
+            }
             return index
         }
     }

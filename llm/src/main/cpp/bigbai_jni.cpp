@@ -63,6 +63,9 @@ struct Session {
     mtmd_context * mctx = nullptr;
 
     std::atomic<bool> cancel{false};
+    // 0 unknown, 1 EOS/EOG, 2 token limit, 3 cancelled. Read by Kotlin after the
+    // loop so the app can distinguish a finished answer from a cut one.
+    std::atomic<int32_t> finish_reason{0};
     int32_t n_batch = 256;
     int32_t n_past = 0;
     int32_t generated = 0;
@@ -399,6 +402,7 @@ Java_com_bigbai_llm_NativeLlama_nativeBegin(
     if (session == nullptr) return JNI_FALSE;
 
     session->cancel.store(false);
+    session->finish_reason.store(0);
     session->generated = 0;
     session->max_tokens = std::max<int32_t>(1, max_tokens);
 
@@ -446,6 +450,7 @@ Java_com_bigbai_llm_NativeLlama_nativeBeginVision(
     }
 
     session->cancel.store(false);
+    session->finish_reason.store(0);
     session->generated = 0;
     session->max_tokens = std::max<int32_t>(1, max_tokens);
 
@@ -505,12 +510,21 @@ JNIEXPORT jbyteArray JNICALL
 Java_com_bigbai_llm_NativeLlama_nativeNextToken(JNIEnv * env, jclass, jlong handle) {
     Session * session = from_handle(handle);
     if (session == nullptr || session->sampler == nullptr) return nullptr;
-    if (session->cancel.load()) return nullptr;
-    if (session->generated >= session->max_tokens) return nullptr;
+    if (session->cancel.load()) {
+        session->finish_reason.store(3);
+        return nullptr;
+    }
+    if (session->generated >= session->max_tokens) {
+        session->finish_reason.store(2);
+        return nullptr;
+    }
 
     const llama_token id = llama_sampler_sample(session->sampler, session->ctx, -1);
     if (id < 0) return nullptr;
-    if (llama_vocab_is_eog(session->vocab, id)) return nullptr;
+    if (llama_vocab_is_eog(session->vocab, id)) {
+        session->finish_reason.store(1);
+        return nullptr;
+    }
 
     llama_sampler_accept(session->sampler, id);
 
@@ -539,6 +553,13 @@ Java_com_bigbai_llm_NativeLlama_nativeNextToken(JNIEnv * env, jclass, jlong hand
     session->n_past += 1;
     session->generated += 1;
     return result;
+}
+
+JNIEXPORT jint JNICALL
+Java_com_bigbai_llm_NativeLlama_nativeFinishReason(JNIEnv *, jclass, jlong handle) {
+    Session * session = from_handle(handle);
+    if (session == nullptr) return 0;
+    return static_cast<jint>(session->finish_reason.load());
 }
 
 JNIEXPORT void JNICALL

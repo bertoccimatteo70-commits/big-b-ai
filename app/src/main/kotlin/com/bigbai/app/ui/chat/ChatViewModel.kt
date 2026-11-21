@@ -36,6 +36,7 @@ import com.bigbai.llm.ModelProfiles
 import com.bigbai.llm.ModelRole
 import com.bigbai.llm.PromptMessage
 import com.bigbai.llm.PromptTemplates
+import com.bigbai.core.model.FinishReason
 import com.bigbai.llm.QualityGate
 import com.bigbai.llm.ResponseQuality
 import com.bigbai.llm.RetrievedPassage
@@ -409,14 +410,16 @@ class ChatViewModel(
                 val documents = snapshot.attachments.filter {
                     it.kind == Attachment.Kind.PDF && !it.extractedText.isNullOrBlank()
                 }
+                var indexError: String? = null
                 if (settings.semanticMemoryEnabled && documents.isNotEmpty()) {
                     _state.update { it.copy(status = "Preparazione del contesto del documento…") }
                     documents.forEach { pdf ->
-                        container.semantic.indexDocument(
+                        val outcome = container.semantic.indexDocument(
                             sourceId = "doc:$conversationId:${pdf.name}",
                             label = pdf.name,
                             text = pdf.extractedText.orEmpty(),
                         )
+                        if (!outcome.persisted && outcome.error != null) indexError = outcome.error
                     }
                 }
                 val verified = if (text.isNotBlank()) Calculator.detect(text) else emptyList()
@@ -453,38 +456,91 @@ class ChatViewModel(
                 var finalText = AnswerSanitizer.clean(buffer.flush()).trim()
                 var quality = ResponseQuality.inspect(finalText)
 
-                // A looping or unfinished answer is worth exactly one rewrite:
-                // lower temperature and a stronger penalty fix the failure mode
-                // that small models actually show, without touching the prompt
-                // content or inventing anything.
+                // Keep the first answer: if the single retry fails, is cancelled
+                // or is worse, the user still gets the complete first response
+                // instead of an error or a fragment.
+                val firstResult = result
+                val firstText = finalText
+                val firstQuality = quality
+                val firstFinish = when {
+                    timedOut -> FinishReason.TIMEOUT
+                    cancelledByUser -> FinishReason.CANCELLED
+                    else -> result.getOrNull()?.finishReason ?: FinishReason.UNKNOWN
+                }
+                var retried = false
+                var retryNote: String? = null
+
+                // One rewrite at most. A LENGTH cut gets a larger token budget;
+                // loops and unclosed code get a lower temperature. A clean EOS
+                // is never retried just because the text does not end with a
+                // full stop.
                 if (!cancelledByUser && !timedOut &&
-                    QualityGate.shouldRetry(quality, SystemClock.elapsedRealtime() - generationStarted)
+                    QualityGate.shouldRetry(
+                        quality,
+                        SystemClock.elapsedRealtime() - generationStarted,
+                        firstFinish,
+                        attempt = 0,
+                    )
                 ) {
+                    retried = true
                     _state.update { it.copy(status = "Controllo qualità: riscrivo la risposta…") }
                     val retryBuffer = StreamingBuffer()
                     val retryParams = params.copy(
+                        maxTokens = if (firstFinish == FinishReason.LENGTH) {
+                            QualityGate.retryMaxTokens(params.maxTokens)
+                        } else {
+                            params.maxTokens
+                        },
                         temperature = (params.temperature * 0.6f).coerceAtLeast(0.15f),
                         repeatPenalty = (params.repeatPenalty + 0.1f).coerceAtMost(1.4f),
                     )
                     val retryPrompt = listOf(prompt.first()) + PromptMessage(
                         "system",
-                        "La risposta precedente era ripetitiva o incompleta. Riscrivila in italiano corretto, " +
-                            "senza ripetere frasi, senza troncarla e senza aggiungere nuove informazioni.",
+                        if (firstFinish == FinishReason.LENGTH) {
+                            "La risposta precedente è stata tagliata dal limite di token. Completa il " +
+                                "concetto in italiano corretto, senza ripetere frasi e senza aggiungere " +
+                                "informazioni non richieste."
+                        } else {
+                            "La risposta precedente era ripetitiva o incompleta. Riscrivila in italiano " +
+                                "corretto, senza ripetere frasi, senza troncarla e senza aggiungere nuove " +
+                                "informazioni."
+                        },
                     ) + prompt.drop(1)
-                    result = container.engine.generate(retryPrompt, retryParams, vision) { token ->
+                    val retryResult = container.engine.generate(retryPrompt, retryParams, vision) { token ->
                         retryBuffer.append(token, SystemClock.elapsedRealtime())
                     }
-                    finalText = AnswerSanitizer.clean(retryBuffer.flush()).trim()
-                    quality = ResponseQuality.inspect(finalText)
+                    val retryText = AnswerSanitizer.clean(retryBuffer.flush()).trim()
+                    val retryQuality = ResponseQuality.inspect(retryText)
+                    val usable = retryResult.isSuccess && !cancelledByUser && retryText.isNotBlank() &&
+                        (firstText.isBlank() || retryText.length >= minOf(40, firstText.length / 4)) &&
+                        QualityGate.isAcceptableRetry(firstQuality, retryQuality)
+                    if (usable) {
+                        result = retryResult
+                        finalText = retryText
+                        quality = retryQuality
+                    } else {
+                        result = firstResult
+                        finalText = firstText
+                        quality = firstQuality
+                        retryNote = if (cancelledByUser) {
+                            "Riscrittura annullata: è mostrata la prima risposta."
+                        } else {
+                            "La riscrittura non ha prodotto una risposta migliore: è mostrata la prima."
+                        }
+                    }
                 }
                 cancelTimeout()
 
                 if (cancelledByUser || timedOut) {
-                    if (finalText.isNotEmpty()) {
+                    // If the retry was interrupted, the first answer is complete:
+                    // show it as a normal answer instead of labelling it cut.
+                    val completeFallback = retried && firstText.isNotBlank()
+                    val textToShow = if (completeFallback) firstText else finalText
+                    if (textToShow.isNotEmpty()) {
                         container.chat.appendMessage(
                             conversationId = conversationId,
                             role = Role.ASSISTANT,
-                            content = "$finalText\n\n_(risposta interrotta)_",
+                            content = if (completeFallback) textToShow else "$textToShow\n\n_(risposta interrotta)_",
                             modelId = loaded.variant.id,
                             sources = sources,
                         )
@@ -494,11 +550,13 @@ class ChatViewModel(
                             streamingText = "",
                             isThinking = false,
                             status = null,
-                            qualityNote = null,
-                            error = if (timedOut) {
-                                "Il modello non ha risposto in tempo. La risposta parziale è marcata come interrotta."
-                            } else {
-                                null
+                            qualityNote = retryNote,
+                            error = when {
+                                timedOut && completeFallback ->
+                                    "La riscrittura non è terminata in tempo: è mostrata la prima risposta."
+                                timedOut ->
+                                    "Il modello non ha risposto in tempo. La risposta parziale è marcata come interrotta."
+                                else -> null
                             },
                         )
                     }
@@ -523,7 +581,8 @@ class ChatViewModel(
                         it.completionTokens > 0 || it.promptTokens > 0 || finalText.isNotEmpty()
                     }
                     if (measured != null) container.lastMetrics.value = measured
-                    val note = buildQualityNote(quality, finalText)
+                    val finalFinish = result.getOrNull()?.finishReason ?: firstFinish
+                    val note = buildQualityNote(quality, finalText, finalFinish, retryNote, indexError)
                     updateIfCurrent(generation) {
                         it.copy(
                             metrics = measured,
@@ -834,10 +893,21 @@ class ChatViewModel(
     }
 
     /** Deterministic post-checks, shown to the user without editing the answer. */
-    private fun buildQualityNote(report: ResponseQuality.Report, text: String): String? {
-        val quality = QualityGate.describe(report)
+    private fun buildQualityNote(
+        report: ResponseQuality.Report,
+        text: String,
+        finishReason: FinishReason = FinishReason.UNKNOWN,
+        retryNote: String? = null,
+        indexError: String? = null,
+    ): String? {
+        val quality = QualityGate.describe(report, finishReason)
         val italian = ItalianCheck.summary(ItalianCheck.inspect(text))
-        return listOfNotNull(quality, italian).joinToString(" · ").ifBlank { null }
+        return listOfNotNull(
+            quality,
+            italian,
+            retryNote,
+            indexError?.let { "Indice semantico: $it" },
+        ).joinToString(" · ").ifBlank { null }
     }
 
     /**

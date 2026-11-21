@@ -15,6 +15,23 @@ Apache-2.0, con hash SHA-256 dei file LFS verificati contro l'API di Hugging Fac
 | Qwen2.5 Coder 7B Instruct | code | 7B | Q2_K (2876 MB), Q3_K_M (3632 MB), Q4_K_M (4466 MB) |
 | Qwen2.5 VL 3B Instruct | vision | 3B | Q4_K_M (1840 MB), Q8_0 (3133 MB) |
 
+## Modello di embedding incluso
+
+Non è nel catalogo dei download: è dentro l'APK e non viene scaricato.
+
+| Voce | Valore |
+|---|---|
+| Modello | `multilingual-e5-small` Q8_0 GGUF (`TwinSunsLLC/multilingual-e5-small-gguf`) |
+| Dimensione | 132.439.008 byte |
+| SHA-256 | `e011debc1208e31bf7b6aebee2d9fc8bd2ca11694a77ed66ac9d0c9d0a877c93` |
+| Licenza | **MIT** (`cardData.license` dell'API Hugging Face; base `intfloat/multilingual-e5-small`, MIT) |
+| Ruolo | retrieval semantico locale: trasforma domande e passaggi in vettori, non genera testo |
+| Soglia | 0,83, misurata in `docs/RETRIEVAL-1.5.1.md` |
+| RAM | 132 MB di modello + 48 MiB di runtime + 56 MiB di margine (vedi `EmbeddingMemoryPolicy`) |
+
+Il modello è verificato con SHA-256 e dimensione all'installazione e accettato agli avvii
+successivi solo se il marker `InstallMarker` v2 coincide per hash, dimensione e mtime.
+
 ## Quantizzazioni
 
 | Quant | Uso tipico | Trade-off |

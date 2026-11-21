@@ -240,9 +240,18 @@ animazioni e resa del font. Non viene dichiarato un risultato visivo.
 | Build | `assembleDebug` + `scripts/package-debug-apk.sh` (CI) |
 | Run CI | [44904141926](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44904141926), commit `f27d723` |
 
-Composizione: dei 132,7 MB aggiunti rispetto alla 1.4 (115.341.878 byte), **132,4 MB sono il
-modello di embedding**; il resto è codice e dex in più. Non c'è padding, nessun file duplicato,
-nessuna risorsa casuale.
+### Dimensioni a confronto (1.5.0)
+
+| Cosa | Byte | MiB | Note |
+|---|---:|---:|---|
+| APK pubblicato dalla CI | 248.075.965 | 236,58 | è questo il file confrontato con il requisito di 200 MiB |
+| APK compilato in locale | 248.660.875 | 237,14 | stessi sorgenti, dex/firma ricostruiti: 584.910 byte di differenza |
+| ZIP dell'artifact | 167.696.447 | 159,93 | compressione del pacchetto (APK + `.sha256` + `.txt`); **non** è l'APK |
+| APK 1.4.0 | 115.341.878 | 110,00 | riferimento della versione precedente |
+
+Composizione: dei 132,7 MB aggiunti rispetto alla 1.4, **132,4 MB sono il modello di embedding**;
+il resto è codice e dex in più. Non c'è padding, nessun file duplicato, nessuna risorsa casuale.
+Il requisito di 200 MiB si applica all'APK, mai allo ZIP dell'artifact.
 
 `scripts/package-debug-apk.sh` ora:
 
@@ -257,7 +266,8 @@ nessuna risorsa casuale.
 I valori qui sopra sono l'APK **scaricato dall'artifact** della run CI e ricalcolati dopo il
 download: dimensione, SHA-256, firma, manifest, ABI e SHA-256 del modello dentro l'APK. La build
 locale di verifica aveva una dimensione leggermente diversa (248.660.875 byte): gli stessi
-sorgenti, ordinamento del dex e timestamp di firma diversi.
+sorgenti, ordinamento del dex e timestamp di firma diversi. La tabella "Dimensioni a confronto"
+chiarisce la differenza tra APK, ZIP dell'artifact e build locale.
 
 ---
 

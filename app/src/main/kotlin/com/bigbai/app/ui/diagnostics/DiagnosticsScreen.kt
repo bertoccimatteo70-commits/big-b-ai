@@ -119,7 +119,18 @@ fun DiagnosticsScreen(container: AppContainer, onBack: () -> Unit) {
                 Info("Caricato in memoria", if (stats?.modelLoaded == true) "sì" else "no")
                 Info("Passaggi indicizzati", (stats?.passages ?: 0).toString())
                 Info("Documenti e ricordi", (stats?.sources ?: 0).toString())
+                Info("Indice su disco", ModelDownloadManager.formatBytes(stats?.indexBytes ?: 0L))
+                Info("Ultimo salvataggio", if (stats?.persisted == true) "verificato" else "non riuscito")
+                if (stats?.recovered == true) Info("Recupero", "indice ripristinato dal backup")
+                if (stats?.corrupt == true) Info("Corruzione", "file principale danneggiato, quarantena creata")
+                Info(
+                    "RAM per caricare",
+                    "${ModelDownloadManager.formatBytes(state.embedderRequiredBytes)} richiesti · " +
+                        "${ModelDownloadManager.formatBytes(state.embedderAvailableBytes)} disponibili" +
+                        if (state.embedderPressure > 0) " · pressione ${state.embedderPressure}/3" else "",
+                )
                 stats?.failure?.let { failure -> Info("Ultimo errore", failure) }
+                stats?.lastError?.let { error -> Info("Persistenza", error) }
                 Spacer(Modifier.height(4.dp))
                 OutlinedButton(
                     onClick = viewModel::verifyBundledModel,
@@ -127,6 +138,14 @@ fun DiagnosticsScreen(container: AppContainer, onBack: () -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(if (state.verifying) "Verifica in corso…" else "Verifica integrità SHA-256")
+                }
+                Spacer(Modifier.height(6.dp))
+                OutlinedButton(
+                    onClick = viewModel::rebuildIndex,
+                    enabled = !state.rebuilding,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(if (state.rebuilding) "Ricostruzione…" else "Ricostruisci indice dai ricordi")
                 }
                 state.verificationResult?.let { result ->
                     Spacer(Modifier.height(4.dp))

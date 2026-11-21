@@ -119,6 +119,13 @@ data class CodeChange(
 
 /** Measured generation statistics. Every field is sampled at runtime; nothing here
  *  is estimated or synthesized. */
+/**
+ * Why the native generation loop stopped. `LENGTH` means the model hit the
+ * token budget and the answer is genuinely cut; `EOS` means the model declared
+ * the answer finished, even if the text does not end with a full stop.
+ */
+enum class FinishReason { UNKNOWN, EOS, LENGTH, CANCELLED, TIMEOUT, ERROR }
+
 data class GenerationMetrics(
     val promptTokens: Int = 0,
     val completionTokens: Int = 0,
@@ -128,4 +135,5 @@ data class GenerationMetrics(
     val tokensPerSecond: Double = 0.0,
     val peakRamBytes: Long = 0,
     val modelId: String = "",
+    val finishReason: FinishReason = FinishReason.UNKNOWN,
 )

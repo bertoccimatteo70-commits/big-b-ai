@@ -8,11 +8,11 @@ L'obiettivo è che nessuno scopra un limite solo dopo aver installato l'APK.
 | Cosa | Stato |
 |---|---|
 | Compilazione debug | Verificata in questo ambiente |
-| Test unitari JVM (165) | Verificati, 0 falliti |
+| Test unitari JVM (200) | Verificati, 0 falliti |
 | Agente BIG B Code (parsing, limiti, quota) | Verificato con test JVM |
 | Quota giornaliera su dispositivo reale | **Non verificata**: logica e persistenza testate, ciclo su device no |
 | Lint debug | 0 errori, 66 warning |
-| Copertura JVM (JaCoCo) | Misurata in 1.3.0: 8,0% delle linee; non ricalcolata in 1.5.0; UI, Room, PDF e backup non coperti |
+| Copertura JVM (JaCoCo) | Misurata in 1.5.1: **14,7%** delle linee (1.955 coperte, 11.365 mancanti); UI, Room, PDF e backup non coperti |
 | Librerie native arm64-v8a, armeabi-v7a, x86_64 | Compilate e strippate, presenti nell'APK |
 | Modello di embedding incluso | Verificato per dimensione e SHA-256 (script, APK, host); **non caricato su device** |
 | Retrieval semantico su device | **Non verificato**: soglia e qualità misurate solo su host |
@@ -68,7 +68,10 @@ implementate e compilano, ma non sono state eseguite: non vengono dichiarate "fu
 - **Nessun compilatore Java/C++ sul dispositivo.** Android non include `javac` né `clang`.
   BIG B Code offre analisi statica reale, non compilazione: l'interfaccia lo dichiara.
 - **Nessun OCR.** I PDF scansionati non sono leggibili.
-- **Nessun modello incluso.** L'APK contiene il motore; i modelli si scaricano (centinaia di MB).
+- **Nessun modello di chat incluso.** L'APK contiene il motore e il modello di embedding
+  multilingual-e5-small Q8_0 (132.439.008 byte, licenza MIT), usato per il retrieval locale. I
+  modelli di chat si scaricano dall'app (centinaia di MB) e sono verificati con SHA-256. Il modello
+  di embedding non genera risposte: serve solo a trovare passaggi pertinenti.
 
 ## Consegna
 
