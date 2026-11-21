@@ -11,11 +11,11 @@ import java.security.MessageDigest
 /**
  * A model that ships inside the APK instead of being downloaded later.
  *
- * The APK is the only reliable distribution channel for this app, so the one
- * component that must never be missing — the embedding model used for local
- * retrieval — is bundled. It is copied out of the read-only assets into the
- * app's private storage exactly once, and the copy is accepted only after its
- * SHA-256 matches the pinned value.
+ * The APK is the only reliable distribution channel for this app, so the two
+ * components that must never be missing — the entry chat model and the
+ * embedding model used for local retrieval — are bundled. Each one is copied
+ * out of the read-only assets into the app's private storage exactly once, and
+ * the copy is accepted only after its SHA-256 matches the pinned value.
  */
 data class BundledModelSpec(
     val assetPath: String,

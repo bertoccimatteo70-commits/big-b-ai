@@ -44,7 +44,7 @@ fi
 
 mkdir -p "$CACHE_DIR"
 if ! verify "$CACHE"; then
-  echo "Downloading $FILE_NAME (1066 MB, the only large network step of the build)…"
+  echo "Downloading $FILE_NAME (1117 MB, the only large network step of the build)…"
   rm -f "$CACHE.part"
   curl -fL --retry 3 --retry-delay 3 --connect-timeout 30 -o "$CACHE.part" "$URL"
   mv "$CACHE.part" "$CACHE"

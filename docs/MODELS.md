@@ -8,7 +8,7 @@ ITAGPT 2.0.0 include un modello conversazionale reale, non un segnaposto:
 |---|---|
 | Modello | **Qwen2.5 1.5B Instruct**, quantizzazione **Q4_K_M** |
 | File | `qwen2.5-1.5b-instruct-q4_k_m.gguf` |
-| Dimensione | **1.117.320.736 byte** (1,07 GiB) |
+| Dimensione | **1.117.320.736 byte** (1,12 GB) |
 | SHA-256 | `6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e` |
 | Licenza | **Apache-2.0** (`Qwen/Qwen2.5-1.5B-Instruct-GGUF`) |
 | Formato | GGUF, Q4_K_M, template ChatML |
@@ -57,10 +57,10 @@ catalogo non sono inclusi nell'APK: si scaricano dall'app, con ripresa e verific
 | Famiglia | Ruolo | Parametri | Quantizzazioni (dimensione file) |
 |---|---|---|---|
 | Qwen2.5 0.5B Instruct | chat | 0.5B | Q2_K (396 MB), Q3_K_M (412 MB), Q4_K_M (469 MB), Q5_K_M (498 MB), Q6_K (620 MB) |
-| Qwen2.5 1.5B Instruct | chat | 1.5B | Q2_K (718 MB), Q3_K_M (882 MB), Q4_K_M (1066 MB), Q5_K_M (1226 MB), Q6_K (1396 MB) |
+| Qwen2.5 1.5B Instruct | chat | 1.5B | Q2_K (718 MB), Q3_K_M (882 MB), Q4_K_M (1117 MB), Q5_K_M (1226 MB), Q6_K (1396 MB) |
 | Qwen2.5 3B Instruct | chat | 3B | Q2_K (1313 MB), Q3_K_M (1644 MB), Q4_K_M (2007 MB), Q5_K_M (2326 MB), Q6_K (2664 MB) |
 | Qwen2.5 7B Instruct | chat | 7B | Q2_K (2876 MB), Q3_K_M (3632 MB), Q4_K_M (4466 MB), Q5_K_M (5193 MB), Q6_K (5964 MB) |
-| Qwen2.5 Coder 1.5B Instruct | code | 1.5B | Q2_K (718 MB), Q4_K_M (1066 MB), Q5_K_M (1226 MB), Q6_K (1396 MB) |
+| Qwen2.5 Coder 1.5B Instruct | code | 1.5B | Q2_K (718 MB), Q4_K_M (1117 MB), Q5_K_M (1226 MB), Q6_K (1396 MB) |
 | Qwen2.5 Coder 7B Instruct | code | 7B | Q2_K (2876 MB), Q3_K_M (3632 MB), Q4_K_M (4466 MB) |
 | Qwen2.5 VL 3B Instruct | vision | 3B | Q4_K_M (1840 MB), Q8_0 (3133 MB) |
 

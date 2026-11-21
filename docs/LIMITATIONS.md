@@ -36,7 +36,7 @@ implementate e compilano, ma non sono state eseguite su Android: non vengono dic
   tutti gli 8 casi chiusi con EOS, ma restano errori di contenuto: per esempio la spiegazione di
   «qual è»/«qual'è» è sbagliata e la spiegazione del cielo blu contiene invenzioni. Non va usato
   come fonte medica, legale o fattuale senza verifica.
-- **RAM necessaria.** Il modello pesa 1,07 GiB; con KV cache a 4.096 token e overhead la stima è
+- **RAM necessaria.** Il modello pesa 1,12 GB; con KV cache a 4.096 token e overhead la stima è
   circa 1,45 GiB. In pratica servono almeno **4 GB di RAM** e circa **3 GB liberi** per installare
   l'APK e copiare il modello negli asset privati. Su 2–3 GB il caricamento può essere rifiutato
   dal budget RAM: l'app mostra l'errore, non finge di aver caricato il modello.

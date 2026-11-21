@@ -21,7 +21,7 @@ versione senza dipendere da un Gradle installato nel `PATH`.
 
 ```bash
 bash scripts/fetch-bundled-model.sh  # embedding multilingual-e5-small (132 MB)
-bash scripts/fetch-bundled-chat.sh   # chat Qwen2.5 1.5B Q4_K_M (1.066 MiB)
+bash scripts/fetch-bundled-chat.sh   # chat Qwen2.5 1.5B Q4_K_M (1.117 MB)
 ```
 
 `fetch-bundled-chat.sh` scarica `qwen2.5-1.5b-instruct-q4_k_m.gguf` dal repository

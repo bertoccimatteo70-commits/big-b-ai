@@ -46,9 +46,20 @@ Gli APK sono pubblicati negli artifact della run CI di questa release:
   `ITAGPT-release-debug-signed-2.0.0.apk` finché non vengono configurati i Secrets;
 - **ITAGPT-CI-Reports** — risultati JUnit e lint.
 
+| APK | Dimensione | SHA-256 | Firma |
+|---|---|---|---|
+| `ITAGPT-debug-2.0.0.apk` | 1.399.047.913 byte (1334,24 MiB) | `f888d90527a9e35745c153dea342bdddbce8b8d33b69e8890aef19b4f502b44a` | valida, chiave debug |
+| `ITAGPT-release-debug-signed-2.0.0.apk` | 1.329.934.753 byte (1268,32 MiB) | `fcef47418a0e04aee5bca942855260b24d73b07f139faa520d102b3f40409fa0` | chiave debug, non ufficiale |
+
 Ogni artifact contiene l'APK, il file `.sha256` e un report `.txt` con dimensione, data, ABI,
-modelli e firma. La pagina della run e i dati esatti sono in
+modelli e firma. Download: [ITAGPT-Debug-APK](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44933207079/artifacts/14719151937) e
+[ITAGPT-Release-APK](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44933207079/artifacts/14719795927)
+(retention 30 giorni). La pagina della run e i dati esatti sono in
 [docs/RELEASE-2.0.0.md](docs/RELEASE-2.0.0.md).
+
+Entrambi gli artifact sono stati scaricati in questo ambiente: `sha256sum -c` ha confermato i due
+checksum, `apksigner verify` la firma debug e `aapt2 dump badging` package e SDK; i due modelli
+dentro gli APK hanno lo SHA-256 atteso. Non sono stati installati né avviati su Android.
 
 L'APK è **universale** (arm64-v8a, armeabi-v7a, x86_64), non ci sono split per ABI e non esiste
 alcun limite minimo o massimo artificiale di dimensione: lo script di packaging verifica i
@@ -157,7 +168,7 @@ Requisiti: JDK 17, Android SDK 35, NDK 27.2.12479018, CMake 3.22.1, Gradle 8.11.
 ```bash
 bash scripts/fetch-llama.sh          # llama.cpp al commit fissato
 bash scripts/fetch-bundled-model.sh  # embedding (132 MB), SHA-256 verificato
-bash scripts/fetch-bundled-chat.sh   # chat Qwen2.5 1.5B (1.066 GiB), SHA-256 verificato
+bash scripts/fetch-bundled-chat.sh   # chat Qwen2.5 1.5B (1.117 GB), SHA-256 verificato
 bash scripts/build-native.sh         # libbigbai.so per arm64-v8a, armeabi-v7a, x86_64
 
 ./gradlew :core:testDebugUnitTest :code:testDebugUnitTest :llm:testDebugUnitTest :app:testDebugUnitTest

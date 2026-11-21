@@ -18,7 +18,7 @@ questa lavorazione; nessun test su dispositivo fisico o emulatore è stato possi
 | Code Java | BLOCCATO | Analisi statica reale e test JVM | Nessuna compilazione/esecuzione: Android non include `javac`; toolchain embedded non integrato |
 | Code C++ | BLOCCATO | Analisi statica reale e test JVM | Nessuna compilazione/esecuzione: Android non include `clang`; NDK non spedito come compilatore |
 | Interfaccia e restyle | IMPLEMENTATO NON VERIFICATO SU DISPOSITIVO | Tema ITAGPT, icona, drawer, scala testo 85–130%, schermate voce/OCR/documenti; compila | Nessuno screenshot o test visivo su device |
-| Test | COMPLETATO E VERIFICATO | **222 test JVM, 0 falliti, 0 errori, 0 saltati**; lint **0 errori, 69 warning** | Nessun test strumentale o su device |
+| Test | COMPLETATO E VERIFICATO | **222 test JVM, 0 falliti, 0 errori, 0 saltati**; lint **0 errori, 70 warning** | Nessun test strumentale o su device |
 | APK | COMPLETATO E VERIFICATO | Debug e release costruiti in CI; ABI, modelli, firma, manifest e checksum verificati dagli script; artifact pubblicati | Firma debug, non release ufficiale; APK non installato su device |
 | Firma di release ufficiale | BLOCCATO | La pipeline supporta i quattro Secrets e fallisce se la firma resta debug | `ITAGPT_KEYSTORE_BASE64`, `ITAGPT_KEYSTORE_PASSWORD`, `ITAGPT_KEY_ALIAS`, `ITAGPT_KEY_PASSWORD` non configurati |
 | Test su dispositivo/emulatore | BLOCCATO | — | Nessun dispositivo o emulatore disponibile in questo ambiente |
@@ -28,7 +28,7 @@ questa lavorazione; nessun test su dispositivo fisico o emulatore è stato possi
 | Campo | Valore |
 |---|---|
 | Versione | 2.0.0 (versionCode 9) |
-| Commit del codice | `601e4e2` (`freebuff/ead2cc9450775fd211011b13`) |
+| Commit del codice | `7f8b871` (`freebuff/ead2cc9450775fd211011b13`) |
 | Package | `com.bigbai.app` (release), `com.bigbai.app.debug` (debug) |
 | Minimo Android | 31 (Android 12) |
 | Target SDK | 35 |
@@ -36,12 +36,60 @@ questa lavorazione; nessun test su dispositivo fisico o emulatore è stato possi
 | Modello chat | Qwen2.5 1.5B Instruct Q4_K_M, 1.117.320.736 byte, SHA-256 `6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e` |
 | Modello embedding | multilingual-e5-small Q8_0, 132.439.008 byte, SHA-256 `e011debc1208e31bf7b6aebee2d9fc8bd2ca11694a77ed66ac9d0c9d0a877c93` |
 | Compilatori inclusi | nessuno |
-| Run CI | [44932000433](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44932000433) |
+| Run CI | [44933207079](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44933207079) |
 | Artifact debug | **ITAGPT-Debug-APK** |
 | Artifact release | **ITAGPT-Release-APK** |
 | Firma | chiave debug `C=US, O=Android, CN=Android Debug` (release non ufficiale) |
 
-<!-- APK_DATA -->
+## APK pubblicati
+
+La run [44933207079](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44933207079) è
+conclusa con **success**. Gli script di packaging hanno verificato ABI, modelli, manifest, firma e
+checksum prima dell'upload; i metadati sotto provengono dai report `.txt` degli artifact.
+
+In questo ambiente gli artifact sono stati **scaricati e ricontrollati**: `sha256sum -c` sui file
+`.sha256` ha restituito `OK` per entrambi; `apksigner verify --print-certs` ha confermato la firma
+debug valida; `aapt2 dump badging` ha confermato package, versionCode 9, minSdk 31 e targetSdk 35;
+`unzip -p` + `sha256sum` ha confermato l'hash dei due modelli dentro entrambi gli APK; le tre ABI
+contengono `libbigbai.so` e `libsqlcipher.so`.
+
+### Debug
+
+| Campo | Valore |
+|---|---|
+| File | `ITAGPT-debug-2.0.0.apk` |
+| Package | `com.bigbai.app.debug` |
+| Dimensione | **1.399.047.913 byte (1334,24 MiB)** |
+| SHA-256 | `f888d90527a9e35745c153dea342bdddbce8b8d33b69e8890aef19b4f502b44a` |
+| minSdk / targetSdk | 31 (Android 12) / 35 |
+| ABI | arm64-v8a, armeabi-v7a, x86_64 |
+| Firma | valida, `C=US, O=Android, CN=Android Debug`; certificato SHA-256 `a9ab98eb8b44e5084f4b1a2c776187288825397f56d6ec0bc3bffbe26ad14903` |
+| Artifact | **ITAGPT-Debug-APK** (ID 14719151937), ZIP 1.275.166.483 byte |
+| Link | [artifact 14719151937](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44933207079/artifacts/14719151937) |
+
+### Release R8 (debug-signed)
+
+| Campo | Valore |
+|---|---|
+| File | `ITAGPT-release-debug-signed-2.0.0.apk` |
+| Package | `com.bigbai.app` |
+| Dimensione | **1.329.934.753 byte (1268,32 MiB)** |
+| SHA-256 | `fcef47418a0e04aee5bca942855260b24d73b07f139faa520d102b3f40409fa0` |
+| minSdk / targetSdk | 31 (Android 12) / 35 |
+| ABI | arm64-v8a, armeabi-v7a, x86_64 |
+| Ottimizzazione | R8, minificazione e resource shrinking attivi |
+| Firma | **chiave debug**, non è una release ufficiale; certificato SHA-256 `a9ab98eb8b44e5084f4b1a2c776187288825397f56d6ec0bc3bffbe26ad14903` |
+| Artifact | **ITAGPT-Release-APK** (ID 14719795927), ZIP 1.256.113.456 byte |
+| Link | [artifact 14719795927](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44933207079/artifacts/14719795927) |
+
+I due APK contengono entrambi Qwen2.5 1.5B Q4_K_M (1.117.320.736 byte, SHA-256
+`6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e`), l'embedder
+`multilingual-e5-small` Q8_0 e `libbigbai.so`/`libsqlcipher.so` per tutte e tre le ABI. Gli artifact
+hanno retention 30 giorni.
+
+La verifica degli artifact non è una prova di runtime: gli APK **non sono stati installati né
+avviati** su un dispositivo in questo ambiente, quindi chat, OCR, voce, UI e Keystore restano non
+verificati su Android.
 
 ## Cosa è cambiato nel codice
 
@@ -99,7 +147,7 @@ modello 1.5B è stato scelto perché il 0.5B falliva visibilmente sugli stessi p
 ```
 
 Risultati locali: **BUILD SUCCESSFUL**, **222 test, 0 falliti, 0 errori, 0 saltati**; lint
-`:app:lintDebug`: **0 errori, 69 warning**; release R8 completata. La CI ripete test, lint, build
+`:app:lintDebug`: **0 errori, 70 warning**; release R8 completata. La CI ripete test, lint, build
 nativa e packaging su un runner pulito.
 
 Non sono stati eseguiti test strumentali, test di UI, test su device o misure di prestazioni
