@@ -37,6 +37,28 @@ class SandboxPolicyTest {
     }
 
     @Test
+    fun `public hosts starting with fc or fd are not mistaken for IPv6`() {
+        assertFalse(SandboxPolicy.isPrivateHost("fcm.googleapis.com"))
+        assertFalse(SandboxPolicy.isPrivateHost("fdic.gov"))
+        assertTrue(SandboxPolicy.allows("https://fcm.googleapis.com/fcm/send", networkAllowed = true))
+    }
+
+    @Test
+    fun `IPv6 loopback, mapped IPv4 and unique local addresses are blocked`() {
+        listOf(
+            "::1",
+            "0:0:0:0:0:0:0:1",
+            "::ffff:127.0.0.1",
+            "::ffff:192.168.1.10",
+            "fd00::1",
+            "[fd12:3456:789a::1]",
+            "fe80::1",
+        ).forEach { host ->
+            assertTrue("deve bloccare $host", SandboxPolicy.isPrivateHost(host))
+        }
+    }
+
+    @Test
     fun `main frame cannot navigate away from the sandbox`() {
         assertTrue(SandboxPolicy.allowsMainNavigation("https://sandbox.local/index.html"))
         assertTrue(SandboxPolicy.allowsMainNavigation("about:blank"))

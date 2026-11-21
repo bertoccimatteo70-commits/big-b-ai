@@ -69,7 +69,8 @@ class ProjectFiles(private val context: Context) {
                 val children = runCatching { directory.listFiles() }.getOrDefault(emptyArray())
                     .sortedWith(compareBy({ !it.isDirectory }, { it.name?.lowercase() ?: "" }))
                 for (child in children) {
-                    if (counted++ > maxEntries) break
+                    if (counted >= maxEntries) break
+                    counted += 1
                     val name = child.name ?: continue
                     if (name.startsWith(".")) continue
                     val path = if (prefix.isEmpty()) name else "$prefix/$name"
@@ -123,12 +124,18 @@ class ProjectFiles(private val context: Context) {
             // refusing is better than truncating a file we cannot restore.
             if (existing != null && previous == null) return@withContext false
             val written = runCatching {
-                context.contentResolver.openOutputStream(target.uri, "wt")?.use { output ->
-                    output.write(bytes)
-                    output.flush()
-                } ?: return@withContext false
+                val output = context.contentResolver.openOutputStream(target.uri, "wt")
+                    ?: error("provider senza stream in scrittura")
+                output.use {
+                    it.write(bytes)
+                    it.flush()
+                }
             }.isSuccess
-            if (!written) return@withContext false
+            if (!written) {
+                // The provider may have truncated the file before failing.
+                if (previous != null) runCatching { restore(target, previous) }
+                return@withContext false
+            }
 
             // Some providers accept a write but persist a truncated file. Verify
             // the bytes before reporting success; restore the old text if needed.
@@ -137,11 +144,7 @@ class ProjectFiles(private val context: Context) {
                 true
             } else {
                 if (previous != null) {
-                    runCatching {
-                        context.contentResolver.openOutputStream(target.uri, "wt")?.use { output ->
-                            output.write(previous.toByteArray(Charsets.UTF_8))
-                        }
-                    }
+                    runCatching { restore(target, previous) }
                 } else if (existing == null) {
                     runCatching { target.delete() }
                 }
@@ -155,7 +158,12 @@ class ProjectFiles(private val context: Context) {
         val safe = sanitize(path) ?: return@withContext false
         var parent = root
         for (segment in safe.split('/').filter { it.isNotBlank() }) {
-            parent = parent.findFile(segment) ?: parent.createDirectory(segment) ?: return@withContext false
+            val existing = parent.findFile(segment)
+            parent = when {
+                existing == null -> parent.createDirectory(segment) ?: return@withContext false
+                existing.isDirectory -> existing
+                else -> return@withContext false
+            }
         }
         true
     }
@@ -163,7 +171,25 @@ class ProjectFiles(private val context: Context) {
     suspend fun delete(root: DocumentFile, path: String): Boolean = withContext(Dispatchers.IO) {
         val safe = sanitize(path) ?: return@withContext false
         val file = find(root, safe) ?: return@withContext false
-        runCatching { file.delete() }.getOrDefault(false)
+        deleteTree(file)
+    }
+
+    /** SAF providers often refuse to delete a non-empty directory without this. */
+    private fun deleteTree(file: DocumentFile): Boolean {
+        if (file.isDirectory) {
+            val children = runCatching { file.listFiles() }.getOrNull() ?: return false
+            for (child in children) {
+                if (!deleteTree(child)) return false
+            }
+        }
+        return runCatching { file.delete() }.getOrDefault(false)
+    }
+
+    private fun restore(target: DocumentFile, previous: String) {
+        context.contentResolver.openOutputStream(target.uri, "wt")?.use { output ->
+            output.write(previous.toByteArray(Charsets.UTF_8))
+            output.flush()
+        }
     }
 
     suspend fun deleteNode(root: DocumentFile, node: FileNode): Boolean = delete(root, node.path)
@@ -174,7 +200,10 @@ class ProjectFiles(private val context: Context) {
         if (clean == file.name) return@withContext true
         val collision = file.parentFile?.findFile(clean)
         if (collision != null && collision.uri != file.uri) return@withContext false
-        runCatching { file.renameTo(clean) }.getOrDefault(false)
+        val renamed = runCatching { file.renameTo(clean) }.getOrDefault(false)
+        // Providers can ignore the requested name or create "name (1)"; report
+        // failure instead of claiming a rename that the user cannot see.
+        renamed && (file.name == clean || file.parentFile?.findFile(clean)?.uri == file.uri)
     }
 
     suspend fun displayName(treeUri: String): String? = withContext(Dispatchers.IO) {
