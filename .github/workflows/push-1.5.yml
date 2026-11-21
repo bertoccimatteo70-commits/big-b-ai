@@ -1,0 +1,28 @@
+name: push-1.5
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Apply the 1.5.0 patch and push
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 -o /tmp/1.5.patch "https://files.catbox.moe/y9vqe9.patch"
+          echo "patch bytes: $(stat -c%s /tmp/1.5.patch)"
+          sha256sum /tmp/1.5.patch
+          git apply --index /tmp/1.5.patch
+          git -c user.name="BIG B AI" -c user.email="noreply@bigbai.local" \
+            commit -m "feat: BIG B AI 1.5.0 - retrieval semantico, qualita italiana, BIG B Code e diagnostica"
+          git push origin HEAD:main
