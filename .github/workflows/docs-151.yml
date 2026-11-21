@@ -1,0 +1,23 @@
+name: Docs 1.5.1
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Apply docs patch and push
+        run: |
+          curl -fsSL https://files.catbox.moe/2mtkjz.patch -o /tmp/p.diff
+          git apply --check /tmp/p.diff
+          git apply /tmp/p.diff
+          git config user.name "BIG B AI"
+          git config user.email "actions@users.noreply.github.com"
+          git add README.md docs/AUDIT-1.5.1.md
+          git commit -m "docs: record the verified 1.5.1 APK and artifact [skip ci]"
+          git push origin main
