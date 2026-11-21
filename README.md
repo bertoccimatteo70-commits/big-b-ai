@@ -46,21 +46,21 @@ Il report completo, con comandi, dimensioni e limiti, è in
 
 ## APK 2.2
 
-La run CI di riferimento è la **#{{RUN_ID}}**, build del commit `{{CODE_COMMIT}}` (workflow
-**Android CI - ITAGPT debug and release**). Gli APK sono negli artifact GitHub Actions, non nel
-repository.
+La run CI di riferimento è la **#44961030062**, build del commit `816d68d` (workflow **Android CI -
+ITAGPT debug and release**, conclusa con successo). Gli APK sono negli artifact GitHub Actions,
+non nel repository.
 
 | APK | Dimensione | SHA-256 | Firma |
 |---|---|---|---|
-| `ITAGPT-debug-2.2.0.apk` | `{{DEBUG_SIZE}}` | `{{DEBUG_SHA}}` | debug |
-| `ITAGPT-release-debug-signed-2.2.0.apk` | `{{RELEASE_SIZE}}` | `{{RELEASE_SHA}}` | chiave debug, **non ufficiale** |
+| `ITAGPT-debug-2.2.0.apk` | 149.698.927 byte (142,76 MiB) | `40064adafa740def47ddf403fa7b5c5636a2c44ddb659f9a8faddf6a7dbaacc3` | debug |
+| `ITAGPT-release-debug-signed-2.2.0.apk` | 80.274.871 byte (76,56 MiB) | `fb48aabadb43d88afe14e85f61383635c6026e8089f75e13b74048f3bfc28ede` | chiave debug, **non ufficiale** |
 
 Ogni artifact contiene l'APK, il file `.sha256` e un report `.txt` con dimensione, data, ABI,
 firma e conferma dell'assenza di modelli. Link diretti:
 
-- Debug: `{{DEBUG_ARTIFACT}}`
-- Release: `{{RELEASE_ARTIFACT}}`
-- Report CI: `{{REPORT_ARTIFACT}}`
+- [artifact debug](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44961030062/artifacts/14730385186) (ZIP 59.475.051 byte);
+- [artifact release](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44961030062/artifacts/14730350297) (ZIP 40.311.813 byte);
+- [report CI](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44961030062/artifacts/14730240743) (ZIP 60.397 byte).
 
 Il download degli artifact richiede l'accesso a GitHub.
 
@@ -121,7 +121,7 @@ limite artificiale di dimensione.
 ## Verifiche eseguite
 
 - Build Kotlin/Compose: `:app:compileDebugKotlin` riuscita.
-- Test JVM: **264 test, 0 falliti, 0 errori, 0 saltati** su `core`, `llm`, `code`, `app`.
+- Test JVM: **266 test, 0 falliti, 0 errori, 0 saltati** su `core`, `llm`, `code`, `app`.
 - Lint debug: **0 errori, 69 warning**.
 - Parser ricerca: test su DuckDuckGo HTML, Google News RSS, metadati pagina, deduplica URL.
 - Provider reali da host: Google News RSS (HTTP 200, 102 item) e Wikipedia API (HTTP 200).

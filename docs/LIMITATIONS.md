@@ -8,7 +8,7 @@ nessuno scopra un limite solo dopo aver installato l'APK.
 | Cosa | Stato |
 |---|---|
 | Compilazione debug/release (R8) | Verificata dalla CI; build release minificata |
-| Test unitari JVM | **264 test, 0 falliti, 0 errori, 0 saltati** |
+| Test unitari JVM | **266 test, 0 falliti, 0 errori, 0 saltati** |
 | Lint debug | **0 errori, 69 warning** |
 | Librerie native arm64-v8a, armeabi-v7a, x86_64 | Compilate e verificate negli APK dalla CI |
 | Modelli negli asset | **0 file**; gate di packaging |

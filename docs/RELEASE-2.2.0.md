@@ -1,7 +1,9 @@
 # ITAGPT 2.2.0 — aggiornamento ITAGPT Code
 
-Data: 21 novembre 2026. Commit del codice: `{{CODE_COMMIT}}`. Workflow:
-**Android CI - ITAGPT debug and release**. Run: `{{RUN_ID}}`.
+Data: 21 novembre 2026. Commit del codice: `816d68d`. Workflow:
+**Android CI - ITAGPT debug and release**. Run:
+[#44961030062](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44961030062),
+conclusa con successo.
 
 Questo documento riguarda l'intervento tecnico su ITAGPT Code. La consegna 2.1.0 (rimozione dei
 modelli, ricerca Internet, adattamento tablet) resta descritta in
@@ -15,7 +17,8 @@ non viene dichiarato verificato.
 - L'esplora file non elimina più al primo tocco: `deleteFile` mette l'elemento in
   `pendingManualDelete` e apre una finestra di conferma.
 - La finestra mostra il nome e distingue **file** da **cartella**; per le cartelle avverte che
-  viene rimosso tutto il contenuto.
+  viene rimosso tutto il contenuto e la cancellazione percorre l'albero, perché molti provider
+  SAF rifiutano di eliminare una cartella non vuota in un solo colpo.
 - Se il file aperto è dentro la cartella eliminata, l'editor viene chiuso e non resta su un file
   inesistente.
 - Le eliminazioni richieste dall'agente mantengono la conferma separata già esistente.
@@ -124,7 +127,8 @@ di dimensione della 2.1. Non sono stati eseguiti test su tablet, mouse o trackpa
 - L'analisi statica è etichettata come tale e non viene presentata come compilazione.
 - HTML/JavaScript viene eseguito in una WebView usa-e-getta con timeout.
 - La sandbox blocca rete esterna salvo autorizzazione, e **anche con rete autorizzata** blocca
-  loopback, `10.*`, `192.168.*`, `172.16–31.*`, `169.254.*`, `.local` e IPv6 locali.
+  loopback, `10.*`, `192.168.*`, `172.16–31.*`, `169.254.*`, `.local`, IPv6 loopback/ULA/link-local
+  e IPv4 mappati in IPv6. I nomi pubblici che iniziano per `fc`/`fd` non vengono confusi con IPv6.
 - La navigazione del frame principale fuori da `sandbox.local` viene bloccata.
 - Accesso file, content provider, popup, storage e mixed content sono disabilitati.
 - Java/Kotlin/C++ non vengono eseguiti: l'app dice esplicitamente che serve una toolchain non
@@ -142,7 +146,7 @@ Nuovi test JVM:
 | `ProjectContextBuilderTest` | pertinenza, import, budget caratteri, stop word |
 | `SandboxPolicyTest` | rete, host privati, navigazione, asset locali |
 
-Totale dopo l'intervento: **264 test JVM, 0 falliti, 0 errori, 0 saltati**. Lint:
+Totale dopo l'intervento: **266 test JVM, 0 falliti, 0 errori, 0 saltati**. Lint:
 **0 errori, 69 warning**. I test strumentali e su dispositivo restano
 assenti.
 
@@ -150,14 +154,14 @@ assenti.
 
 | APK | Dimensione | SHA-256 | Firma |
 |---|---|---|---|
-| `ITAGPT-debug-2.2.0.apk` | `{{DEBUG_SIZE}}` | `{{DEBUG_SHA}}` | debug |
-| `ITAGPT-release-debug-signed-2.2.0.apk` | `{{RELEASE_SIZE}}` | `{{RELEASE_SHA}}` | debug, non ufficiale |
+| `ITAGPT-debug-2.2.0.apk` | 149.698.927 byte (142,76 MiB) | `40064adafa740def47ddf403fa7b5c5636a2c44ddb659f9a8faddf6a7dbaacc3` | debug |
+| `ITAGPT-release-debug-signed-2.2.0.apk` | 80.274.871 byte (76,56 MiB) | `fb48aabadb43d88afe14e85f61383635c6026e8089f75e13b74048f3bfc28ede` | debug, non ufficiale |
 
 Artifact:
 
-- Debug: `{{DEBUG_ARTIFACT}}`
-- Release: `{{RELEASE_ARTIFACT}}`
-- Report CI: `{{REPORT_ARTIFACT}}`
+- [Debug](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44961030062/artifacts/14730385186) — ZIP 59.475.051 byte;
+- [Release](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44961030062/artifacts/14730350297) — ZIP 40.311.813 byte;
+- [Report CI](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44961030062/artifacts/14730240743) — ZIP 60.397 byte, con XML dei test e lint.
 
 La release è firmata con la chiave debug del runner: non è una release ufficiale e il certificato
 può cambiare tra run.
