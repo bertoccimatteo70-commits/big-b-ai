@@ -207,8 +207,9 @@ reale: sarebbero stime, non misure.
 | Compilazione debug | BUILD SUCCESSFUL |
 | Librerie native | 3 ABI presenti nell'APK, compilate da sorgenti llama.cpp |
 | Font nell'APK | 4 file Tinos presenti in `res/font/` |
-| APK | **115.794.968 byte = 110,43 MiB = 115,79 MB** |
-| SHA-256 | `d5ec868d045defd6bebee52a5c8be1a740bba71d1aba2a18526e04440b5c0de4` |
+| APK | **115.341.878 byte = 110,00 MiB = 115,34 MB** |
+| SHA-256 | `9328e4b09265cd8aa3c09639a30d9a35aa1b0490ad61f70ae64ce4c5c39781cf` |
+| Artifact CI | `BIG-B-AI-Debug-APK` della run [44898660492](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44898660492), scaricato e verificato |
 | versionCode / versionName | 5 / `1.4.0-debug` |
 
 Nuovi test aggiunti (33):

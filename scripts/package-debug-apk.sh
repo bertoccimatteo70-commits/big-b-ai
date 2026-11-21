@@ -67,7 +67,7 @@ Motore AI:     llama.cpp, CPU only (nessuna accelerazione GPU in questa build)
 Modelli:       NON inclusi nell'APK; si scaricano dall'app e sono verificati con SHA-256.
 Test eseguiti: test unitari JVM dei quattro moduli (0 falliti) + lint + build debug.
                Nessun test su dispositivo fisico o emulatore.
-Audit:         docs/AUDIT-1.3.md
+Audit:         docs/AUDIT-${VERSION%.*}.md
 EOF
 
 echo "APK:      $OUT"
