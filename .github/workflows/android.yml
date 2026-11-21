@@ -1,9 +1,10 @@
-name: Android CI - Debug APK
+name: Android CI
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   pull_request:
+    branches: [ main ]
   workflow_dispatch:
 
 permissions:
@@ -14,59 +15,59 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  debug-apk:
-    name: Debug APK (arm64-v8a, armeabi-v7a, x86_64)
+  build:
+    name: Universal debug APK (3 ABIs, ≥200 MiB, bundled embedding model)
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 150
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: '17'
+          cache: gradle
 
-      # android-actions/setup-android@v3 requested the `tools` package by default.
-      # Google removed it from the SDK repository, so the action failed with
-      # "Failed to find package 'tools'". v4 no longer requests it; the command
-      # line tools it installs replace it.
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
-        with:
-          packages: "platform-tools platforms;android-35 build-tools;35.0.0"
 
       - name: Install NDK and CMake
         run: |
-          sdkmanager --install "ndk;27.2.12479018" "cmake;3.22.1"
-          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.2.12479018" >> "$GITHUB_ENV"
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+          yes | sdkmanager --install "ndk;27.2.12479018" "cmake;3.22.1" > /dev/null
+          echo "NDK=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
 
       - name: Fetch llama.cpp (pinned revision)
         run: bash scripts/fetch-llama.sh
 
-      - name: Build native libraries (all shipped ABIs)
-        env:
-          JOBS: 3
-          ABIS: "arm64-v8a armeabi-v7a x86_64"
-        run: bash scripts/build-native.sh
+      # The embedding model is a real component of the app, not padding: it is
+      # pinned by size and SHA-256, verified again at runtime and checked once
+      # more inside the packaged APK.
+      - name: Fetch bundled embedding model (pinned SHA-256)
+        run: bash scripts/fetch-bundled-model.sh
 
-      - name: Unit tests (JVM)
+      - name: Build native library (3 ABIs)
+        run: |
+          export PATH="$ANDROID_HOME/cmake/3.22.1/bin:$PATH"
+          JOBS=3 ABIS="arm64-v8a armeabi-v7a x86_64" bash scripts/build-native.sh
+
+      - name: Run unit tests
         run: ./gradlew --no-daemon :core:testDebugUnitTest :code:testDebugUnitTest :llm:testDebugUnitTest :app:testDebugUnitTest
 
-      - name: Lint (debug)
+      - name: Lint
         run: ./gradlew --no-daemon :app:lintDebug
 
       - name: Assemble debug APK
-        run: ./gradlew --no-daemon assembleDebug
+        run: ./gradlew --no-daemon :app:assembleDebug
 
-      - name: Verify APK, ABI and size, write checksum
+      - name: Package and verify APK (≥200 MiB)
         run: bash scripts/package-debug-apk.sh
 
-      - name: Upload debug APK artifact
+      - name: Show APK metadata
+        run: cat dist/BIG-B-AI-debug-*.txt
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: BIG-B-AI-Debug-APK
@@ -74,5 +75,5 @@ jobs:
             dist/BIG-B-AI-debug-*.apk
             dist/BIG-B-AI-debug-*.apk.sha256
             dist/BIG-B-AI-debug-*.txt
-          retention-days: 30
           if-no-files-found: error
+          retention-days: 30
