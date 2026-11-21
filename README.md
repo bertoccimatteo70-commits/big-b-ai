@@ -31,8 +31,8 @@ ambiente di build. I dettagli sono in [docs/LIMITATIONS.md](docs/LIMITATIONS.md)
 |---|---|
 | File | `BIG-B-AI-debug-1.4.0.apk` |
 | Versione | 1.4.0-debug (versionCode 5) |
-| Dimensione | **115.341.878 byte (110,00 MiB / 115,34 MB)** |
-| SHA-256 | `bc54c237439581063cad3a6374fe1ef25db7beb8484f40d2d0038ba3dcd1f67b` |
+| Dimensione | **115.794.968 byte (110,43 MiB / 115,79 MB)** |
+| SHA-256 | `d5ec868d045defd6bebee52a5c8be1a740bba71d1aba2a18526e04440b5c0de4` |
 | minSdk / targetSdk | 31 (Android 12) / 35 |
 | ABI | **arm64-v8a, armeabi-v7a, x86_64** (APK universale) |
 | Firma | chiave **debug** Android (`CN=Android Debug`) |

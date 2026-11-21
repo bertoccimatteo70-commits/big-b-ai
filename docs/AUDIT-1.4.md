@@ -207,8 +207,8 @@ reale: sarebbero stime, non misure.
 | Compilazione debug | BUILD SUCCESSFUL |
 | Librerie native | 3 ABI presenti nell'APK, compilate da sorgenti llama.cpp |
 | Font nell'APK | 4 file Tinos presenti in `res/font/` |
-| APK | **115.341.878 byte = 110,00 MiB = 115,34 MB** |
-| SHA-256 | `bc54c237439581063cad3a6374fe1ef25db7beb8484f40d2d0038ba3dcd1f67b` |
+| APK | **115.794.968 byte = 110,43 MiB = 115,79 MB** |
+| SHA-256 | `d5ec868d045defd6bebee52a5c8be1a740bba71d1aba2a18526e04440b5c0de4` |
 | versionCode / versionName | 5 / `1.4.0-debug` |
 
 Nuovi test aggiunti (33):

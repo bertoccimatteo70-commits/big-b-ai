@@ -586,6 +586,9 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
                     stepIndex += 1
                 }
 
+                // A timeout is a technical failure: if nothing was written, the
+                // request is refunded instead of being counted as used.
+                if (timedOut && written.isEmpty()) refundQuota(consumed)
                 if (!finished && !cancelledByUser && !timedOut && stepIndex > CodeAgent.MAX_STEPS) {
                     appendAssistant(
                         project.id,
@@ -660,7 +663,10 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
                 timedOut = true
                 container.engine.stop()
                 _state.update {
-                    it.copy(error = "Il modello non ha risposto in tempo. Nessuna modifica è stata applicata.")
+                    it.copy(
+                        error = "Il modello non ha risposto in tempo. Controlla l'activity log " +
+                            "per le operazioni già eseguite.",
+                    )
                 }
             }
         }
@@ -689,7 +695,8 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
             .substringBefore("<tool")
             .trim()
         val content = if (visible.isBlank()) {
-            "Attività interrotta. Nessuna modifica è stata applicata."
+            "Attività interrotta prima di produrre una risposta. Controlla l'activity log " +
+                "per le operazioni eventualmente eseguite."
         } else {
             "$visible\n\n_(risposta interrotta)_"
         }
