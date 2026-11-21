@@ -1,0 +1,23 @@
+name: Apply 1.5.1
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Apply patch and push
+        run: |
+          curl -fsSL https://files.catbox.moe/0c3z7r.patch -o /tmp/p.diff
+          git apply --check /tmp/p.diff
+          git apply /tmp/p.diff
+          git config user.name "BIG B AI"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: BIG B AI 1.5.1 with stable embedder, verified index and measured retrieval"
+          git push origin main
