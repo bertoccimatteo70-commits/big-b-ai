@@ -38,6 +38,8 @@ import com.bigbai.app.ui.models.ModelManagerScreen
 import com.bigbai.app.ui.onboarding.OnboardingScreen
 import com.bigbai.app.ui.plugins.PluginsScreen
 import com.bigbai.app.ui.settings.SettingsScreen
+import com.bigbai.app.ui.theme.LocalReduceMotion
+import com.bigbai.app.ui.theme.systemAnimationsDisabled
 import com.bigbai.core.model.AppSettings
 import kotlinx.coroutines.launch
 
@@ -94,6 +96,12 @@ fun AppRoot(container: AppContainer, settings: AppSettings) {
     )
     val chatState by chatViewModel.state.collectAsState()
     val conversations by chatViewModel.conversations.collectAsState()
+    val storedQuota by container.settings.codeQuota.collectAsState(initial = null to 0)
+    val codeQuota = com.bigbai.code.CodeQuota.of(
+        com.bigbai.code.CodeQuota.today(),
+        storedQuota.first,
+        storedQuota.second,
+    )
 
     fun navigateTo(target: String) {
         if (target == Routes.CHAT) {
@@ -107,10 +115,12 @@ fun AppRoot(container: AppContainer, settings: AppSettings) {
         scope.launch { drawerState.close() }
     }
 
-    val motion = if (settings.reduceMotion) 0 else 220
+    val reduceMotion = settings.reduceMotion || systemAnimationsDisabled()
+    val motion = if (reduceMotion) 0 else 220
 
     CompositionLocalProvider(
         LocalAppDrawer provides { scope.launch { drawerState.open() } },
+        LocalReduceMotion provides reduceMotion,
     ) {
         ModalNavigationDrawer(
             drawerState = drawerState,
@@ -128,6 +138,8 @@ fun AppRoot(container: AppContainer, settings: AppSettings) {
                         navigateTo(Routes.CHAT)
                     },
                     onNavigate = ::navigateTo,
+                    codeQuotaRemaining = codeQuota.remaining,
+                    codeQuotaLimit = codeQuota.limit,
                 )
             },
         ) {

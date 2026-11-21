@@ -55,6 +55,26 @@ class SettingsRepository(private val context: Context) {
     suspend fun setTutorTarget(value: String) = update { it.copy(tutorTarget = value) }
     suspend fun setTutorLevel(value: TutorLevel) = update { it.copy(tutorLevel = value) }
 
+    /**
+     * BIG B Code daily quota, stored as raw values so the core module does not
+     * depend on the code module. The date is a local ISO day (yyyy-MM-dd).
+     */
+    val codeQuota: Flow<Pair<String?, Int>> = context.settingsDataStore.data.map { prefs ->
+        prefs[KEY_CODE_QUOTA_DATE] to (prefs[KEY_CODE_QUOTA_USED] ?: 0)
+    }
+
+    suspend fun codeQuotaNow(): Pair<String?, Int> {
+        val prefs = context.settingsDataStore.data.first()
+        return prefs[KEY_CODE_QUOTA_DATE] to (prefs[KEY_CODE_QUOTA_USED] ?: 0)
+    }
+
+    suspend fun setCodeQuota(date: String, used: Int) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[KEY_CODE_QUOTA_DATE] = date
+            prefs[KEY_CODE_QUOTA_USED] = used.coerceAtLeast(0)
+        }
+    }
+
     companion object {
         private val KEY_ONBOARDING = booleanPreferencesKey("onboarding_complete")
         private val KEY_LANGUAGE = stringPreferencesKey("language")
@@ -89,6 +109,8 @@ class SettingsRepository(private val context: Context) {
         private val KEY_TUTOR_ENABLED = booleanPreferencesKey("tutor_enabled")
         private val KEY_TUTOR_TARGET = stringPreferencesKey("tutor_target")
         private val KEY_TUTOR_LEVEL = stringPreferencesKey("tutor_level")
+        private val KEY_CODE_QUOTA_DATE = stringPreferencesKey("code_quota_date")
+        private val KEY_CODE_QUOTA_USED = intPreferencesKey("code_quota_used")
 
         private fun Preferences.toSettings(): AppSettings = AppSettings(
             onboardingComplete = this[KEY_ONBOARDING] ?: false,

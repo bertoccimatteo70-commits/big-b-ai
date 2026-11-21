@@ -123,10 +123,21 @@ fun AboutScreen(container: AppContainer, onBack: () -> Unit) {
                 )
             }
 
+            InfoCard("Font") {
+                Text(
+                    "Il carattere dell'interfaccia e dei messaggi è Tinos (Apache-2.0), metricamente " +
+                        "compatibile con Times New Roman: stesse larghezze e proporzioni, ma distribuibile " +
+                        "legalmente. Times New Roman è un font proprietario di Monotype e non può essere " +
+                        "incluso in un APK. Il codice usa un font monospaziato di sistema.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+
             InfoCard("Componenti open source") {
                 Text(
                     "llama.cpp e ggml (MIT) · AndroidX e Jetpack Compose (Apache-2.0) · Room (Apache-2.0) · " +
-                        "SQLCipher (BSD) · OkHttp (Apache-2.0) · PDFBox-Android (Apache-2.0) · JGit (EPL-2.0).\n\n" +
+                        "SQLCipher (BSD) · OkHttp (Apache-2.0) · PDFBox-Android (Apache-2.0) · JGit (EPL-2.0) · " +
+                        "Tinos (Apache-2.0).\n\n" +
                         "I modelli non sono inclusi nell'APK: si scaricano dalle fonti originali indicate nel " +
                         "catalogo e vengono verificati con SHA-256.",
                     style = MaterialTheme.typography.bodySmall,

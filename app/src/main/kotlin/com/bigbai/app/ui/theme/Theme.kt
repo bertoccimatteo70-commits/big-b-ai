@@ -9,10 +9,26 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.bigbai.app.R
 import com.bigbai.core.model.ThemeMode
+
+/**
+ * Tinos (Apache 2.0) is a metric-compatible substitute for Times New Roman:
+ * identical widths and proportions, legally redistributable. Times New Roman
+ * itself is proprietary and cannot be bundled in an APK.
+ */
+val BigBSerif: FontFamily = FontFamily(
+    Font(R.font.tinos_regular, FontWeight.Normal, FontStyle.Normal),
+    Font(R.font.tinos_bold, FontWeight.Bold, FontStyle.Normal),
+    Font(R.font.tinos_italic, FontWeight.Normal, FontStyle.Italic),
+    Font(R.font.tinos_bold_italic, FontWeight.Bold, FontStyle.Italic),
+)
 
 /**
  * BIG B AI visual identity: deep indigo for actions, cyan for live/AI states,
@@ -86,45 +102,66 @@ private val DarkScheme = darkColorScheme(
 
 private val BigBAiTypography = Typography(
     headlineLarge = TextStyle(
+        fontFamily = BigBSerif,
         fontWeight = FontWeight.SemiBold,
         fontSize = 30.sp,
         lineHeight = 36.sp,
         letterSpacing = (-0.3).sp,
     ),
     headlineMedium = TextStyle(
+        fontFamily = BigBSerif,
         fontWeight = FontWeight.SemiBold,
         fontSize = 26.sp,
         lineHeight = 32.sp,
         letterSpacing = (-0.2).sp,
     ),
     headlineSmall = TextStyle(
+        fontFamily = BigBSerif,
         fontWeight = FontWeight.SemiBold,
         fontSize = 22.sp,
         lineHeight = 28.sp,
         letterSpacing = (-0.1).sp,
     ),
     titleLarge = TextStyle(
+        fontFamily = BigBSerif,
         fontWeight = FontWeight.SemiBold,
         fontSize = 20.sp,
         lineHeight = 26.sp,
         letterSpacing = (-0.1).sp,
     ),
     titleMedium = TextStyle(
+        fontFamily = BigBSerif,
         fontWeight = FontWeight.SemiBold,
         fontSize = 16.sp,
         lineHeight = 22.sp,
     ),
     titleSmall = TextStyle(
+        fontFamily = BigBSerif,
         fontWeight = FontWeight.SemiBold,
         fontSize = 15.sp,
         lineHeight = 20.sp,
     ),
-    bodyLarge = TextStyle(fontSize = 16.sp, lineHeight = 24.sp),
-    bodyMedium = TextStyle(fontSize = 14.sp, lineHeight = 21.sp),
-    bodySmall = TextStyle(fontSize = 12.5.sp, lineHeight = 18.sp),
-    labelLarge = TextStyle(fontWeight = FontWeight.Medium, fontSize = 14.sp, lineHeight = 20.sp),
-    labelMedium = TextStyle(fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 16.sp),
-    labelSmall = TextStyle(fontWeight = FontWeight.Medium, fontSize = 11.sp, lineHeight = 15.sp),
+    bodyLarge = TextStyle(fontFamily = BigBSerif, fontSize = 16.sp, lineHeight = 24.sp),
+    bodyMedium = TextStyle(fontFamily = BigBSerif, fontSize = 14.sp, lineHeight = 21.sp),
+    bodySmall = TextStyle(fontFamily = BigBSerif, fontSize = 12.5.sp, lineHeight = 18.sp),
+    labelLarge = TextStyle(
+        fontFamily = BigBSerif,
+        fontWeight = FontWeight.Medium,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+    ),
+    labelMedium = TextStyle(
+        fontFamily = BigBSerif,
+        fontWeight = FontWeight.Medium,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+    ),
+    labelSmall = TextStyle(
+        fontFamily = BigBSerif,
+        fontWeight = FontWeight.Medium,
+        fontSize = 11.sp,
+        lineHeight = 15.sp,
+    ),
 )
 
 private val BigBAiShapes = Shapes(

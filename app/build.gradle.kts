@@ -40,8 +40,8 @@ android {
         applicationId = "com.bigbai.app"
         minSdk = 31
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.3.0"
+        versionCode = 5
+        versionName = "1.4.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         resourceConfigurations += listOf("en", "it")
         // Universal debug APK: every supported architecture gets its own native

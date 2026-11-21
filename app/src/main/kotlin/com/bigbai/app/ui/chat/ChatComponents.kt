@@ -60,6 +60,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.bigbai.app.ui.theme.BigBSerif
+import com.bigbai.app.ui.theme.LocalReduceMotion
 import com.bigbai.core.model.ChatMessage
 import com.bigbai.core.model.GenerationMetrics
 import com.bigbai.core.model.Role
@@ -131,7 +133,7 @@ fun MessageBubble(
                         }
                         Spacer(Modifier.height(6.dp))
                     }
-                    MarkdownText(message.content, color = bubbleText, fontFamily = FontFamily.Serif)
+                    MarkdownText(message.content, color = bubbleText, fontFamily = BigBSerif)
                     if (message.sources.isNotEmpty()) {
                         Spacer(Modifier.height(8.dp))
                         CompactSources(message.sources)
@@ -215,8 +217,12 @@ private fun AssistantAvatar() {
     }
 }
 
+/**
+ * The only thing shown while the model works: the answer is not streamed, it
+ * appears complete (see ChatViewModel), so the UI never shows half a sentence.
+ */
 @Composable
-fun StreamingBubble(text: String, thinking: Boolean) {
+fun ThinkingBubble() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -232,24 +238,14 @@ fun StreamingBubble(text: String, thinking: Boolean) {
             shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomEnd = 20.dp, bottomStart = 6.dp),
             modifier = Modifier.fillMaxWidth(0.94f),
         ) {
-            Column(modifier = Modifier.padding(horizontal = 15.dp, vertical = 11.dp)) {
-                if (thinking && text.isEmpty()) {
-                    ThinkingIndicator()
-                } else {
-                    MarkdownText(if (text.isEmpty()) "…" else text, color = Color.Black, fontFamily = FontFamily.Serif)
-                    val transition = rememberInfiniteTransition(label = "cursor")
-                    val alpha by transition.animateFloat(
-                        initialValue = 0.15f,
-                        targetValue = 1f,
-                        animationSpec = infiniteRepeatable(tween(520), RepeatMode.Reverse),
-                        label = "cursor-alpha",
-                    )
-                    Text(
-                        text = "▍",
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = alpha),
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                }
+            Column(modifier = Modifier.padding(horizontal = 15.dp, vertical = 13.dp)) {
+                ThinkingIndicator()
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Sto preparando la risposta completa…",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFF4A4A4A),
+                )
             }
         }
     }
@@ -257,30 +253,34 @@ fun StreamingBubble(text: String, thinking: Boolean) {
 
 @Composable
 fun ThinkingIndicator() {
+    val reduceMotion = LocalReduceMotion.current
     val transition = rememberInfiniteTransition(label = "thinking")
-    val alpha by transition.animateFloat(
-        initialValue = 0.25f,
+    val phase by transition.animateFloat(
+        initialValue = 0f,
         targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(700), RepeatMode.Reverse),
-        label = "alpha",
+        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Restart),
+        label = "phase",
     )
     Row(verticalAlignment = Alignment.CenterVertically) {
         repeat(3) { index ->
+            // Each dot lags the previous one, so the row reads as a wave.
+            val local = if (reduceMotion) 0.5f else ((phase + index * 0.22f) % 1f)
+            val alpha = 0.25f + 0.75f * (1f - kotlin.math.abs(local * 2f - 1f))
             Box(
                 modifier = Modifier
                     .padding(end = 5.dp)
                     .size(7.dp)
                     .background(
-                        MaterialTheme.colorScheme.primary.copy(alpha = if (index == 1) alpha else 1f - alpha * 0.5f),
+                        MaterialTheme.colorScheme.primary.copy(alpha = alpha),
                         RoundedCornerShape(50),
                     ),
             )
         }
         Spacer(Modifier.width(6.dp))
         Text(
-            text = "AI sta pensando…",
+            text = "Elaborazione in corso",
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = Color(0xFF4A4A4A),
         )
     }
 }
@@ -302,7 +302,7 @@ fun MarkdownText(
                         Text(
                             text = block.text.trim(),
                             style = MaterialTheme.typography.bodyLarge.copy(
-                                fontFamily = fontFamily ?: FontFamily.Default,
+                                fontFamily = fontFamily ?: BigBSerif,
                             ),
                             color = color,
                         )

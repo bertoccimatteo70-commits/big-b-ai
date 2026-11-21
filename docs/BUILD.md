@@ -94,7 +94,7 @@ nativo, o con un'ABI incompleta, non deve mai essere pubblicato), calcola lo SHA
 `dist/BIG-B-AI-debug-<versione>.txt` con dimensione, data, package e firma. Lo script **fallisce**
 se l'APK è sotto i 100 MiB richiesti dal progetto.
 
-La variante debug usa `applicationId` `com.bigbai.app.debug` e `versionName` `1.3.0-debug`, quindi
+La variante debug usa `applicationId` `com.bigbai.app.debug` e `versionName` `1.4.0-debug`, quindi
 convive con una eventuale build di release sullo stesso dispositivo.
 
 `app/build.gradle.kts` supporta ancora la firma di release (`keystore.properties` o variabili
@@ -123,7 +123,11 @@ I test unitari JVM coprono la logica pura, senza Android framework:
 - `FileExportTest` (8 test): slug, timestamp, estensioni dal blocco di codice, MIME.
 - `ProjectNamingTest` (4 test): nome cartella, HTML iniziale, escaping del titolo.
 
-Totale: **91 test JVM, 0 falliti** (core 26, code 26, llm 23, app 16), eseguiti anche dalla pipeline CI.
+- `CodeAgentTest` (10), `CodeQuotaTest` (6): protocollo dell'agente, percorsi, limiti, quota.
+- `ModelProfilesTest` (6), `ResponseQualityTest` (6), `EvaluationSuiteTest` (5): profili per modello,
+  ripetizioni/troncamento, punteggio della suite di valutazione.
+
+Totale: **124 test JVM, 0 falliti** (core 26, code 42, llm 40, app 16), eseguiti anche dalla pipeline CI.
 Non esistono test strumentali: richiederebbero un device.
 
 ## 4.1 Copertura
@@ -138,6 +142,14 @@ concentrata sulla logica pura verificabile senza device: `core/chat` 94,7%, `cor
 `code` 33,7%, `llm` 23,5%, `app/files` 29,6%. UI Compose, Room, PDF, backup e Keystore richiedono test strumentali e
 non sono coperti. Il dato è basso ed è riportato così com'è: non viene presentato come obiettivo
 raggiunto.
+
+## Font
+
+`app/src/main/res/font/` contiene Tinos regular/bold/italic/bold-italic. Tinos è distribuito con
+licenza Apache-2.0 (testo in `app/src/main/assets/licenses/Tinos-Apache-2.0.txt`) ed è
+metricamente compatibile con Times New Roman. Times New Roman è proprietario e non può essere
+incluso nell'APK: non sostituirlo con un file scaricato da fonti non autorizzate.
+
 
 ## 5. CI
 

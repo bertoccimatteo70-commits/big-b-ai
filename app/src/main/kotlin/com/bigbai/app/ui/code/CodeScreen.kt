@@ -87,6 +87,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bigbai.app.AppContainer
 import com.bigbai.app.ui.AppViewModelFactory
 import com.bigbai.app.ui.LocalAppDrawer
+import com.bigbai.app.ui.chat.ThinkingIndicator
+import com.bigbai.code.AgentStep
+import com.bigbai.code.AgentStepStatus
 import com.bigbai.code.Diagnostic
 import com.bigbai.code.DiagnosticSeverity
 import com.bigbai.code.FileNode
@@ -203,16 +206,16 @@ private fun ProjectsHome(
                         )
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            "Crea un progetto con un tocco: la cartella e il file index.html vengono " +
-                                "creati automaticamente, senza percorsi da inventare.",
+                            "Scrivi cosa vuoi creare: BIG B Code crea i file, scrive il codice, " +
+                                "controlla il risultato e corregge da solo. Non devi inventare nomi o percorsi.",
                             style = MaterialTheme.typography.bodySmall,
                         )
                         Spacer(Modifier.height(10.dp))
                         Text(
-                            "HTML: anteprima e test nella sandbox con rete bloccata.\n" +
-                                "Java e C++: analisi statica reale; la compilazione sul dispositivo non è " +
-                                "disponibile perché Android non include javac/clang.",
+                            "Oggi: ${state.quota.remaining} richieste su ${state.quota.limit}. " +
+                                "Una richiesta = una attività; i passaggi interni sono inclusi.",
                             style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
                         )
                     }
                 }
@@ -296,9 +299,16 @@ private fun ProjectWorkspace(
                     Column {
                         Text(project.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(
-                            text = state.currentBranch?.let { "Git · $it" } ?: "Progetto locale",
+                            text = buildString {
+                                append(state.codeModelLabel ?: "Modello da scegliere")
+                                append(" · ").append(state.quota.remaining).append("/")
+                                append(state.quota.limit).append(" oggi")
+                                state.currentBranch?.let { append(" · Git ").append(it) }
+                            },
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                 },
@@ -340,6 +350,25 @@ private fun ProjectWorkspace(
     if (state.proposals.isNotEmpty()) {
         ApprovalSheet(state = state, viewModel = viewModel)
     }
+
+    state.pendingDelete?.let { path ->
+        AlertDialog(
+            onDismissRequest = viewModel::cancelPendingDelete,
+            title = { Text("Eliminare «$path»?") },
+            text = {
+                Text(
+                    "L'AI ha chiesto di eliminare questo file. È un'operazione distruttiva: " +
+                        "il file viene rimosso dal progetto (resta recuperabile dal checkpoint Git).",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = viewModel::confirmPendingDelete) { Text("Elimina") }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::cancelPendingDelete) { Text("Annulla") }
+            },
+        )
+    }
 }
 
 @Composable
@@ -353,8 +382,9 @@ private fun CodeChatTab(state: CodeUiState, viewModel: CodeViewModel) {
             if (state.messages.isEmpty() && !state.generating) {
                 item {
                     Text(
-                        "Chiedi di spiegare il codice, correggere un errore o proporre una modifica. " +
-                            "Le modifiche non vengono mai applicate senza la tua approvazione.",
+                        "Descrivi l'obiettivo, non i file: «Crea un'app per gestire le attività». " +
+                            "BIG B Code pianifica, crea i file, scrive il codice e controlla il risultato. " +
+                            "Le eliminazioni richiedono sempre una conferma.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -375,7 +405,7 @@ private fun CodeChatTab(state: CodeUiState, viewModel: CodeViewModel) {
                             fontFamily = if (!isUser && message.content.contains("<<<<<<<")) {
                                 FontFamily.Monospace
                             } else {
-                                FontFamily.Serif
+                                com.bigbai.app.ui.theme.BigBSerif
                             },
                         ),
                         color = Color.Black,
@@ -383,8 +413,11 @@ private fun CodeChatTab(state: CodeUiState, viewModel: CodeViewModel) {
                     )
                 }
             }
+            if (state.steps.isNotEmpty()) {
+                item(key = "steps") { AgentStepsPanel(state.steps) }
+            }
             if (state.generating) {
-                item {
+                item(key = "thinking") {
                     Card(
                         colors = CardDefaults.cardColors(
                             containerColor = Color.White,
@@ -392,19 +425,26 @@ private fun CodeChatTab(state: CodeUiState, viewModel: CodeViewModel) {
                         ),
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
-                            if (state.streamingText.isBlank()) {
-                                Text("AI sta pensando…", style = MaterialTheme.typography.labelMedium, color = Color.Black)
-                            } else {
-                                Text(
-                                    state.streamingText,
-                                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Serif),
-                                    color = Color.Black,
-                                )
-                            }
+                            ThinkingIndicator()
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "BIG B Code sta lavorando in autonomia…",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFF4A4A4A),
+                            )
                         }
                     }
                 }
             }
+        }
+        if (state.quota.exhausted) {
+            Text(
+                "Hai usato le ${state.quota.limit} richieste di oggi. Il contatore si azzera domani; " +
+                    "puoi continuare a modificare i file a mano.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+            )
         }
         if (state.proposals.isNotEmpty()) {
             Row(
@@ -456,7 +496,7 @@ private fun CodeChatTab(state: CodeUiState, viewModel: CodeViewModel) {
                 } else {
                     IconButton(
                         onClick = viewModel::send,
-                        enabled = state.input.isNotBlank(),
+                        enabled = state.input.isNotBlank() && !state.quota.exhausted,
                         modifier = Modifier
                             .size(48.dp)
                             .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(50)),
@@ -1014,6 +1054,52 @@ private fun Banner(message: String, error: Boolean, onDismiss: () -> Unit) {
             Text(message, style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
             IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
                 Icon(Icons.Outlined.Close, contentDescription = null, modifier = Modifier.size(14.dp))
+            }
+        }
+    }
+}
+
+/**
+ * Activity log of the autonomous agent. Every line states what actually
+ * happened — created, read, checked, failed, waiting for the user — so the
+ * result is never a vague "done".
+ */
+@Composable
+private fun AgentStepsPanel(steps: List<AgentStep>) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                "Attività di BIG B Code",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            steps.takeLast(10).forEach { step ->
+                Row(
+                    modifier = Modifier.padding(vertical = 3.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    val (icon, tint) = when (step.status) {
+                        AgentStepStatus.DONE -> Icons.Outlined.Check to MaterialTheme.colorScheme.primary
+                        AgentStepStatus.FAILED -> Icons.Outlined.ErrorOutline to MaterialTheme.colorScheme.error
+                        AgentStepStatus.NEEDS_USER -> Icons.Outlined.WarningAmber to MaterialTheme.colorScheme.tertiary
+                        AgentStepStatus.RUNNING -> Icons.Outlined.Refresh to MaterialTheme.colorScheme.secondary
+                    }
+                    Icon(icon, contentDescription = null, modifier = Modifier.size(15.dp), tint = tint)
+                    Spacer(Modifier.width(8.dp))
+                    Column {
+                        Text(step.label, style = MaterialTheme.typography.labelMedium)
+                        step.detail?.let { detail ->
+                            Text(
+                                detail,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
             }
         }
     }

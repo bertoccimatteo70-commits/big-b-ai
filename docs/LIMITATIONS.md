@@ -8,7 +8,9 @@ L'obiettivo è che nessuno scopra un limite solo dopo aver installato l'APK.
 | Cosa | Stato |
 |---|---|
 | Compilazione debug | Verificata in questo ambiente |
-| Test unitari JVM (91) | Verificati, 0 falliti |
+| Test unitari JVM (124) | Verificati, 0 falliti |
+| Agente BIG B Code (parsing, limiti, quota) | Verificato con test JVM |
+| Quota giornaliera su dispositivo reale | **Non verificata**: logica e persistenza testate, ciclo su device no |
 | Lint debug | 0 errori, 66 warning |
 | Copertura JVM (JaCoCo) | Misurata: 8,0% delle linee; UI, Room, PDF e backup non coperti |
 | Librerie native arm64-v8a, armeabi-v7a, x86_64 | Compilate e strippate, presenti nell'APK |
@@ -32,6 +34,17 @@ implementate e compilano, ma non sono state eseguite: non vengono dichiarate "fu
   dispositivo reale: un problema di runtime specifico di un'ABI non è stato escluso.
 - **armv7 limitato dalla RAM.** Su 32-bit lo spazio di indirizzamento è ridotto: solo i modelli
   piccoli (Q2/Q3) entrano nel budget; gli altri vengono rifiutati con un messaggio.
+- **Limite di 5 richieste locale al dispositivo.** Non esiste account né backend: il conteggio è
+  salvato in DataStore e vale solo su quel dispositivo. Disinstallare l'app o cancellarne i dati
+  lo azzera. Non è un limite globale per utente.
+- **L'agente non compila.** Su Android non ci sono javac/clang: BIG B Code esegue analisi statica e
+  la sandbox HTML, non build Java/C++. Il prompt vieta al modello di dichiarare build o test
+  superati, e l'app mostra solo ciò che ha eseguito davvero.
+- **Modelli piccoli e protocollo a strumenti.** Sotto ~1 B parametri il modello può sbagliare la
+  sintassi degli strumenti: l'azione viene rifiutata con un errore nell'activity log, senza
+  scrivere file parziali. Il ciclo è limitato a 5 passi per evitare loop.
+- **Times New Roman non è incluso.** È un font proprietario: l'app usa Tinos (Apache-2.0),
+  metricamente compatibile. La resa non è stata confrontata a schermo con Times New Roman.
 - **Android 12+ (minSdk 31).** Richiesto per il comportamento delle foreground service e delle
   API di sicurezza usate.
 - **GPU non disponibile.** Il backend Vulkan è escluso: la build di llama.cpp usata non include
@@ -43,7 +56,7 @@ implementate e compilano, ma non sono state eseguite: non vengono dichiarate "fu
 
 ## Consegna
 
-- **Solo APK di debug.** La consegna è `BIG-B-AI-debug-1.3.0.apk`, firmato con `CN=Android Debug`:
+- **Solo APK di debug.** La consegna è `BIG-B-AI-debug-1.4.0.apk`, firmato con `CN=Android Debug`:
   installabile, ma non adatto a Play Store né a una distribuzione "ufficiale". Non vengono
   prodotti AAB né release firmate.
 - **R8/minify disattivato.** Scelta deliberata: non è stato possibile verificare su device che le

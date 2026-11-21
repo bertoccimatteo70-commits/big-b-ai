@@ -83,6 +83,8 @@ fun AppDrawer(
     onNewChat: () -> Unit,
     onOpenConversation: (Long) -> Unit,
     onNavigate: (String) -> Unit,
+    codeQuotaRemaining: Int? = null,
+    codeQuotaLimit: Int = 5,
 ) {
     ModalDrawerSheet(modifier = Modifier.width(320.dp)) {
         Column(modifier = Modifier.fillMaxHeight()) {
@@ -151,11 +153,20 @@ fun AppDrawer(
                             else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Spacer(Modifier.width(12.dp))
-                        Text(
-                            entry.label,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                entry.label,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                            )
+                            if (entry.route == Routes.CODE && codeQuotaRemaining != null) {
+                                Text(
+                                    "$codeQuotaRemaining di $codeQuotaLimit richieste oggi",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
                     }
                 }
 

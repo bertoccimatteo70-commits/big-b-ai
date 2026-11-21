@@ -27,6 +27,7 @@ data class ModelManagerState(
     val budget: Long = 0,
     val ramMode: RamMode = RamMode.NORMAL,
     val activeModelId: String? = null,
+    val activeCodeModelId: String? = null,
     val advanced: Boolean = false,
     val message: String? = null,
     val busyModelId: String? = null,
@@ -49,6 +50,7 @@ class ModelManagerViewModel(private val container: AppContainer) : ViewModel() {
                 _state.update {
                     it.copy(
                         activeModelId = settings.activeModelId,
+                        activeCodeModelId = settings.activeCodeModelId,
                         advanced = settings.advancedUnlocked,
                         ramMode = settings.ramMode,
                         budget = container.deviceProfile.budgetBytes(settings.ramMode),
@@ -109,11 +111,23 @@ class ModelManagerViewModel(private val container: AppContainer) : ViewModel() {
     fun contextFor(variant: ModelVariant): Int =
         container.catalog.adaptiveContext(variant, container.deviceProfile, _state.value.budget)
 
+    /** Chat and BIG B Code are chosen independently: no silent model switch. */
     fun setActive(variant: ModelVariant) {
         viewModelScope.launch {
             container.settings.setActiveModel(variant.id)
+            container.engine.unload()
+            _state.update {
+                it.copy(message = "Modello della chat: ${variant.family} ${variant.quant}")
+            }
+        }
+    }
+
+    fun setActiveCode(variant: ModelVariant) {
+        viewModelScope.launch {
             container.settings.setActiveCodeModel(variant.id)
-            _state.update { it.copy(message = "Modello attivo: ${variant.family} ${variant.quant}") }
+            _state.update {
+                it.copy(message = "Modello di BIG B Code: ${variant.family} ${variant.quant}")
+            }
         }
     }
 

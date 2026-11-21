@@ -29,6 +29,7 @@ import com.bigbai.llm.AnswerSanitizer
 import com.bigbai.llm.GenerationParams
 import com.bigbai.llm.InstalledModel
 import com.bigbai.llm.LlamaEngine
+import com.bigbai.llm.ModelProfiles
 import com.bigbai.llm.ModelRole
 import com.bigbai.llm.PromptMessage
 import com.bigbai.llm.PromptTemplates
@@ -36,6 +37,7 @@ import com.bigbai.llm.VisionInput
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -107,6 +109,9 @@ class ChatViewModel(
 
     private var messagesJob: Job? = null
     private var generationJob: Job? = null
+    private var timeoutJob: Job? = null
+    private var cancelledByUser = false
+    private var timedOut = false
 
     /**
      * Invalidates the updates of an in-flight generation when the user starts a
@@ -177,6 +182,7 @@ class ChatViewModel(
     fun newChat() {
         activeGeneration = ++generationSeq
         container.engine.stop()
+        cancelTimeout()
         generationJob?.cancel()
         messagesJob?.cancel()
         session.reset()
@@ -262,6 +268,7 @@ class ChatViewModel(
         _state.update { it.copy(attachments = it.attachments - attachment) }
 
     fun stop() {
+        cancelledByUser = true
         _state.update { it.copy(status = "Interruzione…") }
         container.engine.stop()
     }
@@ -274,6 +281,8 @@ class ChatViewModel(
 
         val generation = ++generationSeq
         activeGeneration = generation
+        cancelledByUser = false
+        timedOut = false
 
         generationJob = viewModelScope.launch {
             _state.update {
@@ -386,22 +395,41 @@ class ChatViewModel(
                 }
 
                 _state.update { it.copy(status = "AI sta pensando…", isThinking = true) }
-                val params = GenerationParams(
-                    maxTokens = settings.maxTokens.coerceIn(64, 4096),
-                    temperature = settings.temperature.coerceIn(0f, 2f),
-                    topP = settings.topP.coerceIn(0.1f, 1f),
-                    topK = settings.topK.coerceIn(1, 200),
-                )
+                val params = ModelProfiles.forVariant(loaded.variant).params(settings)
 
+                startTimeout(generation)
+                // The answer is generated in the background and shown only when
+                // complete: no partial text reaches the chat while streaming.
                 val result = container.engine.generate(prompt, params, vision) { token ->
-                    val snapshotText = buffer.append(token, SystemClock.elapsedRealtime())
-                    if (snapshotText != null) {
-                        updateIfCurrent(generation) {
-                            it.copy(streamingText = snapshotText, isThinking = false, status = null)
-                        }
-                    }
+                    buffer.append(token, SystemClock.elapsedRealtime())
                 }
+                cancelTimeout()
                 val finalText = AnswerSanitizer.clean(buffer.flush()).trim()
+
+                if (cancelledByUser || timedOut) {
+                    if (finalText.isNotEmpty()) {
+                        container.chat.appendMessage(
+                            conversationId = conversationId,
+                            role = Role.ASSISTANT,
+                            content = "$finalText\n\n_(risposta interrotta)_",
+                            modelId = loaded.variant.id,
+                            sources = sources,
+                        )
+                    }
+                    updateIfCurrent(generation) {
+                        it.copy(
+                            streamingText = "",
+                            isThinking = false,
+                            status = null,
+                            error = if (timedOut) {
+                                "Il modello non ha risposto in tempo. La risposta parziale è marcata come interrotta."
+                            } else {
+                                null
+                            },
+                        )
+                    }
+                    return@launch
+                }
 
                 result.onSuccess { metrics ->
                     if (finalText.isNotEmpty()) {
@@ -430,15 +458,8 @@ class ChatViewModel(
                         )
                     }
                 }.onFailure { error ->
-                    if (finalText.isNotEmpty()) {
-                        container.chat.appendMessage(
-                            conversationId = conversationId,
-                            role = Role.ASSISTANT,
-                            content = finalText,
-                            modelId = loaded.variant.id,
-                            sources = sources,
-                        )
-                    }
+                    // A failed generation is not a final answer: the partial text
+                    // is discarded and the error is shown instead.
                     if (!userMessagePersisted) restoreDraft(text, snapshot.attachments, generation)
                     updateIfCurrent(generation) {
                         it.copy(
@@ -648,6 +669,27 @@ class ChatViewModel(
         }
     }
 
+    /**
+     * Local generation is synchronous inside the native engine, so a timeout is
+     * enforced by asking the engine to stop: cancelling the coroutine alone would
+     * leave the native loop running.
+     */
+    private fun startTimeout(generation: Int) {
+        cancelTimeout()
+        timeoutJob = viewModelScope.launch {
+            delay(RESPONSE_TIMEOUT_MS)
+            if (activeGeneration == generation && _state.value.isGenerating) {
+                timedOut = true
+                container.engine.stop()
+            }
+        }
+    }
+
+    private fun cancelTimeout() {
+        timeoutJob?.cancel()
+        timeoutJob = null
+    }
+
     private suspend fun buildPrompt(
         userText: String,
         attachments: List<Attachment>,
@@ -678,6 +720,8 @@ class ChatViewModel(
             visionAvailable = loaded.vision,
             hasImage = attachments.any { it.kind == Attachment.Kind.IMAGE },
             tutor = tutor,
+            modelStyle = ModelProfiles.forVariant(loaded.variant)
+                .styleHint(settings.language.startsWith("it")),
         )
 
         val budget = (loaded.contextSize - settings.maxTokens - 48).coerceAtLeast(512)
@@ -822,6 +866,7 @@ class ChatViewModel(
         // machinery alone; signal it before cancelling the job so the model is
         // not left decoding after the screen is gone.
         container.engine.stop()
+        cancelTimeout()
         generationJob?.cancel()
         messagesJob?.cancel()
         super.onCleared()
@@ -830,5 +875,8 @@ class ChatViewModel(
     companion object {
         private const val KEY_CONVERSATION = "chat_conversation_id"
         private const val KEY_INPUT = "chat_draft_input"
+
+        /** Three minutes: enough for a long local answer, short enough to fail clearly. */
+        private const val RESPONSE_TIMEOUT_MS = 180_000L
     }
 }

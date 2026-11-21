@@ -153,6 +153,7 @@ fun ModelManagerScreen(container: AppContainer, initialTab: Int, onBack: () -> U
                     onDelete = { pendingDelete = it },
                     onVerify = viewModel::verify,
                     onActivate = viewModel::setActive,
+                    onActivateCode = viewModel::setActiveCode,
                     onOpenSource = openSource,
                 )
             }
@@ -446,6 +447,7 @@ private fun InstalledTab(
     onDelete: (ModelVariant) -> Unit,
     onVerify: (ModelVariant) -> Unit,
     onActivate: (ModelVariant) -> Unit,
+    onActivateCode: (ModelVariant) -> Unit,
     onOpenSource: (ModelVariant) -> Unit,
 ) {
     LazyColumn(
@@ -463,7 +465,8 @@ private fun InstalledTab(
         }
         item {
             Text(
-                "Un modello è attivo alla volta. Quello selezionato viene caricato al primo messaggio.",
+                "Scegli un modello per la chat e, se vuoi, un modello diverso per BIG B Code: " +
+                    "la scelta è indipendente e sempre visibile. Il modello viene caricato al primo messaggio.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -486,22 +489,46 @@ private fun InstalledTab(
             }
         }
         items(state.installed, key = { "installed-${it.variant.id}" }) { installed ->
-            ModelCard(
-                variant = installed.variant,
-                installed = true,
-                active = state.activeModelId == installed.variant.id,
-                download = state.downloads[installed.variant.id],
-                busy = state.busyModelId == installed.variant.id,
-                advanced = true,
-                context = viewModel.contextFor(installed.variant),
-                onDownload = {},
-                onPause = {},
-                onCancel = {},
-                onDelete = { onDelete(installed.variant) },
-                onVerify = { onVerify(installed.variant) },
-                onActivate = { onActivate(installed.variant) },
-                onOpenSource = { onOpenSource(installed.variant) },
-            )
+            val isCodeModel = state.activeCodeModelId == installed.variant.id
+            Column {
+                ModelCard(
+                    variant = installed.variant,
+                    installed = true,
+                    active = state.activeModelId == installed.variant.id,
+                    download = state.downloads[installed.variant.id],
+                    busy = state.busyModelId == installed.variant.id,
+                    advanced = true,
+                    context = viewModel.contextFor(installed.variant),
+                    onDownload = {},
+                    onPause = {},
+                    onCancel = {},
+                    onDelete = { onDelete(installed.variant) },
+                    onVerify = { onVerify(installed.variant) },
+                    onActivate = { onActivate(installed.variant) },
+                    onOpenSource = { onOpenSource(installed.variant) },
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = if (isCodeModel) {
+                            "BIG B Code: modello attivo"
+                        } else {
+                            "BIG B Code: non selezionato"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(
+                        onClick = { onActivateCode(installed.variant) },
+                        enabled = !isCodeModel,
+                    ) {
+                        Text(if (isCodeModel) "In uso" else "Usa in BIG B Code")
+                    }
+                }
+            }
         }
     }
 }
@@ -621,7 +648,12 @@ private fun ModelCard(
                 } else {
                     0f
                 }
-                LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth())
+                val animatedFraction by androidx.compose.animation.core.animateFloatAsState(
+                    targetValue = fraction,
+                    animationSpec = androidx.compose.animation.core.tween(350),
+                    label = "download-progress",
+                )
+                LinearProgressIndicator(progress = { animatedFraction }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(4.dp))
                 Text(
                     text = when (status) {

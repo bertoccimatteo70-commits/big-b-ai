@@ -5,6 +5,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bigbai.app.AppContainer
 import com.bigbai.app.files.FileExport
+import com.bigbai.code.AgentAction
+import com.bigbai.code.AgentStep
+import com.bigbai.code.AgentStepStatus
+import com.bigbai.code.CodeAgent
+import com.bigbai.code.CodeQuota
 import com.bigbai.code.Diagnostic
 import com.bigbai.code.FileNode
 import com.bigbai.code.GitCommitInfo
@@ -23,15 +28,18 @@ import com.bigbai.core.model.ProjectMemoryKind
 import com.bigbai.core.model.Role
 import com.bigbai.llm.AnswerSanitizer
 import com.bigbai.llm.GenerationParams
+import com.bigbai.llm.ModelProfiles
 import com.bigbai.llm.ModelRole
 import com.bigbai.llm.PromptMessage
-import com.bigbai.llm.PromptTemplates
+import com.bigbai.llm.ResponseQuality
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -60,6 +68,13 @@ data class CodeUiState(
     val gitDiff: String? = null,
     val sandbox: SandboxResult? = null,
     val busy: Boolean = false,
+    /** Activity log of the current agent task: done, failed, needs user. */
+    val steps: List<AgentStep> = emptyList(),
+    val quota: CodeQuota = CodeQuota(CodeQuota.today(), 0),
+    /** Path waiting for an explicit confirmation before deletion. */
+    val pendingDelete: String? = null,
+    val codeModelLabel: String? = null,
+    val chatModelLabel: String? = null,
 )
 
 class CodeViewModel(private val container: AppContainer) : ViewModel() {
@@ -68,6 +83,9 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
     val state: StateFlow<CodeUiState> = _state.asStateFlow()
 
     private var chatJob: Job? = null
+    private var timeoutJob: Job? = null
+    private var cancelledByUser = false
+    private var timedOut = false
 
     init {
         viewModelScope.launch {
@@ -75,6 +93,19 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
                 _state.update { it.copy(projects = projects) }
             }
         }
+        viewModelScope.launch {
+            container.settings.codeQuota.collect { (date, used) ->
+                val quota = CodeQuota.of(CodeQuota.today(), date, used)
+                _state.update { it.copy(quota = quota) }
+            }
+        }
+    }
+
+    private suspend fun refreshQuota(): CodeQuota {
+        val (date, used) = container.settings.codeQuotaNow()
+        val quota = CodeQuota.of(CodeQuota.today(), date, used)
+        _state.update { it.copy(quota = quota) }
+        return quota
     }
 
     fun clearError() = _state.update { it.copy(error = null) }
@@ -216,6 +247,8 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
                     proposalDiffs = emptyMap(),
                     gitDiff = null,
                     sandbox = null,
+                    steps = emptyList(),
+                    pendingDelete = null,
                 )
             }
             container.projects.touch(id)
@@ -344,85 +377,399 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
         if (text.isEmpty() || _state.value.generating) return
 
         chatJob = viewModelScope.launch {
+            val quota = refreshQuota()
+            if (quota.exhausted) {
+                _state.update {
+                    it.copy(
+                        input = text,
+                        error = "Hai esaurito le 5 richieste di BIG B Code per oggi. " +
+                            "Il contatore si azzera domani; i passaggi interni non consumano richieste.",
+                    )
+                }
+                return@launch
+            }
+            val consumed = quota.consume()
+            container.settings.setCodeQuota(consumed.date, consumed.used)
             _state.update {
                 it.copy(
                     input = "",
                     generating = true,
-                    streamingText = "",
+                    quota = consumed,
                     error = null,
-                    status = "Preparazione…",
+                    steps = emptyList(),
+                    pendingDelete = null,
                     proposals = emptyList(),
                     proposalDiffs = emptyMap(),
+                    status = "Analisi della richiesta…",
                 )
             }
-            val builder = StringBuilder()
+
+            var producedOutput = false
+            var checkpointed = false
             try {
                 val settings = container.settings.current()
-                val loaded = ensureCodeModel(settings) ?: return@launch
+                updateModelLabels(settings)
+                val loaded = ensureCodeModel(settings)
+                if (loaded == null) {
+                    refundQuota(consumed)
+                    return@launch
+                }
+                updateModelLabels(settings)
+                val profile = ModelProfiles.forVariant(loaded.variant)
+                val params = profile.params(settings)
+
+                // History is captured before the new user turn: otherwise the
+                // same request would be sent twice (history + current message).
+                val priorMessages = container.projects.messages(project.id).first().takeLast(6)
                 container.projects.appendMessage(project.id, Role.USER, text)
-                val summary = container.projects.memorySummary(project.id)
-                val system = PromptTemplates.codeSystemPrompt(
-                    language = settings.language,
-                    projectSummary = summary,
-                    fileTree = container.projectFiles.treeText(_state.value.tree),
-                    activeFile = _state.value.openPath?.let { path ->
-                        "$path\n${_state.value.editorText.take(10_000)}"
-                    },
-                )
-                val history = _state.value.messages.takeLast(10).map {
-                    PromptMessage(if (it.role == Role.USER) "user" else "assistant", it.content)
-                }
-                val prompt = listOf(PromptMessage("system", system)) + history +
-                    PromptMessage("user", text)
-
-                _state.update { it.copy(status = "AI sta pensando…") }
-                val result = container.engine.generate(
-                    messages = prompt,
-                    params = GenerationParams(
-                        maxTokens = settings.maxTokens.coerceIn(256, 2048),
-                        temperature = settings.temperature.coerceIn(0f, 1.2f),
-                        topP = settings.topP,
-                        topK = settings.topK,
-                    ),
-                ) { token ->
-                    builder.append(token)
-                    _state.update { it.copy(streamingText = AnswerSanitizer.clean(builder.toString())) }
+                val root = container.projectFiles.root(project.treeUri)
+                if (root == null) {
+                    _state.update { it.copy(error = "Cartella del progetto non accessibile") }
+                    refundQuota(consumed)
+                    return@launch
                 }
 
-                val answer = AnswerSanitizer.clean(builder.toString()).trim()
-                if (answer.isNotEmpty()) {
-                    container.projects.appendMessage(project.id, Role.ASSISTANT, answer)
-                }
-                result.onFailure { error ->
-                    _state.update { it.copy(error = error.message ?: "Generazione non riuscita") }
-                }
+                var stepIndex = 1
+                var finished = false
+                var toolTranscript = ""
+                val written = mutableListOf<String>()
 
-                val changes = PatchEngine.parse(answer)
-                if (changes.isNotEmpty()) {
-                    val root = container.projectFiles.root(project.treeUri)
-                    val diffs = changes.associate { change ->
-                        val old = root?.let { container.projectFiles.readText(it, change.path) }
-                        change.path to PatchEngine.unifiedDiff(change.path, old, change.content)
+                while (stepIndex <= CodeAgent.MAX_STEPS && !finished) {
+                    if (cancelledByUser || timedOut) break
+                    _state.update { it.copy(status = "Passo $stepIndex di ${CodeAgent.MAX_STEPS}…") }
+                    val system = CodeAgent.systemPrompt(
+                        language = settings.language,
+                        projectName = project.name,
+                        tree = container.projectFiles.treeText(_state.value.tree),
+                        projectContext = projectContext(root),
+                        step = stepIndex,
+                        maxSteps = CodeAgent.MAX_STEPS,
+                    )
+                    val history = priorMessages.map {
+                        PromptMessage(if (it.role == Role.USER) "user" else "assistant", it.content)
                     }
-                    _state.update {
-                        it.copy(
-                            proposals = changes,
-                            proposalDiffs = diffs,
-                            status = "${changes.size} modifiche proposte: controlla il diff e approva.",
-                        )
+                    val userTurn = if (toolTranscript.isBlank()) {
+                        text
+                    } else {
+                        "$text\n\nRISULTATI REALI DEGLI STRUMENTI (usali, non inventare altro):\n$toolTranscript"
                     }
+                    val prompt = listOf(PromptMessage("system", system)) + history +
+                        PromptMessage("user", userTurn)
+
+                    val builder = StringBuilder()
+                    startTimeout()
+                    val result = container.engine.generate(prompt, params) { token -> builder.append(token) }
+                    cancelTimeout()
+                    val answer = AnswerSanitizer.clean(builder.toString()).trim()
+
+                    if (cancelledByUser || timedOut) {
+                        appendInterrupted(project.id, builder.toString())
+                        break
+                    }
+                    if (answer.isBlank()) {
+                        result.exceptionOrNull()?.let { error ->
+                            _state.update { it.copy(error = error.message ?: "Generazione non riuscita") }
+                        }
+                        break
+                    }
+                    producedOutput = true
+                    val quality = ResponseQuality.inspect(answer)
+                    if (!quality.acceptable && quality.repetitionRatio > 0.45) {
+                        _state.update {
+                            it.copy(
+                                steps = it.steps + AgentStep(
+                                    "Risposta ripetitiva scartata",
+                                    "Il modello ha iniziato a ripetersi: nessuna modifica applicata.",
+                                    AgentStepStatus.FAILED,
+                                ),
+                            )
+                        }
+                        break
+                    }
+
+                    val actions = CodeAgent.parse(answer)
+                    if (actions.isEmpty()) {
+                        appendAssistant(project.id, answer)
+                        finished = true
+                        break
+                    }
+
+                    val transcript = StringBuilder()
+                    var needsConfirmation = false
+                    for (action in actions) {
+                        when (action) {
+                            is AgentAction.WriteFile -> {
+                                if (!checkpointed) {
+                                    checkpointed = true
+                                    checkpoint(project, "Prima dell'attività AI")
+                                }
+                                val ok = container.projectFiles.writeText(root, action.path, action.content)
+                                if (ok) {
+                                    written += action.path
+                                    transcript.append("OK: scritto ").append(action.path).append('\n')
+                                    _state.update {
+                                        it.copy(
+                                            steps = it.steps + AgentStep(
+                                                "Creato ${action.path}",
+                                                "${action.content.length} caratteri",
+                                            ),
+                                        )
+                                    }
+                                } else {
+                                    transcript.append("ERRORE: non è stato possibile scrivere ")
+                                        .append(action.path).append('\n')
+                                    _state.update {
+                                        it.copy(
+                                            steps = it.steps + AgentStep(
+                                                "Errore su ${action.path}",
+                                                "Scrittura non riuscita",
+                                                AgentStepStatus.FAILED,
+                                            ),
+                                        )
+                                    }
+                                }
+                            }
+                            is AgentAction.ReadFile -> {
+                                val content = container.projectFiles.readText(root, action.path)
+                                if (content == null) {
+                                    transcript.append("ERRORE: ").append(action.path)
+                                        .append(" non esiste o non è leggibile\n")
+                                } else {
+                                    transcript.append("FILE ").append(action.path).append('\n')
+                                        .append(content.take(CodeAgent.MAX_READ_CHARS)).append('\n')
+                                    _state.update {
+                                        it.copy(steps = it.steps + AgentStep("Letto ${action.path}"))
+                                    }
+                                }
+                            }
+                            AgentAction.ListFiles -> {
+                                val nodes = container.projectFiles.list(root)
+                                transcript.append("ALBERO\n")
+                                    .append(container.projectFiles.treeText(nodes)).append('\n')
+                                _state.update { it.copy(tree = nodes) }
+                            }
+                            is AgentAction.DeleteFile -> {
+                                _state.update {
+                                    it.copy(
+                                        pendingDelete = action.path,
+                                        steps = it.steps + AgentStep(
+                                            "Eliminazione da confermare: ${action.path}",
+                                            "Operazione distruttiva: serve il tuo consenso.",
+                                            AgentStepStatus.NEEDS_USER,
+                                        ),
+                                    )
+                                }
+                                needsConfirmation = true
+                            }
+                            is AgentAction.Finish -> {
+                                appendAssistant(project.id, action.summary)
+                                finished = true
+                            }
+                            is AgentAction.Invalid -> {
+                                transcript.append("ERRORE: ").append(action.reason).append('\n')
+                                _state.update {
+                                    it.copy(
+                                        steps = it.steps + AgentStep(
+                                            "Strumento non valido",
+                                            action.reason,
+                                            AgentStepStatus.FAILED,
+                                        ),
+                                    )
+                                }
+                            }
+                        }
+                        if (finished || needsConfirmation) break
+                    }
+
+                    if (finished || needsConfirmation) break
+                    if (transcript.isNotEmpty()) toolTranscript = transcript.toString()
+                    stepIndex += 1
+                }
+
+                if (!finished && !cancelledByUser && !timedOut && stepIndex > CodeAgent.MAX_STEPS) {
+                    appendAssistant(
+                        project.id,
+                        "Ho raggiunto il limite di ${CodeAgent.MAX_STEPS} passi per questa attività. " +
+                            "Scrivi «continua» per proseguire da dove sono arrivato.",
+                    )
+                }
+                if (written.isNotEmpty()) {
+                    analyzeWritten(project, written)
                 }
             } catch (cancelled: CancellationException) {
+                if (!producedOutput) refundQuota(consumed)
                 throw cancelled
             } catch (error: Exception) {
+                if (!producedOutput) refundQuota(consumed)
                 _state.update { it.copy(error = error.message ?: "Errore imprevisto") }
             } finally {
-                _state.update { it.copy(generating = false, streamingText = "", status = null) }
+                cancelTimeout()
+                _state.update { it.copy(generating = false, status = null) }
+                refreshTree()
             }
         }
     }
 
-    fun stopGeneration() = container.engine.stop()
+    fun stopGeneration() {
+        cancelledByUser = true
+        container.engine.stop()
+        cancelTimeout()
+        _state.update { it.copy(status = "Interruzione…") }
+    }
+
+    /** Executes the deletion the agent asked for, only after explicit consent. */
+    fun confirmPendingDelete() {
+        val path = _state.value.pendingDelete ?: return
+        val project = _state.value.project ?: return
+        viewModelScope.launch {
+            val root = container.projectFiles.root(project.treeUri)
+            if (root == null) {
+                _state.update { it.copy(error = "Cartella non accessibile", pendingDelete = null) }
+                return@launch
+            }
+            val ok = container.projectFiles.delete(root, path)
+            if (ok) checkpoint(project, "Eliminazione di $path")
+            _state.update {
+                it.copy(
+                    pendingDelete = null,
+                    steps = it.steps + AgentStep(
+                        if (ok) "Eliminato $path" else "Eliminazione non riuscita: $path",
+                        status = if (ok) AgentStepStatus.DONE else AgentStepStatus.FAILED,
+                    ),
+                    status = if (ok) "File eliminato" else null,
+                    error = if (ok) null else "Eliminazione non riuscita",
+                )
+            }
+            refreshTree()
+        }
+    }
+
+    fun cancelPendingDelete() = _state.update {
+        it.copy(
+            pendingDelete = null,
+            status = "Eliminazione annullata",
+            steps = it.steps + AgentStep("Eliminazione annullata"),
+        )
+    }
+
+    private fun startTimeout() {
+        cancelTimeout()
+        timeoutJob = viewModelScope.launch {
+            delay(TASK_TIMEOUT_MS)
+            if (_state.value.generating) {
+                timedOut = true
+                container.engine.stop()
+                _state.update {
+                    it.copy(error = "Il modello non ha risposto in tempo. Nessuna modifica è stata applicata.")
+                }
+            }
+        }
+    }
+
+    private fun cancelTimeout() {
+        timeoutJob?.cancel()
+        timeoutJob = null
+    }
+
+    private suspend fun refundQuota(quota: CodeQuota) {
+        val refunded = quota.refund()
+        container.settings.setCodeQuota(refunded.date, refunded.used)
+        _state.update { it.copy(quota = refunded) }
+    }
+
+    private suspend fun appendAssistant(projectId: Long, text: String) {
+        if (text.isBlank()) return
+        container.projects.appendMessage(projectId, Role.ASSISTANT, text)
+        _state.update { it.copy(steps = it.steps + AgentStep("Risposta consegnata")) }
+    }
+
+    /** A cancelled or timed-out answer is stored but clearly marked as interrupted. */
+    private suspend fun appendInterrupted(projectId: Long, raw: String) {
+        val visible = AnswerSanitizer.clean(raw)
+            .substringBefore("<tool")
+            .trim()
+        val content = if (visible.isBlank()) {
+            "Attività interrotta. Nessuna modifica è stata applicata."
+        } else {
+            "$visible\n\n_(risposta interrotta)_"
+        }
+        container.projects.appendMessage(projectId, Role.ASSISTANT, content)
+        _state.update {
+            it.copy(steps = it.steps + AgentStep("Attività interrotta", status = AgentStepStatus.NEEDS_USER))
+        }
+    }
+
+    private suspend fun checkpoint(project: Project, reason: String) {
+        val root = container.projectFiles.root(project.treeUri) ?: return
+        val files = container.projectFiles.snapshot(root, maxFiles = 200)
+        if (files.isEmpty()) return
+        val commit = container.git.commit(project.id, files, reason)
+        if (commit != null) {
+            _state.update {
+                it.copy(steps = it.steps + AgentStep("Checkpoint ${commit.shortId}", reason))
+            }
+        }
+    }
+
+    private suspend fun projectContext(root: androidx.documentfile.provider.DocumentFile): String {
+        val files = container.projectFiles.snapshot(root, maxFiles = 24, maxBytesPerFile = 24_000)
+        val builder = StringBuilder()
+        for ((path, content) in files) {
+            if (builder.length > CodeAgent.MAX_CONTEXT_CHARS) break
+            builder.append("FILE ").append(path).append('\n')
+            builder.append(content.take(6_000)).append("\n\n")
+        }
+        return builder.toString().take(CodeAgent.MAX_CONTEXT_CHARS)
+    }
+
+    private suspend fun updateModelLabels(settings: com.bigbai.core.model.AppSettings) {
+        val installed = container.modelStore.installedAll(container.catalog)
+        val chat = installed.firstOrNull { it.variant.id == settings.activeModelId }
+            ?: installed.firstOrNull()
+        val code = installed.firstOrNull { it.variant.id == settings.activeCodeModelId }
+            ?: installed.firstOrNull { it.variant.role == ModelRole.CODE }
+            ?: chat
+        _state.update {
+            it.copy(
+                codeModelLabel = code?.variant?.displayName?.let { name ->
+                    if (settings.activeCodeModelId == null) "$name (automatico)" else name
+                },
+                chatModelLabel = chat?.variant?.displayName,
+            )
+        }
+    }
+
+    /** Runs the static analyzers on the files the agent wrote and reports them. */
+    private suspend fun analyzeWritten(project: Project, paths: List<String>) {
+        val root = container.projectFiles.root(project.treeUri) ?: return
+        var problems = 0
+        for (path in paths.distinct()) {
+            val text = container.projectFiles.readText(root, path) ?: continue
+            val diagnostics = StaticAnalyzers.analyze(path, text)
+            problems += diagnostics.count { it.severity == com.bigbai.code.DiagnosticSeverity.ERROR }
+            if (diagnostics.isNotEmpty()) {
+                _state.update {
+                    it.copy(
+                        diagnostics = diagnostics,
+                        steps = it.steps + AgentStep(
+                            "Controllo $path",
+                            "${diagnostics.size} segnalazioni (${diagnostics.count { d -> d.severity == com.bigbai.code.DiagnosticSeverity.ERROR }} errori)",
+                            if (diagnostics.any { d -> d.severity == com.bigbai.code.DiagnosticSeverity.ERROR }) {
+                                AgentStepStatus.FAILED
+                            } else {
+                                AgentStepStatus.DONE
+                            },
+                        ),
+                    )
+                }
+            }
+        }
+        if (problems == 0 && paths.isNotEmpty()) {
+            _state.update {
+                it.copy(steps = it.steps + AgentStep("Controlli completati", "Nessun errore statico rilevato"))
+            }
+        }
+    }
 
     fun applyProposals() {
         val project = _state.value.project ?: return
@@ -595,6 +942,8 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
     fun dismissStatus() = _state.update { it.copy(status = null) }
 
     private suspend fun ensureCodeModel(settings: com.bigbai.core.model.AppSettings): com.bigbai.llm.LoadedModel? {
+        cancelledByUser = false
+        timedOut = false
         val installed = container.modelStore.installedAll(container.catalog)
         if (installed.isEmpty()) {
             _state.update { it.copy(error = "Nessun modello installato. Apri Modelli per scaricarne uno.") }
@@ -636,6 +985,12 @@ class CodeViewModel(private val container: AppContainer) : ViewModel() {
 
     override fun onCleared() {
         chatJob?.cancel()
+        cancelTimeout()
         super.onCleared()
+    }
+
+    private companion object {
+        /** A local model that has not produced anything in four minutes is stuck. */
+        const val TASK_TIMEOUT_MS = 240_000L
     }
 }

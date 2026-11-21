@@ -17,6 +17,7 @@ object PromptTemplates {
         visionAvailable: Boolean,
         hasImage: Boolean,
         tutor: String = "",
+        modelStyle: String = "",
     ): String {
         val italian = language.startsWith("it")
         val languageName = when {
@@ -40,7 +41,11 @@ object PromptTemplates {
                     "- Non inventare fatti, citazioni, fonti o funzionalità. Se non sai qualcosa, dillo.\n" +
                     "- Non affermare di aver eseguito azioni che non puoi eseguire.\n" +
                     "- Per la matematica mostra i passaggi e verifica il risultato.\n" +
-                    "- Usa Markdown leggibile; il codice va in blocchi recintati con il linguaggio.\n",
+                    "- Usa Markdown leggibile; il codice va in blocchi recintati con il linguaggio.\n" +
+                    "- Inizia con la risposta diretta in una frase, poi aggiungi i dettagli in punti brevi.\n" +
+                    "- Non ripetere la domanda e non ripetere la stessa frase: se un concetto è già spiegato, vai avanti.\n" +
+                    "- Per una domanda semplice bastano 3-6 frasi; per una domanda tecnica usa sezioni con titoli.\n" +
+                    "- Se la domanda è ambigua, dichiara l'interpretazione che scegli e rispondi su quella.\n",
             )
         } else {
             builder.append(
@@ -53,7 +58,11 @@ object PromptTemplates {
                     "- Never invent facts, citations, sources or capabilities. If you do not know, say so.\n" +
                     "- Never claim to have performed actions you cannot perform.\n" +
                     "- For mathematics, show the steps and verify the result.\n" +
-                    "- Use readable Markdown; code goes in fenced blocks with the language.\n",
+                    "- Use readable Markdown; code goes in fenced blocks with the language.\n" +
+                    "- Start with the direct answer in one sentence, then add details in short bullets.\n" +
+                    "- Do not restate the question and do not repeat the same sentence.\n" +
+                    "- A simple question needs 3-6 sentences; a technical one uses sections with headings.\n" +
+                    "- If the question is ambiguous, state the interpretation you chose and answer that.\n",
             )
         }
 
@@ -89,6 +98,10 @@ object PromptTemplates {
 
         if (tutor.isNotBlank()) {
             builder.append('\n').append(tutor).append('\n')
+        }
+
+        if (modelStyle.isNotBlank()) {
+            builder.append('\n').append(modelStyle).append('\n')
         }
 
         if (hasImage) {

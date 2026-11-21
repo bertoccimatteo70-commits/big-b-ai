@@ -14,9 +14,9 @@ viene da calcoli reali, dal database locale o dal motore di inferenza.
 | Area | Stato |
 |---|---|
 | Compilazione debug | ✅ verificata (`assembleDebug`); APK generato, firmato e ispezionato |
-| Test unitari JVM | ✅ 91 test, 0 falliti (`:core` 26, `:code` 26, `:llm` 23, `:app` 16) |
+| Test unitari JVM | ✅ 124 test, 0 falliti (`:core` 26, `:code` 42, `:llm` 40, `:app` 16) |
 | Lint debug | ✅ 0 errori, 66 warning (dipendenze/AGP non aggiornate) |
-| Copertura JVM (JaCoCo) | ✅ misurata: **8,0%** delle linee complessive; logica pura coperta (core/chat 94,7%, core/lang 99,1%, code 33,7%, llm 23,5%), UI e Room non coperte da test JVM |
+| Copertura JVM (JaCoCo) | ✅ misurata in 1.3.0: **8,0%** delle linee complessive; la copertura non è stata ricalcolata in 1.4.0 |
 | Librerie native `libbigbai.so` (llama.cpp) | ✅ compilate e strippate per **arm64-v8a, armeabi-v7a e x86_64** (4,2–6,6 MB ciascuna) |
 | Inferenza su dispositivo reale | ⛔ non verificata: nessun dispositivo/emulatore disponibile |
 | UI su dispositivo | ⛔ non verificata: nessuno screenshot da device |
@@ -29,21 +29,20 @@ ambiente di build. I dettagli sono in [docs/LIMITATIONS.md](docs/LIMITATIONS.md)
 
 | Campo | Valore |
 |---|---|
-| File | `BIG-B-AI-debug-1.3.0.apk` |
-| Versione | 1.3.0-debug (versionCode 4) |
-| Dimensione | **114.028.656 byte (108,75 MiB / 114,03 MB)** |
-| SHA-256 | `170905bb50813a4d6e7e619c27fec40e123604bcb33f0f2b109f33558a76badf` |
+| File | `BIG-B-AI-debug-1.4.0.apk` |
+| Versione | 1.4.0-debug (versionCode 5) |
+| Dimensione | **115.341.878 byte (110,00 MiB / 115,34 MB)** |
+| SHA-256 | `bc54c237439581063cad3a6374fe1ef25db7beb8484f40d2d0038ba3dcd1f67b` |
 | minSdk / targetSdk | 31 (Android 12) / 35 |
 | ABI | **arm64-v8a, armeabi-v7a, x86_64** (APK universale) |
 | Firma | chiave **debug** Android (`CN=Android Debug`) |
 
 L'APK è installabile su Android 12+ con architettura ARM 64-bit, ARM 32-bit o x86_64 (emulatore).
 È la variante **debug** (`com.bigbai.app.debug`), firmata con la chiave debug Android
-(`CN=Android Debug`): è dichiarato, non nascosto. I valori qui sopra sono l'APK pubblicato come
-artifact `BIG-B-AI-Debug-APK` dalla run CI
-[44894826291](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44894826291) sul
-commit `606797a`; `.sha256` e `.txt` sono accanto all'APK nello stesso artifact. L'hash cambia a
-ogni ricostruzione per i timestamp di firma.
+(`CN=Android Debug`): è dichiarato, non nascosto. I valori qui sopra sono la build locale di
+riferimento della 1.4.0; la CI ricompila lo stesso codice e pubblica l'APK come artifact
+`BIG-B-AI-Debug-APK` con `.sha256` e `.txt` accanto. L'hash cambia a ogni ricostruzione per i
+timestamp di firma.
 
 La dimensione supera i 100 MB perché l'APK contiene il motore nativo reale per **tre** ABI: non
 c'è alcun file aggiunto per gonfiarlo. `scripts/package-debug-apk.sh` verifica la presenza di
@@ -52,6 +51,23 @@ c'è alcun file aggiunto per gonfiarlo. `scripts/package-debug-apk.sh` verifica 
 I modelli **non** sono inclusi nell'APK: si scaricano dall'app, con ripresa del download e verifica
 SHA-256. L'APK contiene solo il motore.
 
+## Novità 1.4.0
+
+- **BIG B Code è un agente.** Descrivi l'obiettivo: crea i file, scrive il codice, legge ciò che
+  serve, controlla il risultato e corregge, fino a 5 passi autonomi. Ogni azione compare in un
+  activity log con esito reale; le eliminazioni chiedono conferma.
+- **5 richieste al giorno**, persistenti e visibili ovunque. Una richiesta = una attività: i
+  passaggi interni non consumano nulla. Il limite è locale al dispositivo (nessun account).
+- **Risposte complete.** Niente token in streaming: un indicatore animato, poi la risposta intera
+  con animazione. Annullamento e timeout sono marcati, gli errori non diventano risposte finte.
+- **Font Tinos** (Apache-2.0), metricamente compatibile con Times New Roman, su tutta l'interfaccia;
+  Times New Roman è proprietario e non distribuibile.
+- **Profili per modello**: temperatura, top-p, top-k, contesto e lunghezza dipendono dal modello;
+  chat e BIG B Code hanno scelte indipendenti e visibili.
+- **Animazioni sobrie** rispettose dell'opzione Android «rimuovi animazioni».
+
+Dettagli e misure in [docs/AUDIT-1.4.md](docs/AUDIT-1.4.md).
+
 ## Funzionalità
 
 **Chat**
@@ -59,10 +75,10 @@ SHA-256. L'APK contiene solo il motore.
   libreria/download/installati, plugin, impostazioni, informazioni) e conversazioni recenti.
 - Ogni nuova chat parte da zero: nessun messaggio, allegato, bozza, metrica o errore ereditato;
   anche il passaggio tra conversazioni azzera lo stato e riporta la lista in cima.
-- Bolle bianche `#FFFFFF` con testo nero e font serif in entrambi i temi; il codice resta
-  monospaziato.
-- Streaming fluido con aggiornamenti UI limitati a ~25 fps e metriche misurate (token/s, tempo al
-  primo token, RAM di processo).
+- Bolle bianche `#FFFFFF` con testo nero e font Tinos (metricamente compatibile con Times New
+  Roman) in entrambi i temi; il codice resta monospaziato.
+- Risposta generata in background e mostrata **completa**, con indicatore animato, annullamento,
+  timeout e metriche misurate (token/s, tempo al primo token, RAM di processo).
 - Salvataggio automatico di una risposta come file (nome generato, estensione dal linguaggio del
   blocco di codice) in `Download/BIG B AI`, condivisione e esportazione dell'intera conversazione
   in Markdown.
@@ -108,16 +124,17 @@ SHA-256. L'APK contiene solo il motore.
 - Editor, file explorer, creazione/rinomina/eliminazione file, salvataggio, esportazione in
   Download e condivisione del file aperto.
 - Analisi statica reale per HTML, CSS, Java e C++ (bilanciamento, regole strutturali, include guard).
-- Assistente AI con protocollo di patch esplicito: ogni modifica mostra il diff e richiede
-  approvazione prima di essere scritta.
+- Agente AI con strumenti reali: crea, legge, elenca ed elimina file del progetto, fino a 5 passi
+  autonomi, con activity log, checkpoint Git prima della prima scrittura e conferma obbligatoria
+  per le eliminazioni. Massimo 5 richieste al giorno, visibili e persistenti.
 - Git locale (JGit): commit snapshot, cronologia, diff, ripristino, branch.
 - Sandbox HTML in WebView usa-e-getta: rete bloccata per default, timeout 8 s, nessun accesso ai file.
 - Memoria di progetto separata (obiettivi, decisioni, errori, stato).
 
 ## Interfaccia
 
-Design system indigo/ciano, tema chiaro/scuro/sistema, tipografia e forme coerenti, transizioni
-brevi disattivabili con «Riduci animazioni». Primo avvio in 5 schermate. Navigazione a menu
+Design system indigo/ciano, tema chiaro/scuro/sistema, tipografia Tinos e forme coerenti,
+transizioni brevi disattivabili con «Riduci animazioni» o con l'opzione di sistema Android. Primo avvio in 5 schermate. Navigazione a menu
 laterale, con le funzioni principali a un tocco. Le bolle della chat sono bianche con testo nero
 e font serif per scelta esplicita di leggibilità, anche in modalità scura. L'interfaccia è
 tradotta in italiano; il selettore lingua imposta la lingua delle risposte del modello (la

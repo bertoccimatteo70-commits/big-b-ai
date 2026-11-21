@@ -413,9 +413,7 @@ fun ChatScreen(
                             )
                         }
                         if (state.isGenerating) {
-                            item(key = "streaming") {
-                                StreamingBubble(state.streamingText, state.isThinking)
-                            }
+                            item(key = "thinking") { ThinkingBubble() }
                         }
                         item(key = "bottom-spacer") { Spacer(Modifier.height(12.dp)) }
                     }
