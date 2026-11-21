@@ -52,7 +52,7 @@ jobs:
         run: bash scripts/build-native.sh
 
       - name: Unit tests (JVM)
-        run: ./gradlew --no-daemon :core:testDebugUnitTest :code:testDebugUnitTest
+        run: ./gradlew --no-daemon :core:testDebugUnitTest :code:testDebugUnitTest :llm:testDebugUnitTest :app:testDebugUnitTest
 
       - name: Assemble debug APK
         run: ./gradlew --no-daemon assembleDebug
