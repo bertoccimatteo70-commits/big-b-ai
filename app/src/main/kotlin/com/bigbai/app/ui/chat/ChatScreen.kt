@@ -48,6 +48,7 @@ import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Psychology
+import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.SmartToy
@@ -547,6 +548,9 @@ fun ChatScreen(
                     onAttachClick = { showAttachmentMenu = true },
                     onDictate = { startDictation() },
                     onPreviewOcr = { ocrPreview = it },
+                    onToggleWebSearch = viewModel::toggleWebSearch,
+                    modelInstalled = installed.isNotEmpty(),
+                    onOpenModels = onOpenModels,
                 )
                 AttachmentMenu(
                     expanded = showAttachmentMenu,
@@ -579,6 +583,12 @@ fun ChatScreen(
                 state.status?.let { status ->
                     StatusStrip(text = status, onDismiss = viewModel::dismissStatus)
                 }
+                if (state.searchingWeb) {
+                    StatusStrip(text = "Ricerca web in corso…", onDismiss = {})
+                }
+                state.thermalNote?.let { note ->
+                    StatusStrip(text = note, onDismiss = viewModel::dismissThermalNote)
+                }
                 state.qualityNote?.let { note ->
                     StatusStrip(
                         text = "Controllo qualità: $note",
@@ -606,7 +616,14 @@ fun ChatScreen(
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp),
                     ) {
                         if (state.messages.isEmpty() && state.streamingText.isEmpty() && !state.isGenerating) {
-                            item { EmptyChat(tutorLabel = if (settings.tutorEnabled) LanguageCoach.label(settings.tutorTarget) else null, onSuggestion = viewModel::onInputChange) }
+                            item {
+                                EmptyChat(
+                                    tutorLabel = if (settings.tutorEnabled) LanguageCoach.label(settings.tutorTarget) else null,
+                                    modelInstalled = installed.isNotEmpty(),
+                                    onOpenModels = onOpenModels,
+                                    onSuggestion = viewModel::onInputChange,
+                                )
+                            }
                         }
                         items(
                             items = state.messages,
@@ -818,7 +835,12 @@ private fun LexiconNotice(count: Int, label: String, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun EmptyChat(tutorLabel: String?, onSuggestion: (String) -> Unit) {
+private fun EmptyChat(
+    tutorLabel: String?,
+    modelInstalled: Boolean,
+    onOpenModels: () -> Unit,
+    onSuggestion: (String) -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -850,6 +872,41 @@ private fun EmptyChat(tutorLabel: String?, onSuggestion: (String) -> Unit) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 12.dp),
         )
+        if (!modelInstalled) {
+            Spacer(Modifier.height(18.dp))
+            Surface(
+                onClick = onOpenModels,
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Outlined.SmartToy,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Nessun modello installato",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                        Text(
+                            "ITAGPT non include modelli nell'app: scegli e scarica quello adatto al tuo dispositivo.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                    }
+                    Text("Modelli", style = MaterialTheme.typography.labelLarge)
+                }
+            }
+        }
         Spacer(Modifier.height(22.dp))
         val suggestions = buildList {
             if (tutorLabel != null) add("Fammi una lezione di $tutorLabel" to Icons.Outlined.School)
@@ -900,6 +957,9 @@ private fun Composer(
     onAttachClick: () -> Unit,
     onDictate: () -> Unit,
     onPreviewOcr: (Attachment) -> Unit,
+    onToggleWebSearch: () -> Unit,
+    modelInstalled: Boolean,
+    onOpenModels: () -> Unit,
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surface,
@@ -969,6 +1029,21 @@ private fun Composer(
                 }
             }
             Row(verticalAlignment = Alignment.Bottom) {
+                IconButton(onClick = onToggleWebSearch, modifier = Modifier.size(44.dp)) {
+                    Icon(
+                        Icons.Outlined.Public,
+                        contentDescription = if (state.webSearchEnabled) {
+                            "Ricerca web attiva: tocca per disattivare"
+                        } else {
+                            "Ricerca web disattivata: tocca per attivare"
+                        },
+                        tint = if (state.webSearchEnabled) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
+                }
                 IconButton(onClick = onDictate, modifier = Modifier.size(44.dp)) {
                     Icon(Icons.Outlined.Mic, contentDescription = "Dettatura vocale")
                 }
@@ -1010,13 +1085,46 @@ private fun Composer(
                     }
                 }
             }
-            if (!state.modelReady && !state.isGenerating) {
-                Text(
-                    text = "Il modello verrà caricato al primo messaggio.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+            if (state.searchSummary != null) {
+                Row(
                     modifier = Modifier.padding(start = 54.dp, top = 3.dp),
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Outlined.Public,
+                        contentDescription = null,
+                        modifier = Modifier.size(12.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = state.searchSummary.orEmpty(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (!state.modelReady && !state.isGenerating) {
+                Row(
+                    modifier = Modifier
+                        .padding(start = 54.dp, top = 3.dp)
+                        .clickable(enabled = !modelInstalled) { onOpenModels() },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = if (modelInstalled) {
+                            "Il modello verrà caricato al primo messaggio."
+                        } else {
+                            "Nessun modello installato: tocca qui per scaricarne uno."
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (modelInstalled) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        },
+                    )
+                }
             }
         }
     }

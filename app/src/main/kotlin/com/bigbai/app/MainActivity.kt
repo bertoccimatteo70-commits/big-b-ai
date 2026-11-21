@@ -18,6 +18,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
+import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
+import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.core.os.LocaleListCompat
 import com.bigbai.app.ui.AppRoot
 import com.bigbai.app.ui.theme.ItaGptTheme
@@ -25,12 +27,16 @@ import com.bigbai.core.model.AppSettings
 
 class MainActivity : AppCompatActivity() {
 
+    @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val container = (application as ItaGptApplication).container
 
         setContent {
+            // Window size classes are read inside composition: the API reacts to
+            // window resizes, fold/unfold and desktop-style free-form windows.
+            val windowWidthSizeClass = calculateWindowSizeClass(this@MainActivity).widthSizeClass
             val settings by container.settings.settings.collectAsState(initial = null)
             val current = settings
             if (current == null) {
@@ -50,7 +56,11 @@ class MainActivity : AppCompatActivity() {
                     CompositionLocalProvider(
                         LocalDensity provides Density(density.density, current.fontScale),
                     ) {
-                        AppRoot(container = container, settings = current)
+                        AppRoot(
+                            container = container,
+                            settings = current,
+                            widthSizeClass = windowWidthSizeClass,
+                        )
                     }
                 }
             }

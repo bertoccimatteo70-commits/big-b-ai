@@ -37,8 +37,9 @@ data class AppSettings(
     val activeModelId: String? = null,
     val activeCodeModelId: String? = null,
     val autoTitle: Boolean = true,
-    val searchEnabled: Boolean = false,
-    val searchProvider: String = "searxng",
+    /** Automatic web search: no provider, endpoint or key is required. */
+    val searchEnabled: Boolean = true,
+    val searchProvider: String = "auto",
     val searxEndpoint: String = "",
     val braveApiKey: String = "",
     val autoBackup: Boolean = false,

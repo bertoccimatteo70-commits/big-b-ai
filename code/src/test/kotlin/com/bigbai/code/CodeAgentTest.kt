@@ -110,4 +110,11 @@ class CodeAgentTest {
     fun `plain prose is not treated as a tool call`() {
         assertTrue(CodeAgent.parse("Certo, posso aiutarti a creare il progetto.").isEmpty())
     }
+
+    @Test
+    fun `the step budget allows a real multi-file task but stays bounded`() {
+        assertTrue(CodeAgent.MAX_STEPS >= 10)
+        assertTrue(CodeAgent.MAX_STEPS <= 20)
+        assertTrue(CodeAgent.MAX_FILES_PER_TASK <= 50)
+    }
 }

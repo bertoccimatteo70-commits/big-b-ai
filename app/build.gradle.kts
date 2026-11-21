@@ -41,8 +41,8 @@ android {
         applicationId = "com.bigbai.app"
         minSdk = 31
         targetSdk = 35
-        versionCode = 9
-        versionName = "2.0.0"
+        versionCode = 10
+        versionName = "2.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         resourceConfigurations += listOf("en", "it")
         // Universal debug APK: every supported architecture gets its own native
@@ -108,11 +108,9 @@ android {
     }
     androidResources {
         generateLocaleConfig = false
-        // The bundled GGUF is read once and copied to private storage; storing
-        // it uncompressed keeps the first-run copy fast and avoids a second
-        // decompression pass over the 1.2 GB of models. They are real models,
-        // not padding.
-        noCompress += setOf("gguf")
+        // No GGUF model is shipped: the APK contains only code, resources and
+        // the small ML Kit OCR dependency. An APK gate in CI fails the build if
+        // a model file ever reappears under assets/.
     }
     lint {
         abortOnError = false
@@ -145,6 +143,8 @@ dependencies {
     implementation(libs.compose.ui.graphics)
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
+    // Window size classes: real phone/tablet/foldable layouts, not scaling.
+    implementation(libs.compose.material3.window.size)
     implementation(libs.compose.material.icons.extended)
     debugImplementation(libs.compose.ui.tooling)
 

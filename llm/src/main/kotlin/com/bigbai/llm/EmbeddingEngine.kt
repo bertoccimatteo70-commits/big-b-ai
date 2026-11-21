@@ -1,6 +1,5 @@
 package com.bigbai.llm
 
-import android.content.Context
 import android.os.SystemClock
 import com.bigbai.core.device.MemorySampler
 import kotlinx.coroutines.Dispatchers
@@ -8,18 +7,20 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.withContext
 
 /**
- * Runs the bundled embedding model.
+ * Runs the optional embedding model the user imported.
  *
- * It is a separate native session from the chat model on purpose: embeddings
- * must not evict a multi-gigabyte chat model, and a failed embedding must never
- * break generation. All native calls are serialised by [EmbedderSession], which
- * also guarantees that `close()` cannot free the handle during an embedding.
+ * The model is not shipped in the APK: if it was never imported, [installed]
+ * stays false and [embed] returns null, so semantic retrieval degrades to an
+ * empty context instead of blocking chat. It is a separate native session from
+ * the chat model on purpose: embeddings must not evict a multi-gigabyte chat
+ * model, and a failed embedding must never break generation. All native calls
+ * are serialised by [EmbedderSession], which also guarantees that `close()`
+ * cannot free the handle during an embedding.
  */
 class EmbeddingEngine(
-    context: Context,
-    private val installer: BundledModelInstaller,
+    private val installer: EmbeddingModelInstaller,
     private val memorySampler: MemorySampler,
-    private val spec: BundledModelSpec = BundledModels.EMBEDDING,
+    private val spec: EmbeddingModelSpec = EmbeddingModels.EMBEDDING,
     private val lowRamDevice: Boolean = false,
 ) : TextEmbedder {
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -27,7 +28,7 @@ class EmbeddingEngine(
 
     private val session = EmbedderSession(
         loadModel = {
-            val fileResult = installer.ensure(spec)
+            val fileResult = installer.usableFile(spec)
             val file = fileResult.getOrNull()
             if (file == null) {
                 Result.failure(

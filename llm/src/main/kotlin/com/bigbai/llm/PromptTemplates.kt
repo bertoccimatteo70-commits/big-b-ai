@@ -148,9 +148,23 @@ object PromptTemplates {
                 else "\nWeb search results (numbered). Cite with [n] next to the claim and flag conflicting or weak sources:\n",
             )
             sources.forEachIndexed { index, source ->
-                builder.append("[${index + 1}] ${source.title} — ${source.url}\n")
+                val site = source.site.ifBlank { "" }
+                val published = source.publishedAt?.takeIf { it.isNotBlank() }
+                builder.append("[${index + 1}] ${source.title}")
+                if (site.isNotBlank()) builder.append(" — $site")
+                if (published != null) builder.append(" — pubblicato: $published")
+                builder.append(" — ${source.url}\n")
                 if (source.snippet.isNotBlank()) builder.append("    ${source.snippet.take(400)}\n")
             }
+            builder.append(
+                if (italian) {
+                    "Se le fonti non sono sufficienti o sono discordanti, dichiaralo esplicitamente. " +
+                        "Non usare conoscenze interne come se fossero appena verificate online.\n"
+                } else {
+                    "If the sources are insufficient or conflict, say so explicitly. Do not present " +
+                        "internal knowledge as if it had just been verified online.\n"
+                },
+            )
         }
 
         if (tutor.isNotBlank()) {

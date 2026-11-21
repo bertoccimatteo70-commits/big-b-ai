@@ -17,6 +17,7 @@ fun ChatUiState.afterNewChat(): ChatUiState = ChatUiState(
     modelLabel = modelLabel,
     modelReady = modelReady,
     visionReady = visionReady,
+    webSearchEnabled = webSearchEnabled,
 )
 
 /** Switching conversation clears all per-conversation UI state. */
@@ -32,6 +33,9 @@ fun ChatUiState.afterOpenConversation(id: Long): ChatUiState = copy(
     error = null,
     metrics = null,
     sources = emptyList(),
+    searchingWeb = false,
+    searchProvider = null,
+    searchSummary = null,
     proposals = emptyList(),
     lexiconSaved = 0,
 )

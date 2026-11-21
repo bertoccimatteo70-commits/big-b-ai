@@ -31,8 +31,13 @@ data class AgentStep(
  */
 object CodeAgent {
 
-    /** Hard limits: a single user request cannot turn into unbounded work. */
-    const val MAX_STEPS = 5
+    /**
+     * Hard limits: a single user request cannot turn into unbounded work, but
+     * five steps were too few for a real multi-file task. Twelve steps let the
+     * agent read, write, verify and finish; the user can still write "continua"
+     * for a new budget, and the per-file/action caps stay in force.
+     */
+    const val MAX_STEPS = 12
     const val MAX_ACTIONS_PER_STEP = 6
     const val MAX_FILES_PER_TASK = 40
     const val MAX_FILE_BYTES = 200_000

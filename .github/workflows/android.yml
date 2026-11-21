@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   apks:
-    name: ITAGPT universal APK (3 ABIs, bundled chat + embedding, debug + release)
+    name: ITAGPT universal APK (3 ABIs, no bundled models, debug + release)
     runs-on: ubuntu-latest
     timeout-minutes: 150
     steps:
@@ -44,14 +44,8 @@ jobs:
       - name: Fetch llama.cpp (pinned revision)
         run: bash scripts/fetch-llama.sh
 
-      - name: Fetch bundled embedding model (pinned SHA-256)
-        run: bash scripts/fetch-bundled-model.sh
-
-      # The entry chat model is a real component: a fresh install can answer
-      # without downloading anything, and the APK gate verifies its digest.
-      - name: Fetch bundled chat model (pinned SHA-256)
-        run: bash scripts/fetch-bundled-chat.sh
-
+      # No model is fetched or packaged in 2.1. The APK contains the code and
+      # the native engine only; weights are an explicit user choice in the app.
       - name: Build native libraries (all shipped ABIs)
         env:
           JOBS: 3

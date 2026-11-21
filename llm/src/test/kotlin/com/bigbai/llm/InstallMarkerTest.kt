@@ -14,7 +14,7 @@ class InstallMarkerTest {
     @get:Rule
     val temp = TemporaryFolder()
 
-    private val spec = BundledModels.EMBEDDING
+    private val spec = EmbeddingModels.EMBEDDING
 
     @Test
     fun `the marker roundtrips with its format version`() {
@@ -58,10 +58,11 @@ class InstallMarkerTest {
     }
 
     @Test
-    fun `the bundled model declares the verified MIT license and digest`() {
+    fun `the optional embedding model declares the verified MIT license and digest`() {
         assertTrue(spec.license.startsWith("MIT"))
         assertEquals(132_439_008L, spec.sizeBytes)
         assertEquals(64, spec.sha256.length)
-        assertTrue(spec.assetPath.endsWith(".gguf"))
+        assertTrue(spec.fileName.endsWith(".gguf"))
+        assertTrue(spec.sourceUrl.startsWith("https://"))
     }
 }

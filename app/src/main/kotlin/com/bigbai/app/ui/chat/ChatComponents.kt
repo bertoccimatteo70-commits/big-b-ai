@@ -442,14 +442,28 @@ private fun CompactSources(sources: List<Source>) {
                     fontWeight = FontWeight.SemiBold,
                 )
                 Spacer(Modifier.width(6.dp))
-                Text(
-                    text = source.title,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = source.title,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    val meta = listOfNotNull(
+                        source.site.takeIf { it.isNotBlank() },
+                        source.publishedAt?.takeIf { it.isNotBlank() },
+                    ).joinToString(" · ")
+                    if (meta.isNotBlank()) {
+                        Text(
+                            text = meta,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
                 Icon(
                     Icons.AutoMirrored.Outlined.OpenInNew,
                     contentDescription = null,
@@ -511,6 +525,18 @@ fun SourcesPanel(sources: List<Source>) {
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary,
                         )
+                        val meta = listOfNotNull(
+                            source.site.takeIf { it.isNotBlank() },
+                            source.publishedAt?.takeIf { it.isNotBlank() }?.let { "Pubblicato: $it" },
+                            source.updatedAt?.takeIf { it.isNotBlank() }?.let { "Aggiornato: $it" },
+                        ).joinToString(" · ")
+                        if (meta.isNotBlank()) {
+                            Text(
+                                text = meta,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                         Text(
                             text = source.url,
                             style = MaterialTheme.typography.labelSmall,

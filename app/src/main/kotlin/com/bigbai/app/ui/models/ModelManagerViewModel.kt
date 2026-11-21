@@ -132,10 +132,6 @@ class ModelManagerViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun download(variant: ModelVariant) {
-        if (container.bundledChat.isBundled(variant)) {
-            installBundled(variant)
-            return
-        }
         val free = _state.value.freeSpace
         if (free > 0 && free < variant.totalBytes) {
             _state.update {
@@ -148,30 +144,6 @@ class ModelManagerViewModel(private val container: AppContainer) : ViewModel() {
         }
         com.bigbai.app.service.ModelDownloadService.start(container.context, variant.id)
         _state.update { it.copy(message = "Download avviato: ${variant.family} ${variant.quant}") }
-    }
-
-    /**
-     * The entry model is inside the APK, so "download" means a local verified
-     * copy. This avoids downloading 491 MB that the user already installed.
-     */
-    private fun installBundled(variant: ModelVariant) {
-        viewModelScope.launch {
-            _state.update { it.copy(message = "Preparazione del modello incluso nell'app…") }
-            val result = container.bundledChat.ensure { copied, total ->
-                val percent = if (total > 0) (copied * 100 / total).toInt() else 0
-                _state.update { it.copy(message = "Preparazione del modello incluso… $percent%") }
-            }
-            refreshInstalled()
-            _state.update {
-                it.copy(
-                    message = if (result.isSuccess) {
-                        "Modello incluso pronto: ${variant.family} ${variant.quant}"
-                    } else {
-                        result.exceptionOrNull()?.message ?: "Preparazione non riuscita"
-                    },
-                )
-            }
-        }
     }
 
     fun pause(variant: ModelVariant) {

@@ -11,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import com.bigbai.app.AppContainer
 import com.bigbai.core.chat.ConversationSession
 import com.bigbai.core.chat.StreamingBuffer
+import com.bigbai.core.device.PerformanceAdvisor
 import com.bigbai.core.documents.DocumentTextExtractor
 import com.bigbai.core.lang.Calculator
 import com.bigbai.core.lang.ItalianCheck
@@ -69,6 +70,12 @@ data class ChatUiState(
     val error: String? = null,
     val metrics: GenerationMetrics? = null,
     val sources: List<Source> = emptyList(),
+    /** Per-chat switch for automatic web search, mirrored in settings. */
+    val webSearchEnabled: Boolean = true,
+    val searchingWeb: Boolean = false,
+    val searchProvider: String? = null,
+    val searchSummary: String? = null,
+    val thermalNote: String? = null,
     val proposals: List<MemoryProposal> = emptyList(),
     val modelLabel: String? = null,
     val modelReady: Boolean = false,
@@ -146,6 +153,11 @@ class ChatViewModel(
             observeMessages(restoredConversationId)
         }
         viewModelScope.launch {
+            container.settings.settings.collect { current ->
+                _state.update { it.copy(webSearchEnabled = current.searchEnabled) }
+            }
+        }
+        viewModelScope.launch {
             container.engine.state.collect { engineState ->
                 val ready = engineState as? LlamaEngine.EngineState.Ready
                 _state.update {
@@ -183,9 +195,21 @@ class ChatViewModel(
 
     fun dismissStatus() = _state.update { it.copy(status = null) }
 
+    fun dismissThermalNote() = _state.update { it.copy(thermalNote = null) }
+
     fun dismissLexiconNotice() = _state.update { it.copy(lexiconSaved = 0) }
 
     fun dismissQualityNote() = _state.update { it.copy(qualityNote = null) }
+
+    /**
+     * Turns automatic web search on or off for this chat. The choice is saved,
+     * so it survives a restart; no provider or key is involved.
+     */
+    fun toggleWebSearch() {
+        val next = !_state.value.webSearchEnabled
+        _state.update { it.copy(webSearchEnabled = next) }
+        viewModelScope.launch { container.settings.setSearchEnabled(next) }
+    }
 
     /**
      * Opens a brand-new chat. Any running generation is stopped first, so the
@@ -518,22 +542,63 @@ class ChatViewModel(
                 }
 
                 var sources: List<Source> = emptyList()
-                if (settings.searchEnabled && text.isNotBlank() && shouldSearch(text)) {
-                    _state.update { it.copy(status = "Ricerca web in corso…") }
-                    val config = SearchConfig(settings.searchProvider, settings.searxEndpoint, settings.braveApiKey)
-                    when (val result = container.search.search(text, config)) {
+                if (settings.searchEnabled && _state.value.webSearchEnabled &&
+                    text.isNotBlank() && shouldSearch(text)
+                ) {
+                    _state.update {
+                        it.copy(
+                            status = "Ricerca web in corso…",
+                            searchingWeb = true,
+                            searchProvider = null,
+                            searchSummary = null,
+                        )
+                    }
+                    val config = SearchConfig(
+                        provider = settings.searchProvider.ifBlank { "auto" },
+                        searxEndpoint = settings.searxEndpoint,
+                        braveApiKey = settings.braveApiKey,
+                        timeRange = freshnessFor(text),
+                    )
+                    when (val result = container.search.search(text, config, maxResults = 6)) {
                         is SearchResult.Success -> {
                             sources = result.sources
-                            _state.update { it.copy(sources = sources) }
+                            val label = result.provider.ifBlank { "provider automatico" }
+                            _state.update {
+                                it.copy(
+                                    sources = sources,
+                                    searchingWeb = false,
+                                    searchProvider = label,
+                                    searchSummary = if (sources.isEmpty()) {
+                                        "Nessuna fonte trovata"
+                                    } else {
+                                        "${sources.size} fonti · $label"
+                                    },
+                                    status = if (sources.isEmpty()) {
+                                        "Ricerca web: nessun risultato pertinente."
+                                    } else {
+                                        null
+                                    },
+                                )
+                            }
                         }
                         is SearchResult.Failure -> {
                             val message = when (result.reason) {
-                                SearchFailure.OFFLINE -> "Sei offline: la ricerca web non è disponibile."
-                                SearchFailure.NOT_CONFIGURED -> "Ricerca web non configurata nelle impostazioni."
-                                SearchFailure.EMPTY -> "La ricerca non ha prodotto risultati."
-                                SearchFailure.NETWORK_ERROR -> "Ricerca web non raggiungibile."
+                                SearchFailure.OFFLINE ->
+                                    "Sei offline: la ricerca web non è disponibile. Rispondo con le mie conoscenze."
+                                SearchFailure.NOT_CONFIGURED ->
+                                    "Ricerca web non disponibile: nessun provider raggiungibile."
+                                SearchFailure.EMPTY ->
+                                    "La ricerca non ha prodotto risultati pertinenti. Rispondo con le mie conoscenze."
+                                SearchFailure.NETWORK_ERROR ->
+                                    "Ricerca web non raggiungibile. Rispondo con le mie conoscenze."
                             }
-                            _state.update { it.copy(status = message) }
+                            _state.update {
+                                it.copy(
+                                    searchingWeb = false,
+                                    searchSummary = "Ricerca non riuscita",
+                                    status = message,
+                                )
+                            }
                         }
                     }
                 }
@@ -776,7 +841,7 @@ class ChatViewModel(
                 }
             } finally {
                 updateIfCurrent(generation) {
-                    it.copy(isGenerating = false, isThinking = false, status = null)
+                    it.copy(isGenerating = false, isThinking = false, searchingWeb = false)
                 }
             }
         }
@@ -888,39 +953,15 @@ class ChatViewModel(
 
     private suspend fun ensureModel(settings: AppSettings): com.bigbai.llm.LoadedModel? {
         container.engine.current()?.let { return it }
-        var installed = installedModels()
-        if (installed.isEmpty() && container.bundledChat.variant != null) {
-            // First run: the model is inside the APK, not downloaded. Copying
-            // 491 MB takes a few seconds, so the UI gets real progress instead
-            // of a static "thinking" indicator.
-            var lastPercent = -1
-            val prepared = container.bundledChat.ensure { copied, total ->
-                val percent = if (total > 0) ((copied * 100) / total).toInt() else 0
-                if (percent != lastPercent) {
-                    lastPercent = percent
-                    _state.update {
-                        it.copy(status = "Preparazione del modello incluso… $percent%")
-                    }
-                }
-            }
-            if (prepared.isFailure) {
-                _state.update {
-                    it.copy(
-                        error = prepared.exceptionOrNull()?.message
-                            ?: "Preparazione del modello incluso non riuscita.",
-                        isGenerating = false,
-                        isThinking = false,
-                        status = null,
-                    )
-                }
-                return null
-            }
-            installed = installedModels()
-        }
+        val installed = installedModels()
         if (installed.isEmpty()) {
+            // No model is bundled and nothing is downloaded automatically. The
+            // chat stays usable and explains the one real action: install a
+            // model from the library (or use a local model already present).
             _state.update {
                 it.copy(
-                    error = "Nessun modello installato. Apri Modelli per scaricare un modello.",
+                    error = "Nessun modello installato. Apri Modelli per scaricarne uno: " +
+                        "nessun modello è incluso nell'app e nessun download parte da solo.",
                     isGenerating = false,
                     isThinking = false,
                     status = null,
@@ -955,17 +996,35 @@ class ChatViewModel(
             settings.ramMode,
             container.memorySampler.available(),
         )
-        val context = if (settings.contextOverride > 0) {
+        // Real device state, not a fixed profile: heat and battery saver reduce
+        // threads and context before Android starts throttling the process.
+        val advice = PerformanceAdvisor.recommend(
+            cores = container.deviceProfile.cpuCores,
+            thermalStatus = PerformanceAdvisor.thermalStatus(container.context),
+            powerSaver = PerformanceAdvisor.powerSaver(container.context),
+            mode = settings.performanceMode,
+        )
+        val rawContext = if (settings.contextOverride > 0) {
             settings.contextOverride
         } else {
             container.catalog.adaptiveContext(chosen.variant, container.deviceProfile, budget)
         }
+        val context = if (settings.contextOverride > 0) {
+            rawContext
+        } else {
+            ((rawContext * advice.contextFactor).toInt() / 256 * 256).coerceAtLeast(512)
+        }
         val threads = if (settings.threads > 0) {
             settings.threads
         } else {
-            container.deviceProfile.recommendedThreads(settings.performanceMode)
+            advice.threads
         }
-        _state.update { it.copy(status = "Caricamento di ${chosen.variant.family}…") }
+        _state.update {
+            it.copy(
+                status = "Caricamento di ${chosen.variant.family}…",
+                thermalNote = advice.note,
+            )
+        }
         return container.engine.load(
             variant = chosen.variant,
             modelPath = chosen.modelPath,
@@ -1135,14 +1194,43 @@ class ChatViewModel(
         savedState?.set(KEY_INPUT, _state.value.input)
     }
 
+    /**
+     * Decides whether an answer needs fresh information. Pure keyword rules, no
+     * model call: predictable, offline-safe and cheap. The user can always
+     * switch web search off with the button in the composer.
+     */
     private fun shouldSearch(text: String): Boolean {
         val lower = text.lowercase()
         val markers = listOf(
-            "oggi", "adesso", "ultime", "ultimo", "notizie", "meteo", "prezzo", "quotazione",
-            "2025", "2026", "chi è", "quando è", "dove si trova", "documentazione",
-            "latest", "today", "news", "price", "weather", "who is", "release", "version",
+            "oggi", "adesso", "in tempo reale", "ultime", "ultimissim", "ultimo", "ultima",
+            "notizie", "notizia", "attuale", "attualità", "aggiornat", "recente", "novità",
+            "meteo", "previsioni", "prezzo", "quotazione", "costo", "offerta", "sconto",
+            "chi è", "chi ha", "quando è", "quando ha", "dove si trova", "quanto costa",
+            "documentazione", "release", "versione", "uscit", "disponibil", "classifica",
+            "risultati", "orari", "treni", "voli", "traffico", "terremoto", "elezioni",
+            "latest", "today", "tonight", "current", "breaking", "news", "price", "weather",
+            "who is", "release date", "changelog", "documentation", "version", "schedule",
         )
-        return markers.any { it in lower }
+        if (markers.any { it in lower }) return true
+        // A URL or a domain in the question almost always means "look it up".
+        if (Regex("""https?://|\b[\w-]+\.(?:it|com|org|net|io|dev|gov|edu)\b""").containsMatchIn(lower)) {
+            return true
+        }
+        // Explicit years near "nel/nel 2026" etc. are time-sensitive.
+        return Regex("""\b20(?:2[4-9]|3\d)\b""").containsMatchIn(lower)
+    }
+
+    /** Maps the question to the narrowest useful search time window. */
+    private fun freshnessFor(text: String): String {
+        val lower = text.lowercase()
+        return when {
+            listOf("oggi", "adesso", "ultima ora", "ultime notizie", "breaking", "in tempo reale")
+                .any { it in lower } -> "day"
+            listOf("questa settimana", "ultimi giorni", "settimana", "recenti").any { it in lower } -> "week"
+            listOf("questo mese", "ultimo mese").any { it in lower } -> "month"
+            Regex("""\b20(?:2[4-9]|3\d)\b""").containsMatchIn(lower) -> "year"
+            else -> "any"
+        }
     }
 
     /**

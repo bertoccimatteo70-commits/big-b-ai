@@ -4,8 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bigbai.app.AppContainer
 import com.bigbai.core.db.DownloadEntity
+import com.bigbai.core.device.PerformanceAdvisor
 import com.bigbai.core.model.GenerationMetrics
-import com.bigbai.llm.BundledModels
+import com.bigbai.llm.EmbeddingModels
 import com.bigbai.llm.LlamaEngine
 import com.bigbai.llm.SemanticRepository
 import kotlinx.coroutines.delay
@@ -29,14 +30,15 @@ data class DiagnosticsUiState(
     val ramTotalBytes: Long = 0,
     val ramPercent: Int = 0,
     val cpuCores: Int = 0,
+    val thermal: String = "",
     val metrics: GenerationMetrics? = null,
     val semantic: SemanticRepository.Stats? = null,
     val downloads: List<DownloadEntity> = emptyList(),
     val engineVersion: String = "",
     val capabilities: String = "",
     val deviceSummary: String = "",
-    val bundledLabel: String = "",
-    val bundledInstalled: Boolean = false,
+    val embeddingLabel: String = "",
+    val embeddingInstalled: Boolean = false,
     val verifying: Boolean = false,
     val verificationResult: String? = null,
     val embedderRequiredBytes: Long = 0,
@@ -60,9 +62,12 @@ class DiagnosticsViewModel(private val container: AppContainer) : ViewModel() {
             capabilities = container.engine.capabilities().entries.joinToString(" · ") { "${it.key}=${it.value}" },
             deviceSummary = container.deviceProfile.summary(),
             cpuCores = container.deviceProfile.cpuCores,
+            thermal = PerformanceAdvisor.label(
+                PerformanceAdvisor.thermalStatus(container.context),
+            ) + if (PerformanceAdvisor.powerSaver(container.context)) " · risparmio energetico" else "",
             ramTotalBytes = container.deviceProfile.totalRamBytes,
-            bundledLabel = BundledModels.EMBEDDING.label,
-            bundledInstalled = container.bundledModels.isInstalled(BundledModels.EMBEDDING),
+            embeddingLabel = EmbeddingModels.EMBEDDING.label,
+            embeddingInstalled = container.embeddingModels.isInstalled(EmbeddingModels.EMBEDDING),
         ),
     )
     val state: StateFlow<DiagnosticsUiState> = _state.asStateFlow()
@@ -109,6 +114,9 @@ class DiagnosticsViewModel(private val container: AppContainer) : ViewModel() {
                 val used = container.memorySampler.current()
                 _state.update {
                     it.copy(
+                        thermal = PerformanceAdvisor.label(
+                            PerformanceAdvisor.thermalStatus(container.context),
+                        ) + if (PerformanceAdvisor.powerSaver(container.context)) " · risparmio energetico" else "",
                         ramUsedBytes = used,
                         ramAvailableBytes = available,
                         ramPercent = container.memorySampler.percentOf(container.deviceProfile.totalRamBytes),
@@ -127,7 +135,7 @@ class DiagnosticsViewModel(private val container: AppContainer) : ViewModel() {
             _state.update {
                 it.copy(
                     semantic = stats,
-                    bundledInstalled = container.bundledModels.isInstalled(BundledModels.EMBEDDING),
+                    embeddingInstalled = container.embeddingModels.isInstalled(EmbeddingModels.EMBEDDING),
                     embedderRequiredBytes = decision.requiredBytes,
                     embedderAvailableBytes = decision.availableBytes,
                     embedderPressure = decision.pressureLevel,
@@ -163,19 +171,19 @@ class DiagnosticsViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    fun verifyBundledModel() {
+    fun verifyEmbeddingModel() {
         if (_state.value.verifying) return
         viewModelScope.launch {
             _state.update { it.copy(verifying = true, verificationResult = null) }
-            val ok = container.bundledModels.verify(BundledModels.EMBEDDING)
+            val ok = container.embeddingModels.verify(EmbeddingModels.EMBEDDING)
             _state.update {
                 it.copy(
                     verifying = false,
-                    bundledInstalled = container.bundledModels.isInstalled(BundledModels.EMBEDDING),
+                    embeddingInstalled = container.embeddingModels.isInstalled(EmbeddingModels.EMBEDDING),
                     verificationResult = if (ok) {
-                        "SHA-256 corretto: il modello incluso è integro."
+                        "SHA-256 corretto: il modello di embedding importato è integro."
                     } else {
-                        "Verifica fallita: il modello incluso non corrisponde all'impronta attesa."
+                        "Verifica fallita: il modello di embedding non corrisponde all'impronta attesa."
                     },
                 )
             }

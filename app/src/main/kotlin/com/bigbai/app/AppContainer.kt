@@ -17,9 +17,8 @@ import com.bigbai.core.security.CryptoManager
 import com.bigbai.core.model.GenerationMetrics
 import com.bigbai.core.settings.SettingsRepository
 import com.bigbai.app.ocr.OcrEngine
-import com.bigbai.llm.BundledChatModel
-import com.bigbai.llm.BundledModelInstaller
 import com.bigbai.llm.EmbeddingEngine
+import com.bigbai.llm.EmbeddingModelInstaller
 import com.bigbai.llm.LlamaEngine
 import com.bigbai.llm.ModelCatalog
 import com.bigbai.llm.ModelDownloadManager
@@ -67,24 +66,16 @@ class AppContainer(private val app: Application) {
     val lastMetrics = MutableStateFlow<GenerationMetrics?>(null)
 
     /**
-     * The embedding model ships inside the APK. It is extracted and verified on
-     * first use, then used for local retrieval over documents and memories.
+     * Optional embedding model. ITAGPT 2.1 ships no model in the APK: the user
+     * imports this file from local storage in Settings and it is verified by
+     * size and SHA-256 before semantic retrieval can use it.
      */
-    val bundledModels: BundledModelInstaller by lazy { BundledModelInstaller(app) }
-
-    /**
-     * The entry chat model ships in the APK. It is extracted and verified on
-     * first use, then appears in the normal model store; no download and no API
-     * key are needed for the first conversation.
-     */
-    val bundledChat: BundledChatModel by lazy {
-        BundledChatModel(catalog, modelStore, bundledModels)
-    }
+    val embeddingModels: EmbeddingModelInstaller by lazy { EmbeddingModelInstaller(app) }
 
     /** Offline OCR for images and scanned PDFs (bundled ML Kit Latin model). */
     val ocr: OcrEngine by lazy { OcrEngine(app) }
 
-    val embedder: EmbeddingEngine by lazy { EmbeddingEngine(app, bundledModels, memorySampler) }
+    val embedder: EmbeddingEngine by lazy { EmbeddingEngine(embeddingModels, memorySampler) }
     val semantic: SemanticRepository by lazy { SemanticRepository(app, embedder) }
 
     val pdf: PdfExtractor by lazy { PdfExtractor(app) }

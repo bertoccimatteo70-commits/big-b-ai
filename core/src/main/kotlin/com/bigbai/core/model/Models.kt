@@ -23,6 +23,14 @@ data class Source(
     val title: String,
     val url: String,
     val snippet: String = "",
+    /** Host shown to the user, e.g. "reuters.com"; blank when unknown. */
+    val site: String = "",
+    /** Publication date exactly as the provider or page declared it, if any. */
+    val publishedAt: String? = null,
+    /** Last update date exactly as the provider or page declared it, if any. */
+    val updatedAt: String? = null,
+    /** Provider that returned this result (DuckDuckGo, Google News, …). */
+    val provider: String = "",
 )
 
 data class Conversation(

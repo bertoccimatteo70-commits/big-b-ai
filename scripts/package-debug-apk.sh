@@ -17,75 +17,11 @@ VERSION_CODE="$(grep -oP 'versionCode\s*=\s*\K[0-9]+' app/build.gradle.kts | hea
 APK="app/build/outputs/apk/debug/app-debug.apk"
 ABIS="arm64-v8a armeabi-v7a x86_64"
 
-MODEL_NAME="multilingual-e5-small-q8_0.gguf"
-MODEL_SIZE=132439008
-MODEL_SHA="e011debc1208e31bf7b6aebee2d9fc8bd2ca11694a77ed66ac9d0c9d0a877c93"
-
-CHAT_NAME="qwen2.5-1.5b-instruct-q4_k_m.gguf"
-CHAT_SIZE=1117320736
-CHAT_SHA="6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e"
-
-if [ ! -f "$APK" ]; then
-  echo "ERRORE: $APK non trovato. Esegui prima: ./gradlew assembleDebug" >&2
-  exit 1
-fi
-
-# The native engine is the whole point of the app: never publish an APK that
-# silently lost it (for example because the jniLibs step was skipped). Every
-# shipped ABI must be present, otherwise the app crashes on that architecture.
-# Capture the listing first: piping straight into `grep -q` closes the pipe
-# early and, with `pipefail`, makes a successful match look like a failure.
-APK_ENTRIES="$(unzip -l "$APK")"
-for ABI in $ABIS; do
-  if ! grep -q "lib/${ABI}/libbigbai.so" <<<"$APK_ENTRIES"; then
-    echo "ERRORE: libbigbai.so (${ABI}) non è presente nell'APK." >&2
-    exit 1
-  fi
-  if ! grep -q "lib/${ABI}/libsqlcipher.so" <<<"$APK_ENTRIES"; then
-    echo "ERRORE: libsqlcipher.so (${ABI}) non è presente nell'APK." >&2
-    exit 1
-  fi
-done
-
-# The embedding model is a real component of ITAGPT: if it is missing,
-# retrieval would silently stop working, so the build fails instead.
-MODEL_ENTRY="assets/models/${MODEL_NAME}"
-if ! grep -q "$MODEL_ENTRY" <<<"$APK_ENTRIES"; then
-  echo "ERRORE: modello di embedding assente dall'APK ($MODEL_ENTRY)." >&2
-  echo "Esegui: bash scripts/fetch-bundled-model.sh" >&2
-  exit 1
-fi
-MODEL_ENTRY_SIZE="$(awk -v name="$MODEL_ENTRY" '$NF == name { print $1 }' <<<"$APK_ENTRIES" | head -1)"
-if [ "$MODEL_ENTRY_SIZE" != "$MODEL_SIZE" ]; then
-  echo "ERRORE: dimensione del modello nell'APK non valida: ${MODEL_ENTRY_SIZE:-assente} invece di $MODEL_SIZE." >&2
-  exit 1
-fi
-MODEL_DIGEST="$(unzip -p "$APK" "$MODEL_ENTRY" | sha256sum | cut -d' ' -f1)"
-if [ "$MODEL_DIGEST" != "$MODEL_SHA" ]; then
-  echo "ERRORE: SHA-256 del modello di embedding dentro l'APK non corrisponde." >&2
-  echo "  atteso: $MODEL_SHA" >&2
-  echo "  trovato: $MODEL_DIGEST" >&2
-  exit 1
-fi
-
-# The chat model is what lets a fresh install answer immediately. It is as
-# mandatory as the native engine and is verified byte-for-byte inside the APK.
-CHAT_ENTRY="assets/models/${CHAT_NAME}"
-if ! grep -q "$CHAT_ENTRY" <<<"$APK_ENTRIES"; then
-  echo "ERRORE: modello chat incluso assente dall'APK ($CHAT_ENTRY)." >&2
-  echo "Esegui: bash scripts/fetch-bundled-chat.sh" >&2
-  exit 1
-fi
-CHAT_ENTRY_SIZE="$(awk -v name="$CHAT_ENTRY" '$NF == name { print $1 }' <<<"$APK_ENTRIES" | head -1)"
-if [ "$CHAT_ENTRY_SIZE" != "$CHAT_SIZE" ]; then
-  echo "ERRORE: dimensione del modello chat nell'APK non valida: ${CHAT_ENTRY_SIZE:-assente} invece di $CHAT_SIZE." >&2
-  exit 1
-fi
-CHAT_DIGEST="$(unzip -p "$APK" "$CHAT_ENTRY" | sha256sum | cut -d' ' -f1)"
-if [ "$CHAT_DIGEST" != "$CHAT_SHA" ]; then
-  echo "ERRORE: SHA-256 del modello chat dentro l'APK non corrisponde." >&2
-  echo "  atteso: $CHAT_SHA" >&2
-  echo "  trovato: $CHAT_DIGEST" >&2
+# ITAGPT 2.1 ships no GGUF model. A debug APK that contains one is a build
+# failure, not a warning: the whole point of 2.1 is a small, installable APK.
+if grep -Eq 'assets/.*\.gguf' <<<"$APK_ENTRIES"; then
+  echo "ERRORE: l'APK debug contiene un modello GGUF negli asset." >&2
+  grep -E 'assets/.*\.gguf' <<<"$APK_ENTRIES" >&2
   exit 1
 fi
 
@@ -161,15 +97,13 @@ Firma:         ${SIGNATURE_CHECK}
 Manifest:      ${MANIFEST_CHECK}
 Package:       com.bigbai.app.debug (suffisso .debug, convive con la release)
 Motore AI:     llama.cpp, CPU only (nessuna accelerazione GPU in questa build)
-Embedding:     ${MODEL_NAME}, ${MODEL_SIZE} byte, SHA-256 ${MODEL_SHA}
-               Incluso negli asset, estratto e verificato al primo uso.
-Chat incluso:  ${CHAT_NAME}, ${CHAT_SIZE} byte, SHA-256 ${CHAT_SHA}
-               Qwen2.5 1.5B Instruct Q4_K_M, Apache-2.0. Estratto e verificato
-               al primo uso: la chat funziona senza download e senza API key.
-Altri modelli: scaricabili dall'app e verificati con SHA-256.
-Test eseguiti: test unitari JVM dei quattro moduli (0 falliti) + lint + build debug.
+Modelli:       nessun modello incluso (0 file .gguf, verificato nel pacchetto)
+Chat:          scaricabile su richiesta dalla sezione Modelli; nessun download automatico.
+Embedding:     opzionale, import manuale di multilingual-e5-small Q8_0
+               (132439008 byte, SHA-256 e011debc…77c93), verificato all'import.
+Test eseguiti: test unitari JVM dei quattro moduli + lint + build debug.
                Nessun test su dispositivo fisico o emulatore.
-Release note:  docs/RELEASE-2.0.0.md
+Release note:  docs/RELEASE-2.1.0.md
 EOF
 
 echo "APK:      $OUT"

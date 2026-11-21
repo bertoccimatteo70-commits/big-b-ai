@@ -13,8 +13,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import com.bigbai.llm.EmbeddingModels
 
 sealed interface BackupUi {
     data object Idle : BackupUi
@@ -22,6 +25,12 @@ sealed interface BackupUi {
     data class Success(val message: String) : BackupUi
     data class Error(val message: String) : BackupUi
 }
+
+data class EmbeddingUi(
+    val installed: Boolean = false,
+    val busy: Boolean = false,
+    val message: String? = null,
+)
 
 class SettingsViewModel(private val container: AppContainer) : ViewModel() {
 
@@ -36,6 +45,11 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
 
     private val _backup = MutableStateFlow<BackupUi>(BackupUi.Idle)
     val backup: StateFlow<BackupUi> = _backup.asStateFlow()
+
+    private val _embedding = MutableStateFlow(
+        EmbeddingUi(installed = container.embeddingModels.isInstalled(EmbeddingModels.EMBEDDING)),
+    )
+    val embedding: StateFlow<EmbeddingUi> = _embedding.asStateFlow()
 
     fun setTheme(value: ThemeMode) = update { it.copy(theme = value) }
     fun setFontScale(value: Float) = update { it.copy(fontScale = value.coerceIn(0.85f, 1.30f)) }
@@ -127,6 +141,57 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
 
     fun dismissBackupMessage() {
         _backup.value = BackupUi.Idle
+    }
+
+    /**
+     * Imports the optional embedding model the user picked with SAF. The file
+     * is verified against the pinned SHA-256; there is no automatic download.
+     */
+    fun importEmbedding(uri: Uri) {
+        if (_embedding.value.busy) return
+        viewModelScope.launch {
+            _embedding.value = EmbeddingUi(installed = false, busy = true, message = "Verifica del file…")
+            val result = withContext(Dispatchers.IO) {
+                val stream = runCatching {
+                    container.context.contentResolver.openInputStream(uri)
+                }.getOrNull()
+                if (stream == null) {
+                    Result.failure(IllegalStateException("File non accessibile."))
+                } else {
+                    stream.use { container.embeddingModels.importModel(it) }
+                }
+            }
+            _embedding.value = EmbeddingUi(
+                installed = container.embeddingModels.isInstalled(EmbeddingModels.EMBEDDING),
+                busy = false,
+                message = result.fold(
+                    onSuccess = { "Modello di embedding importato e verificato." },
+                    onFailure = { it.message ?: "Importazione non riuscita." },
+                ),
+            )
+        }
+    }
+
+    fun verifyEmbedding() {
+        if (_embedding.value.busy) return
+        viewModelScope.launch {
+            _embedding.value = _embedding.value.copy(busy = true, message = "Calcolo SHA-256…")
+            val ok = container.embeddingModels.verify(EmbeddingModels.EMBEDDING)
+            _embedding.value = EmbeddingUi(
+                installed = container.embeddingModels.isInstalled(EmbeddingModels.EMBEDDING),
+                busy = false,
+                message = if (ok) "SHA-256 corretto: il modello è integro." else "Verifica fallita.",
+            )
+        }
+    }
+
+    fun deleteEmbedding() {
+        container.embeddingModels.delete(EmbeddingModels.EMBEDDING)
+        _embedding.value = EmbeddingUi(
+            installed = false,
+            busy = false,
+            message = "Modello di embedding rimosso.",
+        )
     }
 
     private fun update(transform: (AppSettings) -> AppSettings) {

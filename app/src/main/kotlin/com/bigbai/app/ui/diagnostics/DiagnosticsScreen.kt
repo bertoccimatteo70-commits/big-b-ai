@@ -113,8 +113,9 @@ fun DiagnosticsScreen(container: AppContainer, onBack: () -> Unit) {
 
             Section("Ricerca semantica locale", Icons.Outlined.CheckCircle) {
                 val stats = state.semantic
-                Info("Modello incluso", state.bundledLabel)
-                Info("Estratto e verificato", if (state.bundledInstalled) "sì" else "no")
+                Info("Stato termico", state.thermal)
+                Info("Modello embedding (opzionale)", state.embeddingLabel)
+                Info("Importato e verificato", if (state.embeddingInstalled) "sì" else "no")
                 Info("Dimensione vettori", if ((stats?.dimension ?: 0) > 0) "${stats?.dimension} dimensioni" else "—")
                 Info("Caricato in memoria", if (stats?.modelLoaded == true) "sì" else "no")
                 Info("Passaggi indicizzati", (stats?.passages ?: 0).toString())
@@ -133,7 +134,7 @@ fun DiagnosticsScreen(container: AppContainer, onBack: () -> Unit) {
                 stats?.lastError?.let { error -> Info("Persistenza", error) }
                 Spacer(Modifier.height(4.dp))
                 OutlinedButton(
-                    onClick = viewModel::verifyBundledModel,
+                    onClick = viewModel::verifyEmbeddingModel,
                     enabled = !state.verifying,
                     modifier = Modifier.fillMaxWidth(),
                 ) {

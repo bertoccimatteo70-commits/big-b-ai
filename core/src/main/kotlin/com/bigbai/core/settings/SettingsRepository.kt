@@ -106,6 +106,10 @@ class SettingsRepository(private val context: Context) {
         private val KEY_ACTIVE_CODE_MODEL = stringPreferencesKey("active_code_model")
         private val KEY_AUTO_TITLE = booleanPreferencesKey("auto_title")
         private val KEY_SEARCH_ENABLED = booleanPreferencesKey("search_enabled")
+        // 2.1 migration: search is automatic and on by default. The new key is
+        // separate so an old "disabled" value cannot silently disable the
+        // feature the user asked for; the advanced toggle writes it from now on.
+        private val KEY_SEARCH_AUTO = booleanPreferencesKey("search_auto_v21")
         private val KEY_SEARCH_PROVIDER = stringPreferencesKey("search_provider")
         private val KEY_SEARX = stringPreferencesKey("searx_endpoint")
         private val KEY_BRAVE = stringPreferencesKey("brave_api_key")
@@ -147,8 +151,8 @@ class SettingsRepository(private val context: Context) {
             activeModelId = this[KEY_ACTIVE_MODEL],
             activeCodeModelId = this[KEY_ACTIVE_CODE_MODEL],
             autoTitle = this[KEY_AUTO_TITLE] ?: true,
-            searchEnabled = this[KEY_SEARCH_ENABLED] ?: false,
-            searchProvider = this[KEY_SEARCH_PROVIDER] ?: "searxng",
+            searchEnabled = this[KEY_SEARCH_AUTO] ?: true,
+            searchProvider = this[KEY_SEARCH_PROVIDER] ?: "auto",
             searxEndpoint = this[KEY_SEARX] ?: "",
             braveApiKey = this[KEY_BRAVE] ?: "",
             autoBackup = this[KEY_AUTO_BACKUP] ?: false,
@@ -193,6 +197,7 @@ class SettingsRepository(private val context: Context) {
             }
             this[KEY_AUTO_TITLE] = s.autoTitle
             this[KEY_SEARCH_ENABLED] = s.searchEnabled
+            this[KEY_SEARCH_AUTO] = s.searchEnabled
             this[KEY_SEARCH_PROVIDER] = s.searchProvider
             this[KEY_SEARX] = s.searxEndpoint
             this[KEY_BRAVE] = s.braveApiKey

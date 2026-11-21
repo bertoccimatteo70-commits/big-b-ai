@@ -45,6 +45,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -57,6 +58,7 @@ import com.bigbai.core.lang.TutorLevel
 import com.bigbai.core.model.PerformanceMode
 import com.bigbai.core.model.RamMode
 import com.bigbai.core.model.ThemeMode
+import com.bigbai.llm.EmbeddingModels
 import com.bigbai.llm.ModelDownloadManager
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -74,6 +76,7 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit) {
     val viewModel: SettingsViewModel = viewModel(factory = factory)
     val settings by viewModel.settings.collectAsState()
     val backup by viewModel.backup.collectAsState()
+    val embedding by viewModel.embedding.collectAsState()
 
     val openDrawer = LocalAppDrawer.current
     var passwordAction by remember { mutableStateOf<PasswordAction?>(null) }
@@ -91,6 +94,9 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit) {
     ) { uri ->
         if (uri != null) passwordAction = PasswordAction.Export(uri)
     }
+    val importEmbeddingModel = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri -> if (uri != null) viewModel.importEmbedding(uri) }
     val openBackup = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
@@ -363,42 +369,120 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit) {
                 ) { viewModel.setAutoTitle(it) }
                 SwitchRow(
                     "Ricerca semantica locale",
-                    "Usa il modello di embedding incluso per trovare i passaggi pertinenti di documenti e ricordi. Tutto sul dispositivo.",
+                    "Trova i passaggi pertinenti di documenti e ricordi con un modello di embedding importato da te. Tutto sul dispositivo.",
                     settings.semanticMemoryEnabled,
                 ) { viewModel.setSemanticMemory(it) }
+                HorizontalDivider()
+                Text(
+                    "Modello di embedding (opzionale)",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    if (embedding.installed) {
+                        "Importato e verificato: la ricerca semantica è disponibile."
+                    } else {
+                        "Non importato: chat, OCR, documenti e ricerca web funzionano comunque. " +
+                            "La ricerca semantica resta disattivata finché non importi il file."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (embedding.installed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    "File richiesto: ${EmbeddingModels.EMBEDDING.fileName} " +
+                        "(${ModelDownloadManager.formatBytes(EmbeddingModels.EMBEDDING.sizeBytes)}, MIT).",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                val context = LocalContext.current
+                TextButton(
+                    onClick = {
+                        runCatching {
+                            context.startActivity(
+                                android.content.Intent(
+                                    android.content.Intent.ACTION_VIEW,
+                                    Uri.parse(EmbeddingModels.EMBEDDING.sourceUrl),
+                                ),
+                            )
+                        }
+                    },
+                ) { Text("Pagina del modello su Hugging Face") }
+                if (embedding.message != null) {
+                    Text(
+                        embedding.message.orEmpty(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (!embedding.installed) {
+                        Button(
+                            onClick = { importEmbeddingModel.launch(arrayOf("application/octet-stream", "*/*")) },
+                            enabled = !embedding.busy,
+                        ) { Text(if (embedding.busy) "Importazione…" else "Importa .gguf") }
+                    } else {
+                        OutlinedButton(onClick = viewModel::verifyEmbedding, enabled = !embedding.busy) {
+                            Text("Verifica")
+                        }
+                        OutlinedButton(onClick = viewModel::deleteEmbedding, enabled = !embedding.busy) {
+                            Text("Rimuovi")
+                        }
+                    }
+                }
+                Text(
+                    "Nessun download automatico: ITAGPT importa solo il file che scegli e ne controlla " +
+                        "dimensione e SHA-256.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
-            SectionCard("Ricerca web (opzionale)") {
+            SectionCard("Ricerca web") {
                 SwitchRow(
-                    "Abilita ricerca web",
-                    "Richiede una configurazione e una connessione attiva.",
+                    "Ricerca web automatica",
+                    "Nessun provider, endpoint o chiave da scegliere: ITAGPT usa DuckDuckGo e Wikipedia " +
+                        "e passa a Brave o SearXNG se li hai configurati.",
                     settings.searchEnabled,
                 ) { viewModel.setSearchEnabled(it) }
+                Text(
+                    "Provider",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Chip("SearXNG", settings.searchProvider == "searxng") { viewModel.setSearchProvider("searxng") }
+                    Chip("Automatico", settings.searchProvider == "auto" || settings.searchProvider.isBlank()) {
+                        viewModel.setSearchProvider("auto")
+                    }
                     Chip("Brave", settings.searchProvider == "brave") { viewModel.setSearchProvider("brave") }
+                    Chip("SearXNG", settings.searchProvider == "searxng") { viewModel.setSearchProvider("searxng") }
                 }
-                if (settings.searchProvider == "searxng") {
-                    OutlinedTextField(
-                        value = settings.searxEndpoint,
-                        onValueChange = viewModel::setSearxEndpoint,
-                        label = { Text("Endpoint SearXNG (https://…)") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                    )
-                } else {
-                    OutlinedTextField(
+                when (settings.searchProvider) {
+                    "brave" -> OutlinedTextField(
                         value = settings.braveApiKey,
                         onValueChange = viewModel::setBraveKey,
-                        label = { Text("Chiave API Brave Search") },
+                        label = { Text("Chiave API Brave Search (opzionale)") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         visualTransformation = PasswordVisualTransformation(),
                     )
+                    "searxng" -> OutlinedTextField(
+                        value = settings.searxEndpoint,
+                        onValueChange = viewModel::setSearxEndpoint,
+                        label = { Text("Endpoint SearXNG (opzionale, https://…)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                    )
+                    else -> Text(
+                        "Il provider viene scelto automaticamente. Se un servizio non risponde, " +
+                            "ITAGPT passa al successivo senza chiederti nulla.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
                 Text(
-                    "La ricerca parte solo quando serve un'informazione aggiornata. Offline viene " +
-                        "segnalata come non disponibile.",
+                    "La ricerca parte solo per domande che richiedono informazioni aggiornate; puoi " +
+                        "attivarla o disattivarla dal pulsante globo nella chat. Le risposte mostrano " +
+                        "titolo, sito, data (quando disponibile) e collegamento di ogni fonte.",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
