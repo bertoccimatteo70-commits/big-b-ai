@@ -1,7 +1,9 @@
 # ITAGPT 2.1.0 — rapporto di consegna
 
-Data: 21 novembre 2026. Commit del codice: `f11f1b9`. Workflow:
-**Android CI - ITAGPT debug and release**. Run: `{{RUN_ID}}`.
+Data: 21 novembre 2026. Commit del codice: `6deb331`. Workflow:
+**Android CI - ITAGPT debug and release**. Run:
+[#44955362468](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44955362468),
+conclusa con successo.
 
 Questo documento distingue ciò che è stato **eseguito e misurato** da ciò che è stato
 **implementato ma non provato su dispositivo**. Non contiene numeri inventati: dove una misura non
@@ -143,27 +145,34 @@ firma/ABI/assenza modelli, checksum e upload artifact.
 
 | APK | Dimensione | SHA-256 | Firma |
 |---|---|---|---|
-| `ITAGPT-debug-2.1.0.apk` | `{{DEBUG_SIZE}}` | `{{DEBUG_SHA}}` | debug |
-| `ITAGPT-release-debug-signed-2.1.0.apk` | `{{RELEASE_SIZE}}` | `{{RELEASE_SHA}}` | debug, non ufficiale |
+| `ITAGPT-debug-2.1.0.apk` | 149.551.471 byte (142,62 MiB) | `48845b54a0d867315a02f31fa7a6240c8421ae7424d5a15d70fcb1d348307a8c` | debug |
+| `ITAGPT-release-debug-signed-2.1.0.apk` | 80.225.319 byte (76,51 MiB) | `7c08099104a69f40874d4b07349bf0904493d2855e7498e7b9040d41544072e6` | debug, non ufficiale |
 
-Artifact:
+Artifact (ZIP, download con accesso GitHub):
 
-- Debug: `{{DEBUG_ARTIFACT}}`
-- Release: `{{RELEASE_ARTIFACT}}`
-- Report CI: `{{REPORT_ARTIFACT}}`
+- Debug: [ITAGPT-Debug-APK](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44955362468/artifacts/14726864383), 59.410.507 byte;
+- Release: [ITAGPT-Release-APK](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44955362468/artifacts/14727970510), 40.286.791 byte;
+- Report CI: [ITAGPT-CI-Reports](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44955362468/artifacts/14727546700), 55.906 byte.
+
+La firma è valida ma usa la chiave debug generata dal runner: il certificato può cambiare tra run
+e un aggiornamento sopra un'installazione precedente può richiedere la disinstallazione. Non è una
+release ufficiale.
 
 Confronto con 2.0.0 (dove l'APK conteneva 1.249.759.744 byte di modelli):
 
 | Voce | 2.0.0 | 2.1.0 |
 |---|---|---|
 | Modelli negli asset | 1.249.759.744 byte | 0 byte |
-| APK debug | 1.399.047.913 byte | `{{DEBUG_SIZE}}` |
-| APK release | 1.329.934.753 byte | `{{RELEASE_SIZE}}` |
-| ZIP artifact debug | 1.275.166.483 byte | `{{DEBUG_ZIP}}` |
-| ZIP artifact release | 1.256.113.456 byte | `{{RELEASE_ZIP}}` |
+| APK debug | 1.399.047.913 byte | 149.551.471 byte |
+| APK release | 1.329.934.753 byte | 80.225.319 byte |
+| ZIP artifact debug | 1.275.166.483 byte | 59.410.507 byte |
+| ZIP artifact release | 1.256.113.456 byte | 40.286.791 byte |
 
-Le dimensioni delle librerie native e dell'app installata saranno riportate solo se misurate; non
-vengono stimate. La dimensione dell'APK non è la dimensione dello ZIP GitHub.
+Librerie native non compresse nell'APK release, per ABI: `arm64-v8a` 21,77 MiB, `armeabi-v7a`
+14,33 MiB, `x86_64` 23,49 MiB. I file più pesanti sono `libmlkit_google_ocr_pipeline.so`
+(6,8–11,6 MB per ABI), `libbigbai.so` (4,2–6,6 MB) e `libsqlcipher.so` (4,0–6,4 MB). La dimensione
+dell'app installata non è misurabile senza un dispositivo e non viene stimata. La dimensione
+dell'APK non è la dimensione dello ZIP GitHub.
 
 ## 5. Matrice finale P0 / P1 / P3
 

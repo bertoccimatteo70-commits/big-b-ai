@@ -41,17 +41,24 @@ Il report completo, con comandi, dimensioni e limiti, è in
 
 ## APK 2.1
 
-La run CI di riferimento è la build del commit `f11f1b9` (workflow **Android CI - ITAGPT debug and
-release**). Gli APK sono negli artifact GitHub Actions, non nel repository.
+La run CI di riferimento è la **#44955362468**, build del commit `6deb331` (workflow **Android CI -
+ITAGPT debug and release**, conclusa con successo). Gli APK sono negli artifact GitHub Actions,
+non nel repository.
 
 | APK | Dimensione | SHA-256 | Firma |
 |---|---|---|---|
-| `ITAGPT-debug-2.1.0.apk` | `{{DEBUG_SIZE}}` | `{{DEBUG_SHA}}` | debug |
-| `ITAGPT-release-debug-signed-2.1.0.apk` | `{{RELEASE_SIZE}}` | `{{RELEASE_SHA}}` | chiave debug, **non ufficiale** |
+| `ITAGPT-debug-2.1.0.apk` | 149.551.471 byte (142,62 MiB) | `48845b54a0d867315a02f31fa7a6240c8421ae7424d5a15d70fcb1d348307a8c` | debug |
+| `ITAGPT-release-debug-signed-2.1.0.apk` | 80.225.319 byte (76,51 MiB) | `7c08099104a69f40874d4b07349bf0904493d2855e7498e7b9040d41544072e6` | chiave debug, **non ufficiale** |
 
 Ogni artifact contiene l'APK, il file `.sha256` e un report `.txt` con dimensione, data, ABI,
-firma e conferma dell'assenza di modelli. I link agli artifact sono pubblicati nel report
-[docs/RELEASE-2.1.0.md](docs/RELEASE-2.1.0.md) appena la run è conclusa.
+firma e conferma dell'assenza di modelli. Link diretti:
+
+- [artifact debug](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44955362468/artifacts/14726864383) (ZIP 59.410.507 byte);
+- [artifact release](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44955362468/artifacts/14727970510) (ZIP 40.286.791 byte);
+- [report CI](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44955362468/artifacts/14727546700) (ZIP 55.906 byte).
+
+Il download degli artifact richiede l'accesso a GitHub. La run completa è
+[qui](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44955362468).
 
 L'APK è universale: `arm64-v8a`, `armeabi-v7a`, `x86_64`. Non ci sono split per ABI e non esiste un
 limite artificiale di dimensione.
