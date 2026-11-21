@@ -20,9 +20,17 @@ versione senza dipendere da un Gradle installato nel `PATH`.
 ## 1. Libreria nativa
 
 ```bash
-bash scripts/fetch-llama.sh     # clona llama.cpp al commit fissato in third_party/
-bash scripts/build-native.sh    # compila e strippa libbigbai.so per tutte le ABI
+bash scripts/fetch-llama.sh          # clona llama.cpp al commit fissato in third_party/
+bash scripts/fetch-bundled-model.sh  # scarica e verifica il modello di embedding (132 MB)
+bash scripts/build-native.sh         # compila e strippa libbigbai.so per tutte le ABI
 ```
+
+`fetch-bundled-model.sh` scarica `multilingual-e5-small-q8_0.gguf` (TwinSunsLLC, Q8_0,
+132.439.008 byte) e ne verifica dimensione e SHA-256
+(`e011debc1208e31bf7b6aebee2d9fc8bd2ca11694a77ed66ac9d0c9d0a877c93`) prima di copiarlo in
+`app/src/main/assets/models/`. Il file non è versionato: è troppo grande per la storia Git ed è
+riproducibile. Senza di esso `assembleDebug` produce un APK incompleto e
+`package-debug-apk.sh` lo rifiuta.
 
 `build-native.sh` usa CMake + NDK, `-DGGML_VULKAN=OFF`, `-DGGML_OPENMP=OFF`,
 `-DLLAMA_CURL=OFF`, e produce una libreria per ogni ABI spedita:
@@ -90,11 +98,14 @@ bash scripts/package-debug-apk.sh
 
 Lo script copia l'APK in `dist/BIG-B-AI-debug-<versione>.apk`, verifica che `libbigbai.so` **e**
 `libsqlcipher.so` siano presenti per `arm64-v8a`, `armeabi-v7a` e `x86_64` (un APK senza motore
-nativo, o con un'ABI incompleta, non deve mai essere pubblicato), calcola lo SHA-256 e scrive
-`dist/BIG-B-AI-debug-<versione>.txt` con dimensione, data, package e firma. Lo script **fallisce**
-se l'APK è sotto i 100 MiB richiesti dal progetto.
+nativo, o con un'ABI incompleta, non deve mai essere pubblicato), verifica che il modello di
+embedding dentro l'APK abbia dimensione e SHA-256 attesi, controlla firma (`apksigner`) e manifest
+(`aapt2`: package, versionCode, versionName, ABI), confronta l'hash della copia con quello
+dell'APK appena compilato, calcola lo SHA-256 e scrive `dist/BIG-B-AI-debug-<versione>.txt` con
+dimensione, data, package e firma. Lo script **fallisce** se l'APK è sotto i **200 MiB**
+(209.715.200 byte) richiesti dal progetto.
 
-La variante debug usa `applicationId` `com.bigbai.app.debug` e `versionName` `1.4.0-debug`, quindi
+La variante debug usa `applicationId` `com.bigbai.app.debug` e `versionName` `1.5.0-debug`, quindi
 convive con una eventuale build di release sullo stesso dispositivo.
 
 `app/build.gradle.kts` supporta ancora la firma di release (`keystore.properties` o variabili
@@ -124,10 +135,20 @@ I test unitari JVM coprono la logica pura, senza Android framework:
 - `ProjectNamingTest` (4 test): nome cartella, HTML iniziale, escaping del titolo.
 
 - `CodeAgentTest` (10), `CodeQuotaTest` (6): protocollo dell'agente, percorsi, limiti, quota.
-- `ModelProfilesTest` (6), `ResponseQualityTest` (6), `EvaluationSuiteTest` (5): profili per modello,
-  ripetizioni/troncamento, punteggio della suite di valutazione.
+- `ModelProfilesTest` (8), `ResponseQualityTest` (6), `EvaluationSuiteTest` (5): profili per modello,
+  ripetizioni/troncamento, punteggio della suite di valutazione, repetition penalty e min-p.
 
-Totale: **124 test JVM, 0 falliti** (core 26, code 42, llm 40, app 16), eseguiti anche dalla pipeline CI.
+Nuovi in 1.5.0:
+
+- `EmbeddingsTest` (8), `SemanticIndexTest` (6), `SemanticRepositoryTest`: chunking con
+  sovrapposizione, similarità, soglia, persistenza e rimozione dei vettori.
+- `QualityGateTest` (7): ripetizioni, fence non chiusi, tempo limite, una sola riscrittura.
+- `CalculatorTest` (10), `ItalianCheckTest` (8): aritmetica verificata, intervalli di anni ignorati,
+  spazi/punteggiatura/duplicati, codice escluso.
+- `ProjectInsightsTest` (6): duplicati, dipendenze mancanti, `package.json`, report delle modifiche.
+- `PromptContextTest` (2): iniezione di passaggi recuperati e calcoli verificati nel prompt.
+
+Totale: **165 test JVM, 0 falliti** (core 42, code 48, llm 59, app 16), eseguiti anche dalla pipeline CI.
 Non esistono test strumentali: richiederebbero un device.
 
 ## 4.1 Copertura
@@ -157,12 +178,13 @@ incluso nell'APK: non sostituirlo con un file scaricato da fonti non autorizzate
 
 1. JDK 17, Android SDK con `android-actions/setup-android@v4` (niente pacchetto `tools`, rimosso da
    Google), NDK 27.2.12479018 e CMake 3.22.1;
-2. `fetch-llama.sh` e `build-native.sh` per `arm64-v8a`, `armeabi-v7a` e `x86_64`;
+2. `fetch-llama.sh`, `fetch-bundled-model.sh` (con verifica SHA-256) e `build-native.sh` per
+   `arm64-v8a`, `armeabi-v7a` e `x86_64`;
 3. test JVM dei quattro moduli (`:core`, `:code`, `:llm`, `:app`);
 4. `:app:lintDebug`;
 5. `./gradlew assembleDebug`;
-6. `package-debug-apk.sh` (verifica ABI e dimensione ≥ 100 MiB) e upload dell'artifact
-   **BIG-B-AI-Debug-APK** (APK + `.sha256` + `.txt`, retention 30 giorni).
+6. `package-debug-apk.sh` (verifica ABI, modello, firma, manifest e dimensione ≥ 200 MiB) e upload
+   dell'artifact **BIG-B-AI-Debug-APK** (APK + `.sha256` + `.txt`, retention 30 giorni).
 
 La copertura JaCoCo è riproducibile in locale con `./gradlew jacocoTestReport`; la pipeline non
 carica un artifact di copertura separato, per non affiancare un secondo artifact a quello APK.

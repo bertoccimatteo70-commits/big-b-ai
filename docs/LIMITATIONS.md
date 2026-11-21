@@ -8,12 +8,14 @@ L'obiettivo è che nessuno scopra un limite solo dopo aver installato l'APK.
 | Cosa | Stato |
 |---|---|
 | Compilazione debug | Verificata in questo ambiente |
-| Test unitari JVM (124) | Verificati, 0 falliti |
+| Test unitari JVM (165) | Verificati, 0 falliti |
 | Agente BIG B Code (parsing, limiti, quota) | Verificato con test JVM |
 | Quota giornaliera su dispositivo reale | **Non verificata**: logica e persistenza testate, ciclo su device no |
 | Lint debug | 0 errori, 66 warning |
-| Copertura JVM (JaCoCo) | Misurata: 8,0% delle linee; UI, Room, PDF e backup non coperti |
+| Copertura JVM (JaCoCo) | Misurata in 1.3.0: 8,0% delle linee; non ricalcolata in 1.5.0; UI, Room, PDF e backup non coperti |
 | Librerie native arm64-v8a, armeabi-v7a, x86_64 | Compilate e strippate, presenti nell'APK |
+| Modello di embedding incluso | Verificato per dimensione e SHA-256 (script, APK, host); **non caricato su device** |
+| Retrieval semantico su device | **Non verificato**: soglia e qualità misurate solo su host |
 | Caricamento delle librerie su hardware reale | **Non verificato** |
 | Avvio dell'app su dispositivo | **Non verificato** |
 | Inferenza reale (testo) | **Non verificata** su device |
@@ -43,6 +45,20 @@ implementate e compilano, ma non sono state eseguite: non vengono dichiarate "fu
 - **Modelli piccoli e protocollo a strumenti.** Sotto ~1 B parametri il modello può sbagliare la
   sintassi degli strumenti: l'azione viene rifiutata con un errore nell'activity log, senza
   scrivere file parziali. Il ciclo è limitato a 5 passi per evitare loop.
+- **Il retrieval non è una garanzia.** La soglia di similarità è 0,80, misurata su coppie di
+  controllo (correlate 0,90–0,91, non correlate 0,71–0,77). Documenti formulati in modo molto
+  diverso dalla domanda possono non essere recuperati; il margine non è ampio. Non è stato
+  possibile misurare la qualità su documenti reali né su dispositivo.
+- **Il modello di embedding costa RAM e spazio.** 132 MB negli asset, una copia nella memoria
+  privata al primo uso e circa 150–200 MB di RAM quando è caricato (stima, non misurata su
+  telefono). Sotto pressione di memoria viene scaricato e il retrieval torna lessicale.
+- **La calcolatrice non è un motore di calcolo simbolico.** Gestisce `+ - * / % ^`, parentesi,
+  decimali e meno unario; non risolve equazioni, funzioni, unità di misura o percentuali
+  implicite.
+- **Il controllo italiano è meccanico.** Spazi, punteggiatura, duplicati e bilanciamento: non è
+  un correttore grammaticale e non corregge la risposta.
+- **La riscrittura di qualità è una sola.** Se anche il secondo tentativo è ripetitivo, la
+  risposta viene mostrata con la nota: non c'è un ciclo illimitato.
 - **Times New Roman non è incluso.** È un font proprietario: l'app usa Tinos (Apache-2.0),
   metricamente compatibile. La resa non è stata confrontata a schermo con Times New Roman.
 - **Android 12+ (minSdk 31).** Richiesto per il comportamento delle foreground service e delle
@@ -56,9 +72,12 @@ implementate e compilano, ma non sono state eseguite: non vengono dichiarate "fu
 
 ## Consegna
 
-- **Solo APK di debug.** La consegna è `BIG-B-AI-debug-1.4.0.apk`, firmato con `CN=Android Debug`:
+- **Solo APK di debug.** La consegna è `BIG-B-AI-debug-1.5.0.apk`, firmato con `CN=Android Debug`:
   installabile, ma non adatto a Play Store né a una distribuzione "ufficiale". Non vengono
   prodotti AAB né release firmate.
+- **APK da 237 MiB.** Il requisito di 200 MiB è soddisfatto con componenti reali (tre ABI e modello
+  di embedding). Il peso maggiore non migliora da solo la qualità delle risposte: la precisione
+  dipende da prompt, retrieval, sampler e verifiche, non dalla dimensione del file.
 - **R8/minify disattivato.** Scelta deliberata: non è stato possibile verificare su device che le
   regole di offuscamento non rompessero JGit, Room o il ponte JNI. Meglio un APK più grande che un
   crash non diagnosticabile.

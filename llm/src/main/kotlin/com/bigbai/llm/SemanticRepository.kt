@@ -186,6 +186,10 @@ class SemanticRepository(
          * 0.7; 0.62 keeps recall on paraphrases without flooding the prompt with
          * irrelevant passages.
          */
-        const val MIN_SCORE = 0.62f
+        // Measured on the bundled model (host x86_64): related sentence pairs
+        // score 0.90-0.91, unrelated pairs 0.71-0.77. A lower threshold would
+        // inject irrelevant passages into the prompt, which is worse than
+        // retrieving nothing: precision first.
+        const val MIN_SCORE = 0.80f
     }
 }
