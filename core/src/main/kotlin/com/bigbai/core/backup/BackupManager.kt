@@ -18,6 +18,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
 import java.security.MessageDigest
 import java.security.SecureRandom
 import javax.crypto.Cipher
@@ -144,8 +146,9 @@ class BackupManager(
     suspend fun restore(uri: Uri, passphrase: CharArray): Result<RestoreSummary> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val payload = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                    ?: error("Impossibile leggere il file di backup")
+                val payload = context.contentResolver.openInputStream(uri)?.use { input ->
+                    readBounded(input, MAX_BACKUP_BYTES)
+                } ?: error("Impossibile leggere il file di backup")
                 val plaintext = decrypt(payload, passphrase)
                 val snapshot = json.decodeFromString<Snapshot>(plaintext.toString(Charsets.UTF_8))
                 require(snapshot.version == 1) { "Versione di backup non supportata" }
@@ -300,6 +303,21 @@ class BackupManager(
         }
     }
 
+    /** Reads at most [max] bytes; an oversized archive is rejected, not allocated. */
+    private fun readBounded(input: InputStream, max: Int): ByteArray {
+        val output = ByteArrayOutputStream()
+        val buffer = ByteArray(64 * 1024)
+        while (true) {
+            val read = input.read(buffer)
+            if (read <= 0) break
+            if (output.size() + read > max) {
+                error("Backup troppo grande (max ${max / (1024 * 1024)} MB)")
+            }
+            output.write(buffer, 0, read)
+        }
+        return output.toByteArray()
+    }
+
     private fun encrypt(plaintext: ByteArray, passphrase: CharArray): ByteArray {
         val salt = ByteArray(16).also { random.nextBytes(it) }
         val key = deriveKey(passphrase, salt)
@@ -330,5 +348,6 @@ class BackupManager(
 
     companion object {
         private val MAGIC = "BIGBAI1\n".toByteArray(Charsets.US_ASCII)
+        private const val MAX_BACKUP_BYTES = 64 * 1024 * 1024
     }
 }

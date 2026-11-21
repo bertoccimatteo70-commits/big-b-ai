@@ -165,6 +165,19 @@ interface MemoryDao {
     )
     suspend fun recent(limit: Int): List<MemoryWithCategory>
 
+    @Query(
+        "SELECT m.*, c.name AS categoryName FROM memories m " +
+            "JOIN memory_categories c ON c.id = m.categoryId WHERE c.name = :name " +
+            "ORDER BY m.updatedAt DESC LIMIT :limit",
+    )
+    suspend fun recentByCategory(name: String, limit: Int): List<MemoryWithCategory>
+
+    @Query(
+        "SELECT COUNT(*) FROM memories m JOIN memory_categories c ON c.id = m.categoryId " +
+            "WHERE c.name = :name AND m.content = :content",
+    )
+    suspend fun countByCategoryAndContent(name: String, content: String): Int
+
     @Insert
     suspend fun insert(memory: MemoryEntity): Long
 

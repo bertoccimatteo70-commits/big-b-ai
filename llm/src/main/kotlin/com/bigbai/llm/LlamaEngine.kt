@@ -32,6 +32,7 @@ data class LoadedModel(
     val variant: ModelVariant,
     val contextSize: Int,
     val threads: Int,
+    val batchSize: Int,
     val vision: Boolean,
     val loadTimeMs: Long,
     val info: Map<String, String>,
@@ -88,7 +89,10 @@ class LlamaEngine(
     ): Result<LoadedModel> = withContext(inferenceDispatcher) {
         val existing = loadedModel
         if (handle != 0L && existing != null &&
-            existing.variant.id == variant.id && existing.contextSize == contextSize
+            existing.variant.id == variant.id &&
+            existing.contextSize == contextSize &&
+            existing.threads == threads &&
+            existing.batchSize == batchSize
         ) {
             return@withContext Result.success(existing)
         }
@@ -126,6 +130,7 @@ class LlamaEngine(
             variant = variant,
             contextSize = NativeLlama.nativeContextSize(newHandle),
             threads = threads,
+            batchSize = batchSize,
             vision = info["vision"] == "true",
             loadTimeMs = SystemClock.elapsedRealtime() - started,
             info = info,
@@ -194,6 +199,13 @@ class LlamaEngine(
             )
         }
         if (!started) {
+            // A stop request during prompt evaluation is a normal cancellation,
+            // not an error: report an empty successful generation so the UI does
+            // not show "Prompt evaluation failed" after the user pressed Stop.
+            if (cancelled.get()) {
+                cancelled.set(false)
+                return@withContext Result.success(GenerationMetrics(modelId = model.variant.id))
+            }
             val message = NativeLlama.nativeLastError().ifBlank { "Avvio della generazione non riuscito" }
             return@withContext Result.failure(IllegalStateException(message))
         }

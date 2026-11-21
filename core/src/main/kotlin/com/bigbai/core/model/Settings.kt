@@ -1,5 +1,7 @@
 package com.bigbai.core.model
 
+import com.bigbai.core.lang.TutorLevel
+
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 /** Design limits, not guarantees: the engine still clamps to the memory that
@@ -42,4 +44,7 @@ data class AppSettings(
     val showPerfPanel: Boolean = false,
     val codeNetworkAllowed: Boolean = false,
     val reduceMotion: Boolean = false,
+    val tutorEnabled: Boolean = false,
+    val tutorTarget: String = "es",
+    val tutorLevel: TutorLevel = TutorLevel.BASE,
 )

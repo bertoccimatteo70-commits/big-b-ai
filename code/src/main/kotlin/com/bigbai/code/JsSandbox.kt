@@ -14,6 +14,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayInputStream
 import java.util.Collections
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.resume
 
 data class SandboxResult(
@@ -46,7 +47,7 @@ class JsSandbox(private val context: Context) {
     ): SandboxResult = withContext(Dispatchers.Main) {
         val logs = Collections.synchronizedList(mutableListOf<String>())
         val errors = Collections.synchronizedList(mutableListOf<String>())
-        var blocked = 0
+        val blocked = AtomicInteger()
         val started = System.currentTimeMillis()
 
         val webView = WebView(context).apply {
@@ -54,7 +55,6 @@ class JsSandbox(private val context: Context) {
             settings.allowFileAccess = false
             settings.allowContentAccess = false
             settings.domStorageEnabled = false
-            settings.databaseEnabled = false
             settings.javaScriptCanOpenWindowsAutomatically = false
             settings.setSupportMultipleWindows(false)
             settings.blockNetworkLoads = !allowNetwork
@@ -141,7 +141,7 @@ class JsSandbox(private val context: Context) {
                             errors = errors.toList(),
                             durationMs = System.currentTimeMillis() - started,
                             timedOut = timedOut,
-                            blockedRequests = blocked,
+                            blockedRequests = blocked.get(),
                         ),
                     )
                 }
@@ -155,7 +155,7 @@ class JsSandbox(private val context: Context) {
                     val url = request?.url?.toString() ?: return null
                     val remote = url.startsWith("http://") || url.startsWith("https://")
                     if (remote && !allowNetwork) {
-                        blocked += 1
+                        blocked.incrementAndGet()
                         return WebResourceResponse(
                             "text/plain",
                             "utf-8",

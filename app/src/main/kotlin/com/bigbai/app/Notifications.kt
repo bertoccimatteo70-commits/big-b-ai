@@ -47,7 +47,12 @@ class Notifications(private val context: Context) {
         progress: Int?,
         ongoing: Boolean = true,
     ) {
-        if (!canNotify()) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
         val intent = Intent(context, MainActivity::class.java)
         val pending = PendingIntent.getActivity(
             context, 0, intent,
@@ -70,7 +75,12 @@ class Notifications(private val context: Context) {
     }
 
     fun backup(success: Boolean, message: String) {
-        if (!canNotify()) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
         val builder = NotificationCompat.Builder(context, CHANNEL_BACKUP)
             .setSmallIcon(if (success) R.drawable.ic_stat_cloud_done else R.drawable.ic_stat_error)
             .setContentTitle(context.getString(if (success) R.string.notification_backup_done else R.string.notification_backup_failed))
@@ -81,7 +91,12 @@ class Notifications(private val context: Context) {
     }
 
     fun alert(title: String, message: String) {
-        if (!canNotify()) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
         val builder = NotificationCompat.Builder(context, CHANNEL_ALERTS)
             .setSmallIcon(R.drawable.ic_stat_error)
             .setContentTitle(title)

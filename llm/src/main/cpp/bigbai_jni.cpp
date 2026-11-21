@@ -65,7 +65,10 @@ struct Session {
     int32_t n_past = 0;
     int32_t generated = 0;
     int32_t max_tokens = 0;
-    bool vision = false;
+    // Capability of the loaded projector, set once at load. It must never be
+    // reset by a text-only generation: doing that made vision work only until
+    // the first text message and then fail with "No multimodal projector".
+    bool has_vision = false;
 };
 
 Session * from_handle(jlong handle) {
@@ -245,7 +248,7 @@ Java_com_bigbai_llm_NativeLlama_nativeLoadModel(
             delete session;
             return 0;
         }
-        session->vision = mtmd_support_vision(session->mctx);
+        session->has_vision = mtmd_support_vision(session->mctx);
     }
 
     {
@@ -254,7 +257,7 @@ Java_com_bigbai_llm_NativeLlama_nativeLoadModel(
     }
 
     LOGI("model loaded: ctx=%d threads=%d batch=%d vision=%d",
-         n_ctx, n_threads, session->n_batch, session->vision ? 1 : 0);
+         n_ctx, n_threads, session->n_batch, session->has_vision ? 1 : 0);
     return reinterpret_cast<jlong>(session);
 }
 
@@ -300,7 +303,7 @@ Java_com_bigbai_llm_NativeLlama_nativeModelInfo(JNIEnv * env, jclass, jlong hand
     info += "head_dim=" + std::to_string(head_dim) + "\n";
     info += "n_params=" + std::to_string(n_params) + "\n";
     info += "size=" + std::to_string(size) + "\n";
-    info += "vision=" + std::string(session->vision ? "true" : "false") + "\n";
+    info += "vision=" + std::string(session->has_vision ? "true" : "false") + "\n";
     info += "n_vocab=" + std::to_string(llama_vocab_n_tokens(session->vocab)) + "\n";
     return env->NewStringUTF(info.c_str());
 }
@@ -365,7 +368,6 @@ Java_com_bigbai_llm_NativeLlama_nativeBegin(
     session->cancel.store(false);
     session->generated = 0;
     session->max_tokens = std::max<int32_t>(1, max_tokens);
-    session->vision = false;
 
     const std::string text = jstring_to_string(env, prompt);
     const auto tokens = tokenize(session->vocab, text, true);
@@ -401,7 +403,7 @@ Java_com_bigbai_llm_NativeLlama_nativeBeginVision(
     jint max_tokens, jfloat temperature, jfloat top_p, jint top_k) {
     Session * session = from_handle(handle);
     if (session == nullptr) return JNI_FALSE;
-    if (session->mctx == nullptr || !session->vision) {
+    if (session->mctx == nullptr || !session->has_vision) {
         set_error("No multimodal projector loaded");
         return JNI_FALSE;
     }

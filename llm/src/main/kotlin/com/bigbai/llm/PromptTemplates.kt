@@ -16,8 +16,17 @@ object PromptTemplates {
         sources: List<Source>,
         visionAvailable: Boolean,
         hasImage: Boolean,
+        tutor: String = "",
     ): String {
         val italian = language.startsWith("it")
+        val languageName = when {
+            language.startsWith("it") -> "italiano"
+            language.startsWith("es") -> "español"
+            language.startsWith("fr") -> "français"
+            language.startsWith("de") -> "Deutsch"
+            language.startsWith("pt") -> "português"
+            else -> "English"
+        }
         val builder = StringBuilder()
         if (italian) {
             builder.append(
@@ -40,7 +49,7 @@ object PromptTemplates {
             )
             builder.append(
                 "Rules:\n" +
-                    "- Answer in English, clearly, directly and professionally.\n" +
+                    "- Answer in $languageName, clearly, directly and professionally.\n" +
                     "- Never invent facts, citations, sources or capabilities. If you do not know, say so.\n" +
                     "- Never claim to have performed actions you cannot perform.\n" +
                     "- For mathematics, show the steps and verify the result.\n" +
@@ -76,6 +85,10 @@ object PromptTemplates {
                 builder.append("[${index + 1}] ${source.title} — ${source.url}\n")
                 if (source.snippet.isNotBlank()) builder.append("    ${source.snippet.take(400)}\n")
             }
+        }
+
+        if (tutor.isNotBlank()) {
+            builder.append('\n').append(tutor).append('\n')
         }
 
         if (hasImage) {

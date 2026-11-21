@@ -290,6 +290,13 @@ private fun StorageCard(used: Long, free: Long, budget: Long, device: String) {
             InfoRow("Modelli installati", ModelDownloadManager.formatBytes(used))
             InfoRow("Spazio libero", ModelDownloadManager.formatBytes(free))
             InfoRow("Budget RAM per il modello", ModelDownloadManager.formatBytes(budget))
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Il budget è calcolato sulla RAM realmente libera. Un modello la cui RAM stimata lo " +
+                    "supera non viene caricato: l'app lo spiega invece di andare in crash.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

@@ -164,7 +164,7 @@ class ModelDownloadManager(
                             record(
                                 variant,
                                 "DOWNLOADING",
-                                alreadyCompleted + sink.length(),
+                                (alreadyCompleted - existing) + sink.length(),
                                 total,
                                 null,
                             )

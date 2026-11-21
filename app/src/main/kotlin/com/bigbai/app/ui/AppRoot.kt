@@ -3,6 +3,11 @@ package com.bigbai.app.ui
 import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.tween
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -44,7 +49,21 @@ fun AppRoot(container: AppContainer, settings: AppSettings) {
     }
 
     val navController = rememberNavController()
-    NavHost(navController = navController, startDestination = Routes.CHAT) {
+    val motion = if (settings.reduceMotion) 0 else 220
+    NavHost(
+        navController = navController,
+        startDestination = Routes.CHAT,
+        enterTransition = {
+            fadeIn(tween(motion)) + slideInHorizontally(tween(motion), initialOffsetX = { it / 16 })
+        },
+        exitTransition = { fadeOut(tween(motion / 2)) },
+        popEnterTransition = {
+            fadeIn(tween(motion)) + slideInHorizontally(tween(motion), initialOffsetX = { -it / 16 })
+        },
+        popExitTransition = {
+            fadeOut(tween(motion)) + slideOutHorizontally(tween(motion), targetOffsetX = { it / 16 })
+        },
+    ) {
         composable(Routes.CHAT) {
             ChatScreen(
                 container = container,

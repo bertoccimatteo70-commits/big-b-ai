@@ -163,11 +163,11 @@ class ModelCatalog private constructor(private val root: CatalogRoot) {
 
     companion object {
         private const val ASSET = "model_catalog.json"
+        private val parser = Json { ignoreUnknownKeys = true }
 
         fun load(context: Context): ModelCatalog {
-            val json = context.assets.open(ASSET).bufferedReader().use { it.readText() }
-            val root = Json { ignoreUnknownKeys = true }.decodeFromString<CatalogRoot>(json)
-            return ModelCatalog(root)
+            val text = context.assets.open(ASSET).bufferedReader().use { it.readText() }
+            return ModelCatalog(parser.decodeFromString<CatalogRoot>(text))
         }
     }
 }

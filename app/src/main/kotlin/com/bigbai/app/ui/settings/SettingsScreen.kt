@@ -3,6 +3,8 @@ package com.bigbai.app.ui.settings
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -49,6 +51,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bigbai.app.AppContainer
 import com.bigbai.app.ui.AppViewModelFactory
+import com.bigbai.core.lang.LanguageCoach
+import com.bigbai.core.lang.TutorLevel
 import com.bigbai.core.model.PerformanceMode
 import com.bigbai.core.model.RamMode
 import com.bigbai.core.model.ThemeMode
@@ -72,6 +76,13 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit) {
 
     var passwordAction by remember { mutableStateOf<PasswordAction?>(null) }
     var advanced by remember { mutableStateOf(settings.advancedUnlocked) }
+
+    // The settings flow starts with defaults and emits the persisted values a
+    // moment later; without this the advanced switch could stay off for a user
+    // who had already unlocked it.
+    androidx.compose.runtime.LaunchedEffect(settings.advancedUnlocked) {
+        advanced = settings.advancedUnlocked
+    }
 
     val createBackup = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/octet-stream"),
@@ -138,6 +149,51 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Chip("Italiano", settings.language == "it") { viewModel.setLanguage("it") }
                     Chip("English", settings.language == "en") { viewModel.setLanguage("en") }
+                }
+                Spacer(Modifier.height(10.dp))
+                SwitchRow(
+                    "Riduci animazioni",
+                    "Transizioni brevi o assenti, utile su dispositivi meno potenti.",
+                    settings.reduceMotion,
+                ) { viewModel.setReduceMotion(it) }
+            }
+
+            SectionCard("Tutor di lingua") {
+                SwitchRow(
+                    "Tutor di lingua",
+                    "Lezioni, correzioni e vocaboli partendo dall'italiano. Il lessico appreso resta in memoria.",
+                    settings.tutorEnabled,
+                ) { viewModel.setTutorEnabled(it) }
+                if (settings.tutorEnabled) {
+                    Spacer(Modifier.height(8.dp))
+                    Text("Lingua da imparare", style = MaterialTheme.typography.labelLarge)
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        LanguageCoach.languages.forEach { language ->
+                            Chip(
+                                label = "${language.italianName} · ${language.nativeName}",
+                                selected = settings.tutorTarget == language.code,
+                            ) { viewModel.setTutorTarget(language.code) }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text("Livello", style = MaterialTheme.typography.labelLarge)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        TutorLevel.entries.forEach { level ->
+                            Chip(level.label, settings.tutorLevel == level) { viewModel.setTutorLevel(level) }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Il modello non viene riaddestrato: l'app gli fornisce un glossario italiano → " +
+                            "lingua scelta e salva le righe «Lingua:XX» che il modello produce nel lessico " +
+                            "personale (categoria ${LanguageCoach.categoryName(settings.tutorTarget)} della Memoria). " +
+                            "Ogni lezione successiva riparte da quel lessico.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
 
@@ -383,8 +439,12 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit) {
 
 @Composable
 private fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(modifier = Modifier.padding(14.dp)) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        shape = MaterialTheme.shapes.large,
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
             content()

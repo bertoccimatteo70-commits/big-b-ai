@@ -111,11 +111,7 @@ class ModelDownloadService : Service() {
             this,
             Notifications.NOTIFICATION_DOWNLOAD,
             notification,
-            if (android.os.Build.VERSION.SDK_INT >= 29) {
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-            } else {
-                0
-            },
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
         )
     }
 

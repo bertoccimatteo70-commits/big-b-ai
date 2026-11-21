@@ -78,6 +78,31 @@ class MemoryRepository(private val db: AppDatabase) {
         )
     }
 
+    /** Entries of one category, used by the language tutor to re-inject the
+     *  personal lexicon built from earlier lessons. */
+    suspend fun forCategory(name: String, limit: Int = 16): List<MemoryItem> =
+        db.memoryDao().recentByCategory(name, limit).map {
+            MemoryItem(it.id, it.categoryId, it.categoryName, it.content, it.createdAt, it.updatedAt, it.sourceConversationId)
+        }
+
+    /**
+     * Stores [content] once per category. The tutor calls this for every
+     * vocabulary line the model emits, so repeated lessons do not duplicate the
+     * same word.
+     */
+    suspend fun addIfAbsent(content: String, categoryName: String, conversationId: Long? = null): Boolean {
+        val clean = content.trim()
+        if (clean.isEmpty()) return false
+        ensureDefaultCategories()
+        val existing = db.memoryDao().getCategories()
+            .firstOrNull { it.name.equals(categoryName, ignoreCase = true) }
+        if (existing != null && db.memoryDao().countByCategoryAndContent(existing.name, clean) > 0) {
+            return false
+        }
+        add(clean, categoryName, conversationId)
+        return true
+    }
+
     suspend fun delete(id: Long) = db.memoryDao().delete(id)
 
     suspend fun clear() = db.memoryDao().clear()

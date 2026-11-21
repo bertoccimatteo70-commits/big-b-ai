@@ -152,6 +152,8 @@ class ChatRepository(private val db: AppDatabase) {
     }
 }
 
+private val messageJson = Json { ignoreUnknownKeys = true }
+
 private fun ConversationWithCount.toDomain(): Conversation = Conversation(
     id = id,
     title = title.ifBlank { "—" },
@@ -187,9 +189,9 @@ private fun MessageEntity.toDomain(): ChatMessage = ChatMessage(
     promptTokens = promptTokens,
     completionTokens = completionTokens,
     attachments = runCatching {
-        Json { ignoreUnknownKeys = true }.decodeFromString<List<Attachment>>(attachmentsJson)
+        messageJson.decodeFromString<List<Attachment>>(attachmentsJson)
     }.getOrDefault(emptyList()),
     sources = runCatching {
-        Json { ignoreUnknownKeys = true }.decodeFromString<List<Source>>(sourcesJson)
+        messageJson.decodeFromString<List<Source>>(sourcesJson)
     }.getOrDefault(emptyList()),
 )

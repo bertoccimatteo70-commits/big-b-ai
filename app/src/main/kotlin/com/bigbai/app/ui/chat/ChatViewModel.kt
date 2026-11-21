@@ -3,10 +3,15 @@ package com.bigbai.app.ui.chat
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.SystemClock
 import android.provider.OpenableColumns
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bigbai.app.AppContainer
+import com.bigbai.core.chat.ConversationSession
+import com.bigbai.core.chat.StreamingBuffer
+import com.bigbai.core.lang.LanguageCoach
 import com.bigbai.core.model.AppSettings
 import com.bigbai.core.model.Attachment
 import com.bigbai.core.model.ChatMessage
@@ -28,6 +33,7 @@ import com.bigbai.llm.PromptMessage
 import com.bigbai.llm.PromptTemplates
 import com.bigbai.llm.VisionInput
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -36,6 +42,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.max
 import kotlin.math.min
 
@@ -55,12 +62,32 @@ data class ChatUiState(
     val modelLabel: String? = null,
     val modelReady: Boolean = false,
     val visionReady: Boolean = false,
+    /** Number of vocabulary lines stored by the tutor after the last answer. */
+    val lexiconSaved: Int = 0,
 )
 
-class ChatViewModel(private val container: AppContainer) : ViewModel() {
+class ChatViewModel(
+    private val container: AppContainer,
+    private val savedState: SavedStateHandle? = null,
+) : ViewModel() {
 
-    private val _state = MutableStateFlow(ChatUiState())
+    private val restoredConversationId: Long = savedState?.get<Long>(KEY_CONVERSATION) ?: 0L
+    private val restoredInput: String = savedState?.get<String>(KEY_INPUT).orEmpty()
+
+    private val _state = MutableStateFlow(
+        ChatUiState(
+            conversationId = restoredConversationId,
+            input = restoredInput,
+        ),
+    )
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
+
+    /**
+     * Identity of the open conversation. Kept outside [ChatUiState] so that no
+     * UI flag (especially `isGenerating`) can ever cause a second conversation
+     * to be created for the same chat.
+     */
+    private val session = ConversationSession()
 
     val conversations: StateFlow<List<Conversation>> = container.chat.conversations()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -81,6 +108,10 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
     private var generationJob: Job? = null
 
     init {
+        if (restoredConversationId > 0L) {
+            session.bind(restoredConversationId)
+            observeMessages(restoredConversationId)
+        }
         viewModelScope.launch {
             container.engine.state.collect { engineState ->
                 val ready = engineState as? LlamaEngine.EngineState.Ready
@@ -102,19 +133,34 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
 
     fun refreshInstalled() {
         viewModelScope.launch {
-            _installed.value = container.modelStore.installedAll(container.catalog)
+            _installed.value = installedModels()
         }
     }
 
-    fun onInputChange(value: String) = _state.update { it.copy(input = value) }
+    private suspend fun installedModels(): List<InstalledModel> = withContext(Dispatchers.IO) {
+        container.modelStore.installedAll(container.catalog)
+    }
+
+    fun onInputChange(value: String) {
+        _state.update { it.copy(input = value) }
+        savedState?.set(KEY_INPUT, value)
+    }
 
     fun dismissError() = _state.update { it.copy(error = null) }
 
     fun dismissStatus() = _state.update { it.copy(status = null) }
 
+    fun dismissLexiconNotice() = _state.update { it.copy(lexiconSaved = 0) }
+
     fun newChat() {
-        if (_state.value.isGenerating) return
+        if (_state.value.isGenerating) {
+            _state.update { it.copy(error = "Interrompi la generazione prima di aprire una nuova chat.") }
+            return
+        }
         messagesJob?.cancel()
+        session.reset()
+        savedState?.set(KEY_CONVERSATION, 0L)
+        savedState?.set(KEY_INPUT, "")
         _state.update {
             it.copy(
                 conversationId = 0L,
@@ -126,6 +172,7 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
                 sources = emptyList(),
                 proposals = emptyList(),
                 error = null,
+                lexiconSaved = 0,
             )
         }
     }
@@ -135,6 +182,9 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
             _state.update { it.copy(error = "Interrompi la generazione prima di cambiare conversazione.") }
             return
         }
+        if (id <= 0L || id == session.conversationId) return
+        session.bind(id)
+        savedState?.set(KEY_CONVERSATION, id)
         messagesJob?.cancel()
         _state.update {
             it.copy(
@@ -144,66 +194,67 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
                 metrics = null,
                 sources = emptyList(),
                 proposals = emptyList(),
+                error = null,
+                lexiconSaved = 0,
             )
         }
-        messagesJob = viewModelScope.launch {
-            container.chat.messages(id).collect { list ->
-                _state.update { it.copy(messages = list) }
-            }
-        }
+        observeMessages(id)
     }
 
     fun attach(uri: Uri) {
         viewModelScope.launch {
             val resolver = container.context.contentResolver
-            val name = queryName(uri) ?: "allegato"
-            val mime = resolver.getType(uri) ?: ""
-            when {
-                mime.startsWith("image/") || name.lowercase().endsWith(".png") ||
-                    name.lowercase().endsWith(".jpg") || name.lowercase().endsWith(".jpeg") ||
-                    name.lowercase().endsWith(".webp") -> {
-                    _state.update {
-                        it.copy(
-                            attachments = it.attachments + Attachment(
-                                kind = Attachment.Kind.IMAGE,
-                                uri = uri.toString(),
-                                name = name,
-                                mimeType = mime.ifBlank { "image/*" },
-                            ),
-                        )
-                    }
+            val (name, mime, size) = withContext(Dispatchers.IO) {
+                Triple(queryName(uri) ?: "allegato", resolver.getType(uri) ?: "", querySize(uri))
+            }
+            val kind = AttachmentPolicy.kindFor(name, mime)
+            if (kind == null) {
+                _state.update { it.copy(error = "Formato non supportato. Allega un'immagine o un PDF.") }
+                return@launch
+            }
+            AttachmentPolicy.sizeError(kind, size)?.let { message ->
+                _state.update { it.copy(error = message) }
+                return@launch
+            }
+            if (kind == Attachment.Kind.IMAGE) {
+                _state.update {
+                    it.copy(
+                        attachments = it.attachments + Attachment(
+                            kind = Attachment.Kind.IMAGE,
+                            uri = uri.toString(),
+                            name = name,
+                            mimeType = mime.ifBlank { "image/*" },
+                        ),
+                    )
                 }
-                mime == "application/pdf" || name.lowercase().endsWith(".pdf") -> {
-                    _state.update { it.copy(status = "Estrazione del testo dal PDF…") }
-                    val document = container.pdf.extract(uri, name)
-                    document.onSuccess { pdf ->
-                        if (!pdf.hasExtractableText) {
-                            _state.update {
-                                it.copy(
-                                    error = "Il PDF non contiene testo estraibile (probabilmente è scansionato). " +
-                                        "L'OCR non è supportato in questa versione.",
-                                    status = null,
-                                )
-                            }
-                        } else {
-                            _state.update {
-                                it.copy(
-                                    attachments = it.attachments + Attachment(
-                                        kind = Attachment.Kind.PDF,
-                                        uri = uri.toString(),
-                                        name = name,
-                                        mimeType = "application/pdf",
-                                        extractedText = pdf.fullText,
-                                    ),
-                                    status = null,
-                                )
-                            }
+            } else {
+                _state.update { it.copy(status = "Estrazione del testo dal PDF…") }
+                container.pdf.extract(uri, name).onSuccess { pdf ->
+                    if (!pdf.hasExtractableText) {
+                        _state.update {
+                            it.copy(
+                                error = "Il PDF non contiene testo estraibile (probabilmente è scansionato). " +
+                                    "L'OCR non è supportato in questa versione.",
+                                status = null,
+                            )
                         }
-                    }.onFailure { error ->
-                        _state.update { it.copy(error = error.message ?: "PDF non leggibile", status = null) }
+                    } else {
+                        _state.update {
+                            it.copy(
+                                attachments = it.attachments + Attachment(
+                                    kind = Attachment.Kind.PDF,
+                                    uri = uri.toString(),
+                                    name = name,
+                                    mimeType = "application/pdf",
+                                    extractedText = pdf.fullText,
+                                ),
+                                status = null,
+                            )
+                        }
                     }
+                }.onFailure { error ->
+                    _state.update { it.copy(error = error.message ?: "PDF non leggibile", status = null) }
                 }
-                else -> _state.update { it.copy(error = "Formato non supportato. Allega un'immagine o un PDF.") }
             }
         }
     }
@@ -212,6 +263,7 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
         _state.update { it.copy(attachments = it.attachments - attachment) }
 
     fun stop() {
+        _state.update { it.copy(status = "Interruzione…") }
         container.engine.stop()
     }
 
@@ -222,7 +274,6 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
         if (text.isEmpty() && snapshot.attachments.isEmpty()) return
 
         generationJob = viewModelScope.launch {
-            val priorMessages = snapshot.messages
             _state.update {
                 it.copy(
                     input = "",
@@ -234,27 +285,57 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
                     metrics = null,
                     sources = emptyList(),
                     proposals = emptyList(),
+                    lexiconSaved = 0,
                     status = "Preparazione…",
                 )
             }
-            val builder = StringBuilder()
+            savedState?.set(KEY_INPUT, "")
+
+            val buffer = StreamingBuffer()
+            var conversationId = session.conversationId
+            var userMessagePersisted = false
             try {
                 val settings = container.settings.current()
-                val loaded = ensureModel(settings) ?: return@launch
-                val conversationId = ensureConversation(loaded.variant.id)
-                container.chat.appendMessage(
-                    conversationId = conversationId,
-                    role = Role.USER,
-                    content = if (text.isBlank()) "(immagine allegata)" else text,
-                    modelId = loaded.variant.id,
-                    attachments = snapshot.attachments,
-                )
+                val loaded = ensureModel(settings)
+                if (loaded == null) {
+                    restoreDraft(text, snapshot.attachments)
+                    return@launch
+                }
 
-                if (settings.memoryEnabled && text.isNotBlank()) {
-                    val proposals = MemoryExtractor.propose(text)
-                    if (proposals.isNotEmpty()) {
-                        _state.update { it.copy(proposals = proposals) }
+                // The database is authoritative. Reading `state.messages` here
+                // could miss history right after process death, before the Room
+                // collector has emitted the restored conversation.
+                val priorMessages = if (conversationId > 0L) {
+                    container.chat.messagesNow(conversationId)
+                } else {
+                    emptyList()
+                }
+
+                val imageAttachment = snapshot.attachments.firstOrNull { it.kind == Attachment.Kind.IMAGE }
+                val vision = imageAttachment?.let { attachment -> loadVisionInput(attachment) }
+                if (imageAttachment != null && vision == null) {
+                    _state.update {
+                        it.copy(
+                            error = "Immagine non leggibile o troppo grande. Prova con un'altra immagine.",
+                            isGenerating = false,
+                            isThinking = false,
+                            status = null,
+                        )
                     }
+                    restoreDraft(text, snapshot.attachments)
+                    return@launch
+                }
+                if (vision != null && !loaded.vision) {
+                    _state.update {
+                        it.copy(
+                            error = "Il modello attivo non è multimodale. Installa Qwen2.5 VL per analizzare le immagini.",
+                            isGenerating = false,
+                            isThinking = false,
+                            status = null,
+                        )
+                    }
+                    restoreDraft(text, snapshot.attachments)
+                    return@launch
                 }
 
                 var sources: List<Source> = emptyList()
@@ -279,19 +360,25 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
                 }
 
                 val prompt = buildPrompt(text, snapshot.attachments, priorMessages, sources, loaded, settings)
-                val vision = snapshot.attachments
-                    .firstOrNull { it.kind == Attachment.Kind.IMAGE }
-                    ?.let { loadVisionInput(it) }
-                if (vision != null && !loaded.vision) {
-                    _state.update {
-                        it.copy(
-                            error = "Il modello attivo non è multimodale. Installa Qwen2.5 VL per analizzare le immagini.",
-                            isGenerating = false,
-                            isThinking = false,
-                            status = null,
-                        )
+
+                // Persist the turn only after every fallible validation passed.
+                // Otherwise a failed send would leave a user message behind and
+                // a retry would duplicate it.
+                conversationId = ensureConversation(loaded.variant.id)
+                container.chat.appendMessage(
+                    conversationId = conversationId,
+                    role = Role.USER,
+                    content = if (text.isBlank()) "(immagine allegata)" else text,
+                    modelId = loaded.variant.id,
+                    attachments = snapshot.attachments,
+                )
+                userMessagePersisted = true
+
+                if (settings.memoryEnabled && text.isNotBlank()) {
+                    val proposals = MemoryExtractor.propose(text)
+                    if (proposals.isNotEmpty()) {
+                        _state.update { it.copy(proposals = proposals) }
                     }
-                    return@launch
                 }
 
                 _state.update { it.copy(status = "AI sta pensando…", isThinking = true) }
@@ -303,11 +390,15 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
                 )
 
                 val result = container.engine.generate(prompt, params, vision) { token ->
-                    builder.append(token)
-                    _state.update { it.copy(streamingText = builder.toString(), isThinking = false) }
+                    val snapshotText = buffer.append(token, SystemClock.elapsedRealtime())
+                    if (snapshotText != null) {
+                        _state.update {
+                            it.copy(streamingText = snapshotText, isThinking = false, status = null)
+                        }
+                    }
                 }
+                val finalText = buffer.flush().trim()
 
-                val finalText = builder.toString().trim()
                 result.onSuccess { metrics ->
                     if (finalText.isNotEmpty()) {
                         container.chat.appendMessage(
@@ -321,7 +412,19 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
                             tokensPerSecond = metrics.tokensPerSecond,
                         )
                     }
-                    _state.update { it.copy(metrics = metrics, streamingText = "", isThinking = false, status = null) }
+                    val savedWords = saveTutorLexicon(settings, finalText, conversationId)
+                    val measured = metrics.takeIf {
+                        it.completionTokens > 0 || it.promptTokens > 0 || finalText.isNotEmpty()
+                    }
+                    _state.update {
+                        it.copy(
+                            metrics = measured,
+                            streamingText = "",
+                            isThinking = false,
+                            status = null,
+                            lexiconSaved = savedWords,
+                        )
+                    }
                 }.onFailure { error ->
                     if (finalText.isNotEmpty()) {
                         container.chat.appendMessage(
@@ -332,6 +435,7 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
                             sources = sources,
                         )
                     }
+                    if (!userMessagePersisted) restoreDraft(text, snapshot.attachments)
                     _state.update {
                         it.copy(
                             error = error.message ?: "Generazione non riuscita",
@@ -344,9 +448,11 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
+                if (!userMessagePersisted) restoreDraft(text, snapshot.attachments)
                 _state.update {
                     it.copy(
                         error = error.message ?: "Errore imprevisto",
+                        streamingText = "",
                         isThinking = false,
                         status = null,
                     )
@@ -366,8 +472,14 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
 
     fun dismissProposals() = _state.update { it.copy(proposals = emptyList()) }
 
-    fun saveMessageToMemory(message: ChatMessage, category: String) {
+    fun saveMessageToMemory(message: ChatMessage) {
         viewModelScope.launch {
+            val settings = container.settings.current()
+            val category = if (settings.tutorEnabled) {
+                LanguageCoach.categoryName(settings.tutorTarget)
+            } else {
+                "Personale"
+            }
             container.memory.add(message.content.take(500), category, message.conversationId)
         }
     }
@@ -378,8 +490,7 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
                 _state.update { it.copy(error = "Interrompi la generazione prima di cambiare modello.") }
                 return@launch
             }
-            val model = container.modelStore.installedAll(container.catalog).firstOrNull { it.variant.id == id }
-                ?: return@launch
+            val model = installedModels().firstOrNull { it.variant.id == id } ?: return@launch
             container.settings.setActiveModel(id)
             container.engine.unload()
             _state.update { it.copy(modelLabel = model.variant.displayName, modelReady = false) }
@@ -389,7 +500,7 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
     fun deleteConversation(id: Long, onDeleted: () -> Unit = {}) {
         viewModelScope.launch {
             container.chat.deleteConversation(id)
-            if (_state.value.conversationId == id) newChat()
+            if (session.conversationId == id || _state.value.conversationId == id) newChat()
             onDeleted()
         }
     }
@@ -424,17 +535,38 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch { container.chat.moveToFolder(conversation.id, folderId) }
     }
 
+    /**
+     * Returns the open conversation, creating it exactly once when this chat has
+     * no conversation yet.
+     *
+     * Deliberately does NOT go through [openConversation]: that method must keep
+     * refusing to switch while generating, and the first message is sent while
+     * `isGenerating` is already true. Binding identity and showing a chat are two
+     * different operations.
+     */
     private suspend fun ensureConversation(modelId: String): Long {
-        val current = _state.value.conversationId
-        if (current != 0L) return current
-        val id = container.chat.createConversation(modelId)
-        openConversation(id)
+        val hadConversation = session.isBound
+        val id = session.resolveDeferred { container.chat.createConversation(modelId) }
+        if (!hadConversation) {
+            savedState?.set(KEY_CONVERSATION, id)
+            _state.update { it.copy(conversationId = id) }
+            observeMessages(id)
+        }
         return id
+    }
+
+    private fun observeMessages(conversationId: Long) {
+        messagesJob?.cancel()
+        messagesJob = viewModelScope.launch {
+            container.chat.messages(conversationId).collect { list ->
+                _state.update { it.copy(messages = list) }
+            }
+        }
     }
 
     private suspend fun ensureModel(settings: AppSettings): com.bigbai.llm.LoadedModel? {
         container.engine.current()?.let { return it }
-        val installed = container.modelStore.installedAll(container.catalog)
+        val installed = installedModels()
         if (installed.isEmpty()) {
             _state.update {
                 it.copy(
@@ -468,7 +600,11 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
             container.settings.setActiveModel(chosen.variant.id)
         }
 
-        val budget = container.deviceProfile.budgetBytes(settings.ramMode)
+        // Budget against memory available *now*, not at app start.
+        val budget = container.deviceProfile.budgetBytes(
+            settings.ramMode,
+            container.memorySampler.available(),
+        )
         val context = if (settings.contextOverride > 0) {
             settings.contextOverride
         } else {
@@ -489,9 +625,14 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
             batchSize = settings.batchSize,
             budgetBytes = budget,
         ).getOrElse { error ->
+            val hint = if (container.deviceProfile.tier == com.bigbai.core.device.DeviceTier.LOW) {
+                " Chiudi le altre app e scegli un modello più piccolo (Q2/Q3)."
+            } else {
+                " Scegli un modello più piccolo o riduci la context length."
+            }
             _state.update {
                 it.copy(
-                    error = error.message ?: "Caricamento del modello non riuscito",
+                    error = (error.message ?: "Caricamento del modello non riuscito") + hint,
                     isGenerating = false,
                     isThinking = false,
                     status = null,
@@ -514,6 +655,15 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
             ?: priorMessages.asReversed().firstNotNullOfOrNull { message ->
                 message.attachments.firstOrNull { it.kind == Attachment.Kind.PDF }?.extractedText
             }
+        val tutor = if (settings.tutorEnabled) {
+            val lexicon = container.memory.forCategory(
+                LanguageCoach.categoryName(settings.tutorTarget),
+                limit = 16,
+            ).map { it.content }
+            LanguageCoach.promptSection(settings.tutorTarget, settings.tutorLevel, lexicon)
+        } else {
+            ""
+        }
         val system = PromptTemplates.chatSystemPrompt(
             language = settings.language,
             memory = memory,
@@ -521,9 +671,10 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
             sources = sources,
             visionAvailable = loaded.vision,
             hasImage = attachments.any { it.kind == Attachment.Kind.IMAGE },
+            tutor = tutor,
         )
 
-        val budget = loaded.contextSize - settings.maxTokens - 48
+        val budget = (loaded.contextSize - settings.maxTokens - 48).coerceAtLeast(512)
         var used = container.engine.countTokens(system) + container.engine.countTokens(userText) + 24
         val selected = ArrayDeque<PromptMessage>()
         for (message in priorMessages.takeLast(24).reversed()) {
@@ -543,6 +694,35 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
             PromptMessage("user", userText.ifBlank { "(immagine allegata)" })
     }
 
+    /**
+     * Stores the vocabulary lines emitted by the tutor so later prompts can
+     * re-inject the user's personal lexicon. Returns how many new entries were
+     * added (duplicates are ignored).
+     */
+    private suspend fun saveTutorLexicon(
+        settings: AppSettings,
+        answer: String,
+        conversationId: Long,
+    ): Int {
+        if (!settings.tutorEnabled || answer.isBlank()) return 0
+        val category = LanguageCoach.categoryName(settings.tutorTarget)
+        var saved = 0
+        LanguageCoach.parseLexicon(settings.tutorTarget, answer).forEach { line ->
+            if (container.memory.addIfAbsent(line, category, conversationId)) saved += 1
+        }
+        return saved
+    }
+
+    private fun restoreDraft(text: String, attachments: List<Attachment>) {
+        _state.update {
+            it.copy(
+                input = if (it.input.isBlank()) text else it.input,
+                attachments = if (it.attachments.isEmpty()) attachments else it.attachments,
+            )
+        }
+        savedState?.set(KEY_INPUT, _state.value.input)
+    }
+
     private fun shouldSearch(text: String): Boolean {
         val lower = text.lowercase()
         val markers = listOf(
@@ -553,42 +733,61 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
         return markers.any { it in lower }
     }
 
-    private fun loadVisionInput(attachment: Attachment): VisionInput? = runCatching {
-        val uri = Uri.parse(attachment.uri)
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        container.context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
-        var sample = 1
-        while (bounds.outWidth / sample > 1600 || bounds.outHeight / sample > 1600) sample *= 2
-        val options = BitmapFactory.Options().apply { inSampleSize = sample }
-        val bitmap = container.context.contentResolver.openInputStream(uri)
-            ?.use { BitmapFactory.decodeStream(it, null, options) } ?: return null
-        val maxSide = 896
-        val ratio = min(1f, maxSide.toFloat() / max(bitmap.width, bitmap.height))
-        val scaled: Bitmap = if (ratio < 1f) {
-            Bitmap.createScaledBitmap(
-                bitmap,
-                max(1, (bitmap.width * ratio).toInt()),
-                max(1, (bitmap.height * ratio).toInt()),
-                true,
-            )
-        } else {
-            bitmap
+    /**
+     * Reads and decodes the image entirely off the main thread. Every bitmap is
+     * recycled in `finally`, including when decoding or scaling fails halfway.
+     */
+    private suspend fun loadVisionInput(attachment: Attachment): VisionInput? =
+        withContext(Dispatchers.IO) {
+            val uri = Uri.parse(attachment.uri)
+            if (querySize(uri) > AttachmentPolicy.MAX_IMAGE_BYTES) return@withContext null
+            var bitmap: Bitmap? = null
+            var scaled: Bitmap? = null
+            try {
+                val resolver = container.context.contentResolver
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+                if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@withContext null
+                var sample = 1
+                while (bounds.outWidth / sample > 1600 || bounds.outHeight / sample > 1600) sample *= 2
+                val options = BitmapFactory.Options().apply { inSampleSize = sample }
+                bitmap = resolver.openInputStream(uri)
+                    ?.use { BitmapFactory.decodeStream(it, null, options) } ?: return@withContext null
+                val original = bitmap ?: return@withContext null
+                val maxSide = 896
+                val ratio = min(1f, maxSide.toFloat() / max(original.width, original.height))
+                val working = if (ratio < 1f) {
+                    Bitmap.createScaledBitmap(
+                        original,
+                        max(1, (original.width * ratio).toInt()),
+                        max(1, (original.height * ratio).toInt()),
+                        true,
+                    ).also { scaled = it }
+                } else {
+                    original
+                }
+                val width = working.width
+                val height = working.height
+                val pixels = IntArray(width * height)
+                working.getPixels(pixels, 0, width, 0, 0, width, height)
+                val rgb = ByteArray(pixels.size * 3)
+                for (index in pixels.indices) {
+                    val pixel = pixels[index]
+                    rgb[index * 3] = ((pixel shr 16) and 0xFF).toByte()
+                    rgb[index * 3 + 1] = ((pixel shr 8) and 0xFF).toByte()
+                    rgb[index * 3 + 2] = (pixel and 0xFF).toByte()
+                }
+                VisionInput(rgb, width, height)
+            } catch (error: Exception) {
+                null
+            } catch (error: OutOfMemoryError) {
+                null
+            } finally {
+                val scaledBitmap = scaled
+                if (scaledBitmap != null && scaledBitmap !== bitmap) scaledBitmap.recycle()
+                bitmap?.recycle()
+            }
         }
-        val width = scaled.width
-        val height = scaled.height
-        val pixels = IntArray(width * height)
-        scaled.getPixels(pixels, 0, width, 0, 0, width, height)
-        val rgb = ByteArray(pixels.size * 3)
-        for (index in pixels.indices) {
-            val pixel = pixels[index]
-            rgb[index * 3] = ((pixel shr 16) and 0xFF).toByte()
-            rgb[index * 3 + 1] = ((pixel shr 8) and 0xFF).toByte()
-            rgb[index * 3 + 2] = (pixel and 0xFF).toByte()
-        }
-        if (scaled !== bitmap) scaled.recycle()
-        bitmap.recycle()
-        VisionInput(rgb, width, height)
-    }.getOrNull()
 
     private fun queryName(uri: Uri): String? = runCatching {
         container.context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
@@ -597,9 +796,31 @@ class ChatViewModel(private val container: AppContainer) : ViewModel() {
         }
     }.getOrNull()
 
+    private fun querySize(uri: Uri): Long = runCatching {
+        container.context.contentResolver
+            .query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)
+            ?.use { cursor ->
+                val index = cursor.getColumnIndex(OpenableColumns.SIZE)
+                if (index >= 0 && cursor.moveToFirst() && !cursor.isNull(index)) {
+                    cursor.getLong(index)
+                } else {
+                    -1L
+                }
+            } ?: -1L
+    }.getOrDefault(-1L)
+
     override fun onCleared() {
+        // A native generation loop is not cancellable through the coroutine
+        // machinery alone; signal it before cancelling the job so the model is
+        // not left decoding after the screen is gone.
+        container.engine.stop()
         generationJob?.cancel()
         messagesJob?.cancel()
         super.onCleared()
+    }
+
+    companion object {
+        private const val KEY_CONVERSATION = "chat_conversation_id"
+        private const val KEY_INPUT = "chat_draft_input"
     }
 }

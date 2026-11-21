@@ -182,8 +182,11 @@ private fun ProjectsHome(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             item {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                    shape = MaterialTheme.shapes.large,
+                ) {
+                    Column(modifier = Modifier.padding(18.dp)) {
                         Text(
                             "Ambiente di sviluppo locale",
                             style = MaterialTheme.typography.titleMedium,
@@ -390,9 +393,9 @@ private fun CodeChatTab(state: CodeUiState, viewModel: CodeViewModel) {
                 TextButton(onClick = viewModel::discardProposals) { Text("Ignora") }
             }
         }
-        Surface(tonalElevation = 3.dp) {
+        Surface(tonalElevation = 2.dp, shadowElevation = 8.dp) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.Bottom,
             ) {
                 OutlinedTextField(
@@ -401,23 +404,42 @@ private fun CodeChatTab(state: CodeUiState, viewModel: CodeViewModel) {
                     modifier = Modifier.weight(1f),
                     placeholder = { Text("Chiedi qualcosa sul progetto…") },
                     maxLines = 4,
-                    shape = RoundedCornerShape(18.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                    ),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                     keyboardActions = KeyboardActions(onSend = { viewModel.send() }),
                 )
-                Spacer(Modifier.width(6.dp))
-                IconButton(
-                    onClick = { if (state.generating) viewModel.stopGeneration() else viewModel.send() },
-                    enabled = state.generating || state.input.isNotBlank(),
-                    modifier = Modifier
-                        .size(44.dp)
-                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(50)),
-                ) {
-                    Icon(
-                        if (state.generating) Icons.Outlined.Stop else Icons.Outlined.ArrowUpward,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                    )
+                Spacer(Modifier.width(8.dp))
+                if (state.generating) {
+                    IconButton(
+                        onClick = viewModel::stopGeneration,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(50)),
+                    ) {
+                        Icon(
+                            Icons.Outlined.Stop,
+                            contentDescription = "Interrompi",
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                    }
+                } else {
+                    IconButton(
+                        onClick = viewModel::send,
+                        enabled = state.input.isNotBlank(),
+                        modifier = Modifier
+                            .size(48.dp)
+                            .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(50)),
+                    ) {
+                        Icon(
+                            Icons.Outlined.ArrowUpward,
+                            contentDescription = "Invia",
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                        )
+                    }
                 }
             }
         }

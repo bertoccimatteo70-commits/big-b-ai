@@ -78,7 +78,7 @@ Lo script copia l'APK in `dist/BIG-B-AI-debug-<versione>.apk`, verifica che
 essere pubblicato), calcola lo SHA-256 e scrive `dist/BIG-B-AI-debug-<versione>.txt` con
 dimensione, data, package e firma.
 
-La variante debug usa `applicationId` `com.bigbai.app.debug` e `versionName` `1.0.0-debug`, quindi
+La variante debug usa `applicationId` `com.bigbai.app.debug` e `versionName` `1.2.0-debug`, quindi
 convive con una eventuale build di release sullo stesso dispositivo.
 
 `app/build.gradle.kts` supporta ancora la firma di release (`keystore.properties` o variabili
@@ -88,11 +88,21 @@ convive con una eventuale build di release sullo stesso dispositivo.
 
 I test unitari JVM coprono la logica pura, senza Android framework:
 
+- `ConversationSessionTest` (6 test): identità della conversazione e regressione del bug che
+  faceva uscire dalla chat al secondo messaggio.
+- `StreamingBufferTest` (4 test): throttling e flush dello streaming.
+- `LanguageCoachTest` (7 test): glossari del tutor, prompt, parsing e deduplica del lessico.
+- `ChatTitleTest` (5 test): derivazione deterministica del titolo, markdown e troncamento.
+- `Utf8StreamTest` (6 test): UTF-8 spezzato tra token, emoji, sequenze incomplete.
+- `PromptTemplatesTest` (7 test): prompt multilingua, Vision, fonti, tutor e BIG B Code.
+- `AttachmentPolicyTest` (5 test): classificazione MIME/estensione e limiti di dimensione.
+
+Totale attuale: **62 test JVM**, eseguiti anche dalla pipeline CI.
 - `PatchEngineTest` (8 test): parsing del protocollo patch, path, blocchi non chiusi, diff e statistiche.
 - `StaticAnalyzersTest` (10 test): HTML, Java, C++, CSS.
 - `HtmlTextTest` (4 test): rimozione script/style, entità, spazi.
 
-Totale: **22 test, tutti superati**. Non esistono test strumentali: richiederebbero un device.
+Totale: **39 test, tutti superati**. Non esistono test strumentali: richiederebbero un device.
 
 ## 5. CI
 

@@ -8,6 +8,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -23,13 +24,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Memory
-import androidx.compose.material.icons.outlined.OpenInNew
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -68,12 +70,13 @@ import java.util.Locale
 @Composable
 fun MessageBubble(
     message: ChatMessage,
+    modifier: Modifier = Modifier,
     onSaveToMemory: (() -> Unit)? = null,
 ) {
     val clipboard = LocalClipboardManager.current
     val isUser = message.role == Role.USER
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp),
         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
@@ -89,19 +92,25 @@ fun MessageBubble(
             }
             Surface(
                 color = if (isUser) {
-                    MaterialTheme.colorScheme.primaryContainer
+                    MaterialTheme.colorScheme.primary
                 } else {
-                    MaterialTheme.colorScheme.surfaceVariant
+                    MaterialTheme.colorScheme.surface
                 },
+                contentColor = if (isUser) {
+                    MaterialTheme.colorScheme.onPrimary
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+                border = if (isUser) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                 shape = RoundedCornerShape(
-                    topStart = 18.dp,
-                    topEnd = 18.dp,
-                    bottomStart = if (isUser) 18.dp else 4.dp,
-                    bottomEnd = if (isUser) 4.dp else 18.dp,
+                    topStart = 20.dp,
+                    topEnd = 20.dp,
+                    bottomStart = if (isUser) 20.dp else 6.dp,
+                    bottomEnd = if (isUser) 6.dp else 20.dp,
                 ),
                 modifier = Modifier.fillMaxWidth(if (isUser) 0.86f else 0.94f),
             ) {
-                Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                Column(modifier = Modifier.padding(horizontal = 15.dp, vertical = 11.dp)) {
                     message.attachments.forEach { attachment ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
@@ -196,15 +205,28 @@ fun StreamingBubble(text: String, thinking: Boolean) {
         AssistantAvatar()
         Spacer(Modifier.width(8.dp))
         Surface(
-            color = MaterialTheme.colorScheme.surfaceVariant,
-            shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomEnd = 18.dp, bottomStart = 4.dp),
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
+            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomEnd = 20.dp, bottomStart = 6.dp),
             modifier = Modifier.fillMaxWidth(0.94f),
         ) {
-            Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Column(modifier = Modifier.padding(horizontal = 15.dp, vertical = 11.dp)) {
                 if (thinking && text.isEmpty()) {
                     ThinkingIndicator()
                 } else {
                     MarkdownText(if (text.isEmpty()) "…" else text)
+                    val transition = rememberInfiniteTransition(label = "cursor")
+                    val alpha by transition.animateFloat(
+                        initialValue = 0.15f,
+                        targetValue = 1f,
+                        animationSpec = infiniteRepeatable(tween(520), RepeatMode.Reverse),
+                        label = "cursor-alpha",
+                    )
+                    Text(
+                        text = "▍",
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = alpha),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
                 }
             }
         }
@@ -244,32 +266,44 @@ fun ThinkingIndicator() {
 @Composable
 fun MarkdownText(text: String) {
     val blocks = remember(text) { splitFences(text) }
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        blocks.forEach { block ->
-            if (block.isCode) {
-                CodeBlock(block.text)
-            } else {
-                if (block.text.isNotBlank()) {
-                    Text(
-                        text = block.text.trim(),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
+    SelectionContainer {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            blocks.forEach { block ->
+                if (block.isCode) {
+                    CodeBlock(block.text, block.language)
+                } else {
+                    if (block.text.isNotBlank()) {
+                        Text(
+                            text = block.text.trim(),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
                 }
             }
         }
     }
 }
 
-private data class Block(val text: String, val isCode: Boolean)
+private data class Block(val text: String, val isCode: Boolean, val language: String = "")
+
+private val languageTag = Regex("^[a-zA-Z0-9+#.-]{1,16}$")
 
 private fun splitFences(text: String): List<Block> {
     val result = mutableListOf<Block>()
     val segments = text.split("```")
     segments.forEachIndexed { index, segment ->
         if (index % 2 == 1) {
-            val withoutLanguage = segment.substringAfter('\n', segment)
-            result.add(Block(withoutLanguage.trimEnd(), true))
+            val firstLine = segment.substringBefore('\n').trim()
+            val hasLanguage = languageTag.matches(firstLine)
+            val code = if (hasLanguage) segment.substringAfter('\n', "") else segment
+            result.add(
+                Block(
+                    text = code.trimEnd(),
+                    isCode = true,
+                    language = if (hasLanguage) firstLine.lowercase() else "",
+                ),
+            )
         } else if (segment.isNotBlank()) {
             result.add(Block(segment, false))
         }
@@ -278,12 +312,12 @@ private fun splitFences(text: String): List<Block> {
 }
 
 @Composable
-private fun CodeBlock(code: String) {
+private fun CodeBlock(code: String, language: String = "") {
     val clipboard = LocalClipboardManager.current
     Surface(
         color = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(10.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Column {
             Row(
@@ -293,9 +327,9 @@ private fun CodeBlock(code: String) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "codice",
+                    text = language.ifBlank { "codice" },
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.primary,
                 )
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick = { clipboard.setText(AnnotatedString(code)) }, modifier = Modifier.size(30.dp)) {
@@ -351,7 +385,7 @@ private fun CompactSources(sources: List<Source>) {
                     modifier = Modifier.weight(1f),
                 )
                 Icon(
-                    Icons.Outlined.OpenInNew,
+                    Icons.AutoMirrored.Outlined.OpenInNew,
                     contentDescription = null,
                     modifier = Modifier.size(12.dp),
                     tint = MaterialTheme.colorScheme.primary,

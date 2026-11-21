@@ -15,6 +15,8 @@ data class PdfDocument(
     val pages: List<PdfPage>,
     val pageCount: Int,
     val hasExtractableText: Boolean,
+    /** True when page count or character budget cut the extracted text. */
+    val truncated: Boolean = false,
 ) {
     val fullText: String get() = pages.joinToString("\n\n") { it.text }
     val charCount: Int get() = pages.sumOf { it.text.length }
@@ -30,29 +32,57 @@ class PdfExtractor(private val context: Context) {
      * Extracts the text layer of a PDF. Scanned PDFs without an embedded text
      * layer are detected and reported: OCR is intentionally out of scope for v1.
      */
-    suspend fun extract(uri: Uri, name: String, maxPages: Int = 400): Result<PdfDocument> =
+    suspend fun extract(
+        uri: Uri,
+        name: String,
+        maxPages: Int = 400,
+        maxChars: Int = 120_000,
+        maxBytes: Long = 32L * 1024 * 1024,
+    ): Result<PdfDocument> =
         withContext(Dispatchers.IO) {
             runCatching {
                 val resolver = context.contentResolver
+                val declaredSize = runCatching {
+                    resolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: -1L
+                }.getOrDefault(-1L)
+                require(declaredSize < 0 || declaredSize <= maxBytes) {
+                    "PDF troppo grande: il limite è ${maxBytes / (1024 * 1024)} MB"
+                }
                 resolver.openInputStream(uri).use { input ->
-                    requireNotNull(input) { "Cannot open PDF" }
+                    requireNotNull(input) { "Impossibile aprire il PDF" }
                     PDDocument.load(input).use { document ->
                         val stripper = PDFTextStripper().apply { sortByPosition = true }
                         val pages = mutableListOf<PdfPage>()
                         val total = document.numberOfPages
                         val limit = minOf(total, maxPages)
+                        var chars = 0
+                        var truncated = total > limit
                         for (page in 1..limit) {
                             stripper.startPage = page
                             stripper.endPage = page
                             val text = stripper.getText(document).trim()
-                            if (text.isNotEmpty()) pages.add(PdfPage(page, text))
+                            if (text.isEmpty()) continue
+                            val remaining = maxChars - chars
+                            if (remaining <= 0) {
+                                truncated = true
+                                break
+                            }
+                            val kept = if (text.length > remaining) {
+                                truncated = true
+                                text.take(remaining)
+                            } else {
+                                text
+                            }
+                            pages.add(PdfPage(page, kept))
+                            chars += kept.length
+                            if (kept.length < text.length) break
                         }
-                        val chars = pages.sumOf { it.text.length }
                         PdfDocument(
                             name = name,
                             pages = pages,
                             pageCount = total,
                             hasExtractableText = chars > 40,
+                            truncated = truncated,
                         )
                     }
                 }

@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bigbai.app.AppContainer
+import com.bigbai.core.lang.TutorLevel
 import com.bigbai.core.model.AppSettings
 import com.bigbai.core.model.PerformanceMode
 import com.bigbai.core.model.RamMode
@@ -43,6 +44,10 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     fun setShowPerfPanel(value: Boolean) = update { it.copy(showPerfPanel = value) }
     fun setAutoTitle(value: Boolean) = update { it.copy(autoTitle = value) }
     fun setCodeNetwork(value: Boolean) = update { it.copy(codeNetworkAllowed = value) }
+    fun setReduceMotion(value: Boolean) = update { it.copy(reduceMotion = value) }
+    fun setTutorEnabled(value: Boolean) = update { it.copy(tutorEnabled = value) }
+    fun setTutorTarget(value: String) = update { it.copy(tutorTarget = value) }
+    fun setTutorLevel(value: TutorLevel) = update { it.copy(tutorLevel = value) }
     fun setAdvancedUnlocked(value: Boolean) = update { it.copy(advancedUnlocked = value) }
     fun setSearchEnabled(value: Boolean) = update { it.copy(searchEnabled = value) }
     fun setSearchProvider(value: String) = update { it.copy(searchProvider = value) }

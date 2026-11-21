@@ -44,9 +44,17 @@ data class DeviceProfile(
             DeviceTier.FLAGSHIP -> 2200L * MB
         }
 
-    fun budgetBytes(mode: RamMode): Long {
+    fun budgetBytes(mode: RamMode): Long = budgetBytes(mode, availRamBytes)
+
+    /**
+     * Same budget, but computed against memory read *now* instead of at app
+     * start. Model loading happens minutes after launch, when other apps may
+     * have taken or released memory; using the startup snapshot either refused
+     * a model that would have fitted or accepted one that no longer fits.
+     */
+    fun budgetBytes(mode: RamMode, availableNow: Long): Long {
         val theoretical = (totalRamBytes * mode.fraction).toLong()
-        val usable = max(0L, availRamBytes - reserveBytes)
+        val usable = max(0L, availableNow - reserveBytes)
         // Never plan to use more than the theoretical profile limit, and never
         // more than what is actually free right now.
         return min(theoretical, usable)
@@ -137,12 +145,23 @@ data class DeviceProfile(
 
 /** Live memory sampler used by the generation HUD. Values come from the platform. */
 class MemorySampler(private val context: Context) {
+    /**
+     * Resident memory of the whole process (Java heap + native allocations +
+     * model weights mapped by llama.cpp), in bytes.
+     *
+     * Runtime.totalMemory()-freeMemory() only describes the Java heap, so the
+     * old value under-reported a GGUF model by gigabytes. PSS comes from the
+     * kernel and is the number the low-memory killer actually looks at.
+     */
     fun current(): Long {
-        val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-        val info = ActivityManager.MemoryInfo()
-        activityManager.getMemoryInfo(info)
-        val usedByApp = Runtime.getRuntime().let { it.totalMemory() - it.freeMemory() }
-        return usedByApp.coerceAtLeast(0)
+        val pss = runCatching {
+            val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            val info = activityManager.getProcessMemoryInfo(intArrayOf(android.os.Process.myPid()))
+                .firstOrNull()
+            (info?.totalPss ?: 0) * 1024L
+        }.getOrDefault(0L)
+        if (pss > 0L) return pss
+        return Runtime.getRuntime().let { it.totalMemory() - it.freeMemory() }.coerceAtLeast(0)
     }
 
     fun available(): Long {

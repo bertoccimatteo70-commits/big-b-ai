@@ -8,7 +8,7 @@ L'obiettivo è che nessuno scopra un limite solo dopo aver installato l'APK.
 | Cosa | Stato |
 |---|---|
 | Compilazione debug | Verificata in questo ambiente |
-| Test unitari JVM (22) | Verificati |
+| Test unitari JVM (39) | Verificati |
 | Libreria nativa arm64 | Compilata e strippata |
 | Avvio dell'app su dispositivo | **Non verificato** |
 | Inferenza reale (testo) | **Non verificata** su device |
@@ -17,6 +17,7 @@ L'obiettivo è che nessuno scopra un limite solo dopo aver installato l'APK.
 | SAF, Keystore, SQLCipher a runtime | **Non verificati** |
 | Sandbox WebView | **Non verificata** a runtime |
 | Notifiche e foreground service | **Non verificati** a runtime |
+| Baseline Profiles | Valutati, **non inclusi** nella variante debug (AGP non li pacchettizza) |
 
 Non era disponibile alcun dispositivo fisico né emulatore con accelerazione. Le parti sopra sono
 implementate e compilano, ma non sono state eseguite: non vengono dichiarate "funzionanti".
@@ -36,13 +37,19 @@ implementate e compilano, ma non sono state eseguite: non vengono dichiarate "fu
 
 ## Consegna
 
-- **Solo APK di debug.** La consegna è `BIG-B-AI-debug-1.0.0.apk`, firmato con `CN=Android Debug`:
+- **Solo APK di debug.** La consegna è `BIG-B-AI-debug-1.2.0.apk`, firmato con `CN=Android Debug`:
   installabile, ma non adatto a Play Store né a una distribuzione "ufficiale". Non vengono
   prodotti AAB né release firmate.
 - **R8/minify disattivato.** Scelta deliberata: non è stato possibile verificare su device che le
   regole di offuscamento non rompessero JGit, Room o il ponte JNI. Meglio un APK più grande che un
   crash non diagnosticabile.
 - **Nessun test strumentale.** Non ci sono test Android (`androidTest`) eseguiti.
+- **Paging non introdotto.** La lista è lazy e il prompt è limitato, ma una conversazione con
+  migliaia di messaggi carica tutte le righe della chat aperta.
+- **Limiti allegati.** Immagini fino a 24 MB (poi ridimensionate a 896 px lato massimo), PDF fino a
+  32 MB e 120.000 caratteri estratti (400 pagine). Oltre questi limiti l'app rifiuta o tronca e lo
+  dichiara; nessun OCR.
+- **Backup limitati a 64 MB.** Archivi più grandi vengono rifiutati prima dell'allocazione in RAM.
 
 ## Funzionalità
 
@@ -53,6 +60,13 @@ implementate e compilano, ma non sono state eseguite: non vengono dichiarate "fu
   La qualità dei risultati dipende dal provider. Offline viene segnalata come non disponibile.
 - **Memoria.** Non è automatica: ogni salvataggio richiede conferma. Non esistono "ricordi
   impliciti" nascosti.
+- **Tutor di lingua.** Non riaddestra i pesi del modello: usa un glossario curato e un lessico
+  personale salvato nel database. Il lessico cresce solo quando il modello emette le righe
+  `Lingua:XX` richieste; le traduzioni dipendono dal modello installato. Non è un corso completo e
+  non sostituisce un insegnante.
+- **Baseline Profiles.** Sono stati valutati: nella variante `debug` AGP non esegue
+  `compileDebugArtProfile` nel grafo di `assembleDebug` e l'APK non contiene
+  `assets/dexopt/baseline.prof` (verificato). Non vengono quindi inclusi né dichiarati guadagni.
 - **Backup.** La password non è recuperabile: senza password il file `.bkb` è inutilizzabile.
   Il backup non include i modelli scaricati (solo dati e progetti).
 - **Git.** È un repository locale privato dell'app (JGit), non un collegamento a GitHub o ad altri

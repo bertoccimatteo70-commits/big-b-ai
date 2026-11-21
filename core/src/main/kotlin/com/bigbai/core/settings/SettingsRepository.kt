@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.bigbai.core.lang.TutorLevel
 import com.bigbai.core.model.AppSettings
 import com.bigbai.core.model.PerformanceMode
 import com.bigbai.core.model.RamMode
@@ -49,6 +50,10 @@ class SettingsRepository(private val context: Context) {
     suspend fun setLastBackupAt(value: Long) = update { it.copy(lastBackupAt = value) }
     suspend fun setShowPerfPanel(value: Boolean) = update { it.copy(showPerfPanel = value) }
     suspend fun setLastBackupHash(value: String?) = update { it.copy(lastBackupHash = value) }
+    suspend fun setReduceMotion(value: Boolean) = update { it.copy(reduceMotion = value) }
+    suspend fun setTutorEnabled(value: Boolean) = update { it.copy(tutorEnabled = value) }
+    suspend fun setTutorTarget(value: String) = update { it.copy(tutorTarget = value) }
+    suspend fun setTutorLevel(value: TutorLevel) = update { it.copy(tutorLevel = value) }
 
     companion object {
         private val KEY_ONBOARDING = booleanPreferencesKey("onboarding_complete")
@@ -81,6 +86,9 @@ class SettingsRepository(private val context: Context) {
         private val KEY_PERF_PANEL = booleanPreferencesKey("perf_panel")
         private val KEY_CODE_NETWORK = booleanPreferencesKey("code_network")
         private val KEY_REDUCE_MOTION = booleanPreferencesKey("reduce_motion")
+        private val KEY_TUTOR_ENABLED = booleanPreferencesKey("tutor_enabled")
+        private val KEY_TUTOR_TARGET = stringPreferencesKey("tutor_target")
+        private val KEY_TUTOR_LEVEL = stringPreferencesKey("tutor_level")
 
         private fun Preferences.toSettings(): AppSettings = AppSettings(
             onboardingComplete = this[KEY_ONBOARDING] ?: false,
@@ -114,6 +122,10 @@ class SettingsRepository(private val context: Context) {
             showPerfPanel = this[KEY_PERF_PANEL] ?: false,
             codeNetworkAllowed = this[KEY_CODE_NETWORK] ?: false,
             reduceMotion = this[KEY_REDUCE_MOTION] ?: false,
+            tutorEnabled = this[KEY_TUTOR_ENABLED] ?: false,
+            tutorTarget = this[KEY_TUTOR_TARGET] ?: "es",
+            tutorLevel = runCatching { TutorLevel.valueOf(this[KEY_TUTOR_LEVEL] ?: "BASE") }
+                .getOrDefault(TutorLevel.BASE),
         )
 
         private fun androidx.datastore.preferences.core.MutablePreferences.write(s: AppSettings) {
@@ -151,6 +163,9 @@ class SettingsRepository(private val context: Context) {
             this[KEY_PERF_PANEL] = s.showPerfPanel
             this[KEY_CODE_NETWORK] = s.codeNetworkAllowed
             this[KEY_REDUCE_MOTION] = s.reduceMotion
+            this[KEY_TUTOR_ENABLED] = s.tutorEnabled
+            this[KEY_TUTOR_TARGET] = s.tutorTarget
+            this[KEY_TUTOR_LEVEL] = s.tutorLevel.name
         }
     }
 }

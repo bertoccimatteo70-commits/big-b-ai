@@ -14,7 +14,7 @@ viene da calcoli reali, dal database locale o dal motore di inferenza.
 | Area | Stato |
 |---|---|
 | Compilazione debug | ✅ verificata (`assembleDebug`); APK generato, firmato e ispezionato |
-| Test unitari JVM | ✅ 22 test, tutti superati (`:core`, `:code`) |
+| Test unitari JVM | ✅ 39 test, tutti superati (`:core`, `:code`) |
 | Libreria nativa `libbigbai.so` (llama.cpp, arm64-v8a) | ✅ compilata, 5,7 MB (stripped) |
 | Inferenza su dispositivo reale | ⛔ non verificata: nessun dispositivo/emulatore disponibile |
 | UI su dispositivo | ⛔ non verificata: nessuno screenshot da device |
@@ -27,10 +27,10 @@ ambiente di build. I dettagli sono in [docs/LIMITATIONS.md](docs/LIMITATIONS.md)
 
 | Campo | Valore |
 |---|---|
-| File | `BIG-B-AI-debug-1.0.0.apk` |
-| Versione | 1.0.0-debug (versionCode 1) |
-| Dimensione | 92.103.958 byte (87,8 MiB) |
-| SHA-256 | `edc5b955d919da73a5ec75845eff9d41afc9907118a30147d1a0b025ec34e37f` |
+| File | `BIG-B-AI-debug-1.2.0.apk` |
+| Versione | 1.2.0-debug (versionCode 3) |
+| Dimensione | 92.821.934 byte (88,5 MiB) |
+| SHA-256 | `7b8a5a390d05034ef4bb0534657e78fb959e8b2a79128ef3768fe68598d5d808` |
 | minSdk / targetSdk | 31 (Android 12) / 35 |
 | ABI | arm64-v8a |
 | Firma | chiave **debug** Android (`CN=Android Debug`) |
@@ -47,8 +47,11 @@ SHA-256. L'APK contiene solo il motore.
 ## Funzionalità
 
 **Chat**
-- Streaming token per token con metriche misurate (token/s, tempo al primo token, RAM).
-- Cronologia persistente con cartelle, ricerca, preferiti, rinomina, esportazione.
+- Streaming fluido con aggiornamenti UI limitati a ~25 fps e metriche misurate (token/s, tempo al
+  primo token, RAM di processo).
+- La conversazione resta aperta tra un messaggio e l'altro, conserva cronologia, bozza e stato anche
+  dopo rotazione o morte del processo; interruzione della generazione senza perdere il testo.
+- Cronologia persistente con cartelle, ricerca, preferiti, rinomina.
 - Eliminazione conversazione con avviso, codice numerico casuale a 6 cifre e inserimento esatto:
   nessun cestino, l'eliminazione è definitiva.
 - Stop della generazione sicuro (annullamento della sessione nativa, non kill del processo).
@@ -56,6 +59,12 @@ SHA-256. L'APK contiene solo il motore.
 **Memoria**
 - Ricordi durevoli organizzati per categoria, con ricerca e modifica.
 - Salvataggio solo con conferma dell'utente; la memoria viene iniettata nel prompt di sistema.
+
+**Tutor di lingua**
+- Lezioni italiano → inglese, spagnolo, francese, tedesco, portoghese, con tre livelli.
+- Glossario curato iniettato nel prompt e lessico personale salvato nel database cifrato
+  (categoria `Lingua:<CODICE>`), reiniettato nelle lezioni successive.
+- Non riaddestra i pesi del modello: è apprendimento in-context persistente, dichiarato nell'app.
 
 **Modelli**
 - Catalogo con 7 famiglie Qwen2.5 (Instruct, Coder, VL) e quantizzazioni Q2–Q6/Q8.
@@ -85,9 +94,11 @@ SHA-256. L'APK contiene solo il motore.
 
 ## Interfaccia
 
-Blu e bianco, tema chiaro/scuro/sistema, italiano e inglese. Primo avvio in 5 schermate.
-L'interfaccia è attualmente in italiano; il selettore lingua imposta la lingua delle risposte
-del modello (la localizzazione completa delle stringhe è nella tabella dei limiti).
+Design system indigo/ciano, tema chiaro/scuro/sistema, tipografia e forme coerenti, transizioni
+brevi disattivabili con «Riduci animazioni». Primo avvio in 5 schermate. L'interfaccia è
+tradotta in italiano; il selettore lingua imposta la lingua delle risposte del modello (la
+localizzazione completa delle stringhe è nella tabella dei limiti). Il tutor di lingua si
+configura dalle impostazioni e si usa dalla chat.
 
 ## Struttura
 
@@ -101,7 +112,9 @@ scripts/ fetch-llama.sh, build-native.sh, package-debug-apk.sh
 docs/    architettura, build, modelli, limiti
 ```
 
-Dettagli: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Dettagli: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Audit 1.2.0 con cause, correzioni,
+metriche e limiti verificati: [docs/AUDIT-1.2.md](docs/AUDIT-1.2.md); audit precedente:
+[docs/AUDIT-1.1.md](docs/AUDIT-1.1.md).
 
 ## Build rapida
 
@@ -110,7 +123,7 @@ Requisiti: JDK 17, Android SDK 35, NDK 27.2.12479018, CMake 3.22.1, Gradle 8.11.
 ```bash
 bash scripts/fetch-llama.sh          # scarica llama.cpp al commit fissato
 bash scripts/build-native.sh         # produce llm/src/main/jniLibs/arm64-v8a/libbigbai.so
-./gradlew :core:testDebugUnitTest :code:testDebugUnitTest
+./gradlew :core:testDebugUnitTest :code:testDebugUnitTest :llm:testDebugUnitTest :app:testDebugUnitTest
 ./gradlew assembleDebug              # APK di debug
 bash scripts/package-debug-apk.sh    # dist/ + SHA-256 + metadata
 ```
@@ -127,8 +140,8 @@ Guida completa: [docs/BUILD.md](docs/BUILD.md). Catalogo modelli: [docs/MODELS.m
 ## Limiti noti
 
 Nessun test su dispositivo fisico o emulatore; accelerazione GPU non inclusa; nessun compilatore
-Java/C++ sul dispositivo; nessun OCR. Elenco completo e motivato in
-[docs/LIMITATIONS.md](docs/LIMITATIONS.md).
+Java/C++ sul dispositivo; nessun OCR; il tutor linguistico non addestra i pesi. Elenco completo e
+motivato in [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
 
 ## CI
 
