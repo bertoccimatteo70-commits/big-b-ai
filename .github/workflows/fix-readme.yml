@@ -1,0 +1,27 @@
+name: fix-readme
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Fix commit reference
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          p = 'README.md'
+          s = open(p, encoding='utf-8').read()
+          old = 'build del commit `120f020`'
+          new = 'build del commit `e47692c` (codice 2.3.0 in `120f020`)'
+          assert s.count(old) == 1, s.count(old)
+          open(p, 'w', encoding='utf-8').write(s.replace(old, new))
+          PY
+          git config user.name "ITAGPT"
+          git config user.email "itagpt@users.noreply.github.com"
+          git commit -am "docs: name the exact CI commit"
+          git push origin HEAD:main
