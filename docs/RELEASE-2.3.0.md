@@ -1,7 +1,7 @@
 # ITAGPT 2.3.0 — ITAGPT Code con strumenti reali
 
-Data: 22 novembre 2026. Commit del codice: `@COMMIT@`. Workflow:
-**Android CI - ITAGPT debug and release**. Run: @RUN@.
+Data: 22 novembre 2026. Commit del codice: `120f020a3287d94d3b0b80c6b71c0765e66f1f3a`. Workflow:
+**Android CI - ITAGPT debug and release**. Run: [#45025333599](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/45025333599), conclusa con successo.
 
 Questa consegna parte da ITAGPT 2.2.0 e interviene **solo** sulle funzionalità mancanti o non
 verificate di ITAGPT Code. Ciò che era già corretto (eliminazione con conferma, limiti di 40 file e
@@ -165,17 +165,24 @@ Nuove suite: `ProjectTerminalTest` (22), `ValidatorsTest` (18), `ProjectVerifier
 `AgentRunnerTest` (17), `RollbackGuardTest` (7), `LanguageAnalyzersTest` (12),
 `CodeEnvironmentIntegrationTest` (10).
 
-Lint debug: **0 errori, 69 warning** (gli stessi warning preesistenti su API deprecate e
+Lint debug: **0 errori, 70 warning** (gli stessi warning preesistenti su API deprecate e
 localizzazione). Non esistono test strumentali: non c'era un dispositivo o emulatore.
+
+I conteggi qui sopra sono quelli dei file XML prodotti dalla run CI #45025333599, non una stima.
 
 ## 4. APK
 
 | APK | Dimensione | SHA-256 | Firma |
 |---|---|---|---|
-| `ITAGPT-debug-2.3.0.apk` | @DEBUG_SIZE@ | `@DEBUG_SHA@` | debug |
-| `ITAGPT-release-debug-signed-2.3.0.apk` | @RELEASE_SIZE@ | `@RELEASE_SHA@` | chiave debug, **non ufficiale** |
+| `ITAGPT-debug-2.3.0.apk` | 150.010.223 byte (143,06 MiB) | `82bd914fc7843352f542c9c9aa935ac5198a085de6cfb2770b9c74bd7252c3a6` | debug |
+| `ITAGPT-release-debug-signed-2.3.0.apk` | 80.389.559 byte (76,67 MiB) | `df9a043bc250123c7dc367a531ce56615e3d949b80d5cbf5b02efe4d87d90435` | chiave debug, **non ufficiale** |
 
-Artifact: @ARTIFACTS@
+Artifact della run (ZIP): [debug 59.604.663 byte](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/45025333599/artifacts/14755674175),
+[release 40.368.035 byte](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/45025333599/artifacts/14755812502),
+[report CI 66.006 byte](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/45025333599/artifacts/14756400092).
+Gli SHA-256 sono stati ricalcolati localmente sui file scaricati dagli artifact (`sha256sum -c`: OK).
+Entrambi gli APK sono universali (`arm64-v8a`, `armeabi-v7a`, `x86_64`), non contengono file `.gguf`
+e hanno firma valida; la release usa la chiave debug, non quella ufficiale.
 
 ## 5. Stato reale
 

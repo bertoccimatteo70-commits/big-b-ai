@@ -48,21 +48,21 @@ Il report completo, con comandi, dimensioni e limiti, è in
 
 ## APK 2.3
 
-La run CI di riferimento è la **#44961030062**, build del commit `816d68d` (workflow **Android CI -
-ITAGPT debug and release**, conclusa con successo). Gli APK sono negli artifact GitHub Actions,
-non nel repository.
+La run CI di riferimento è la **#45025333599**, build del commit `120f020` (workflow **Android CI -
+ITAGPT debug and release**, conclusa con successo: native, 364 test JVM, lint, debug e release).
+Gli APK sono negli artifact GitHub Actions, non nel repository.
 
 | APK | Dimensione | SHA-256 | Firma |
 |---|---|---|---|
-| `ITAGPT-debug-2.2.0.apk` | 149.698.927 byte (142,76 MiB) | `40064adafa740def47ddf403fa7b5c5636a2c44ddb659f9a8faddf6a7dbaacc3` | debug |
-| `ITAGPT-release-debug-signed-2.2.0.apk` | 80.274.871 byte (76,56 MiB) | `fb48aabadb43d88afe14e85f61383635c6026e8089f75e13b74048f3bfc28ede` | chiave debug, **non ufficiale** |
+| `ITAGPT-debug-2.3.0.apk` | 150.010.223 byte (143,06 MiB) | `82bd914fc7843352f542c9c9aa935ac5198a085de6cfb2770b9c74bd7252c3a6` | debug |
+| `ITAGPT-release-debug-signed-2.3.0.apk` | 80.389.559 byte (76,67 MiB) | `df9a043bc250123c7dc367a531ce56615e3d949b80d5cbf5b02efe4d87d90435` | chiave debug, **non ufficiale** |
 
 Ogni artifact contiene l'APK, il file `.sha256` e un report `.txt` con dimensione, data, ABI,
 firma e conferma dell'assenza di modelli. Link diretti:
 
-- [artifact debug](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44961030062/artifacts/14730385186) (ZIP 59.475.051 byte);
-- [artifact release](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44961030062/artifacts/14730350297) (ZIP 40.311.813 byte);
-- [report CI](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/44961030062/artifacts/14730240743) (ZIP 60.397 byte).
+- [artifact debug](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/45025333599/artifacts/14755674175) (ZIP 59.604.663 byte);
+- [artifact release](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/45025333599/artifacts/14755812502) (ZIP 40.368.035 byte);
+- [report CI](https://github.com/bertoccimatteo70-commits/big-b-ai/actions/runs/45025333599/artifacts/14756400092) (ZIP 66.006 byte).
 
 Il download degli artifact richiede l'accesso a GitHub.
 
@@ -137,11 +137,11 @@ limite artificiale di dimensione.
 
 - Build Kotlin/Compose: `:app:compileDebugKotlin` riuscita.
 - Test JVM: **364 test, 0 falliti, 0 errori, 0 saltati** su `core` (60), `code` (171), `llm` (108), `app` (25).
-- Lint debug: **0 errori, 69 warning**.
+- Lint debug: **0 errori, 70 warning**.
 - Parser ricerca: test su DuckDuckGo HTML, Google News RSS, metadati pagina, deduplica URL.
 - Provider reali da host: Google News RSS (HTTP 200, 102 item) e Wikipedia API (HTTP 200).
 - APK debug/release, FIRMA, ABI, assenza modelli e checksum: verificati dalla CI e riportati nel
-  report 2.1.
+  report 2.3.
 
 Non sono stati eseguiti test strumentali, di rendering o su dispositivo: nessun dispositivo fisico
 o emulatore era disponibile. Le affermazioni “funziona su tablet / mouse / tastiera” non sono

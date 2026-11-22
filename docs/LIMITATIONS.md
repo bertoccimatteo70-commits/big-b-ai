@@ -9,7 +9,7 @@ nessuno scopra un limite solo dopo aver installato l'APK.
 |---|---|
 | Compilazione debug/release (R8) | Verificata dalla CI; build release minificata |
 | Test unitari JVM | **364 test, 0 falliti, 0 errori, 0 saltati** (core 60, code 171, llm 108, app 25) |
-| Lint debug | **0 errori, 69 warning** |
+| Lint debug | **0 errori, 70 warning** (run CI #45025333599) |
 | Librerie native arm64-v8a, armeabi-v7a, x86_64 | Compilate e verificate negli APK dalla CI |
 | Modelli negli asset | **0 file**; gate di packaging |
 | Import modello embedding | Implementato e testato come logica; **non eseguito su device** |
