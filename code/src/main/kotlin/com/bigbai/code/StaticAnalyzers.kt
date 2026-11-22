@@ -19,8 +19,12 @@ object StaticAnalyzers {
     fun analyze(path: String, content: String): List<Diagnostic> = when (path.substringAfterLast('.', "").lowercase()) {
         "html", "htm" -> analyzeHtml(content)
         "java" -> analyzeJava(path, content)
+        "kt", "kts" -> analyzeKotlin(path, content)
+        "py" -> analyzePython(content)
         "c", "h", "cpp", "cc", "hpp" -> analyzeCpp(path, content)
         "css" -> analyzeCss(content)
+        "json" -> analyzeJson(content)
+        "xml", "svg", "plist" -> analyzeXml(content)
         else -> emptyList()
     }
 
@@ -88,8 +92,9 @@ object StaticAnalyzers {
 
     private fun analyzeJava(path: String, content: String): List<Diagnostic> {
         val diagnostics = mutableListOf<Diagnostic>()
-        diagnostics += balance(content, "java.braces", "graffe")
-        diagnostics += balance(content, "java.parens", "parentesi")
+        // One pass over every bracket type: calling balance twice would report
+        // the same unmatched parenthesis under two different rules.
+        diagnostics += balance(content, "java.braces", "graffe e parentesi")
 
         val fileName = path.substringAfterLast('/').removeSuffix(".java")
         val publicClass = Regex("public\\s+(?:final\\s+|abstract\\s+)?class\\s+(\\w+)").find(content)
@@ -133,8 +138,7 @@ object StaticAnalyzers {
 
     private fun analyzeCpp(path: String, content: String): List<Diagnostic> {
         val diagnostics = mutableListOf<Diagnostic>()
-        diagnostics += balance(content, "cpp.braces", "graffe")
-        diagnostics += balance(content, "cpp.parens", "parentesi")
+        diagnostics += balance(content, "cpp.braces", "graffe e parentesi")
         val isHeader = path.endsWith(".h") || path.endsWith(".hpp")
         if (isHeader && !content.contains("#pragma once") && !Regex("#ifndef\\s+\\w+").containsMatchIn(content)) {
             diagnostics.add(Diagnostic(DiagnosticSeverity.WARNING, 1, "Header senza include guard (#pragma once)", "cpp.include-guard"))
@@ -150,6 +154,190 @@ object StaticAnalyzers {
         }
         return diagnostics.sortedBy { it.line }
     }
+
+    // -------------------------------------------------------------- Kotlin ----
+
+    private fun analyzeKotlin(path: String, content: String): List<Diagnostic> {
+        val diagnostics = mutableListOf<Diagnostic>()
+        diagnostics += balance(content, "kotlin.braces", "graffe e parentesi")
+        Regex("\\bTODO\\s*\\(").findAll(content).take(3).forEach {
+            diagnostics.add(
+                Diagnostic(
+                    DiagnosticSeverity.INFO,
+                    lineOf(content, it.range.first),
+                    "TODO() lancia un'eccezione a runtime: completare prima della consegna",
+                    "kotlin.todo",
+                ),
+            )
+        }
+        Regex("catch\\s*\\([^)]*\\)\\s*\\{\\s*}").findAll(content).take(3).forEach {
+            diagnostics.add(
+                Diagnostic(
+                    DiagnosticSeverity.WARNING,
+                    lineOf(content, it.range.first),
+                    "Blocco catch vuoto: l'errore viene ignorato",
+                    "kotlin.empty-catch",
+                ),
+            )
+        }
+        if (!Regex("\\b(fun|class|object|interface|val|var)\\b").containsMatchIn(content)) {
+            diagnostics.add(
+                Diagnostic(
+                    DiagnosticSeverity.WARNING,
+                    1,
+                    "Nessuna dichiarazione Kotlin riconosciuta nel file",
+                    "kotlin.no-declaration",
+                ),
+            )
+        }
+        if (path.endsWith(".kts") && !content.contains("plugins") && !content.contains("dependencies")) {
+            diagnostics.add(
+                Diagnostic(
+                    DiagnosticSeverity.INFO,
+                    1,
+                    "Script Gradle senza plugins né dependencies visibili",
+                    "kotlin.gradle-script",
+                ),
+            )
+        }
+        return diagnostics.sortedBy { it.line }
+    }
+
+    // -------------------------------------------------------------- Python ----
+
+    private fun analyzePython(content: String): List<Diagnostic> {
+        val diagnostics = mutableListOf<Diagnostic>()
+        diagnostics += pythonBalance(content)
+        Regex("(?m)^\\s*except\\s*:").findAll(content).take(3).forEach {
+            diagnostics.add(
+                Diagnostic(
+                    DiagnosticSeverity.WARNING,
+                    lineOf(content, it.range.first),
+                    "«except:» cattura anche KeyboardInterrupt e SystemExit: indica il tipo di eccezione",
+                    "python.bare-except",
+                ),
+            )
+        }
+        val tabs = content.lines().count { it.startsWith("\t") }
+        val spaces = content.lines().count { it.startsWith("    ") }
+        if (tabs > 0 && spaces > 0) {
+            diagnostics.add(
+                Diagnostic(
+                    DiagnosticSeverity.WARNING,
+                    1,
+                    "Indentazione mista con tab e spazi: Python può rifiutare il file",
+                    "python.mixed-indent",
+                ),
+            )
+        }
+        return diagnostics.sortedBy { it.line }
+    }
+
+    /** Bracket balance for Python, skipping comments and single/triple strings. */
+    private fun pythonBalance(content: String): List<Diagnostic> {
+        val pairs = mapOf('(' to ')', '[' to ']', '{' to '}')
+        val closers = pairs.values.toSet()
+        val stack = ArrayDeque<Pair<Char, Int>>()
+        val diagnostics = mutableListOf<Diagnostic>()
+        var line = 1
+        var index = 0
+        var quote: String? = null
+        var comment = false
+        while (index < content.length) {
+            val char = content[index]
+            if (char == '\n') {
+                line++
+                comment = false
+                index++
+                continue
+            }
+            if (comment) {
+                index++
+                continue
+            }
+            if (quote != null) {
+                if (char == '\\' && quote.length == 1) {
+                    index += 2
+                    continue
+                }
+                if (content.startsWith(quote, index)) {
+                    index += quote.length
+                    quote = null
+                    continue
+                }
+                index++
+                continue
+            }
+            if (char == '#') {
+                comment = true
+                index++
+                continue
+            }
+            if (char == '"' || char == '\'') {
+                quote = if (content.startsWith("$char$char$char", index)) "$char$char$char" else char.toString()
+                index += quote.length
+                continue
+            }
+            when (char) {
+                in pairs.keys -> stack.addLast(char to line)
+                in closers -> {
+                    val expected = pairs.entries.firstOrNull { it.value == char }?.key
+                    val last = stack.lastOrNull()
+                    if (last == null || last.first != expected) {
+                        diagnostics.add(
+                            Diagnostic(
+                                DiagnosticSeverity.ERROR,
+                                line,
+                                "Chiusura '$char' inattesa",
+                                "python.brackets.unexpected-close",
+                            ),
+                        )
+                    } else {
+                        stack.removeLast()
+                    }
+                }
+            }
+            index++
+        }
+        for ((open, startLine) in stack) {
+            diagnostics.add(
+                Diagnostic(
+                    DiagnosticSeverity.ERROR,
+                    startLine,
+                    "Apertura '$open' non chiusa",
+                    "python.brackets.unclosed",
+                ),
+            )
+        }
+        return diagnostics
+    }
+
+    // ---------------------------------------------------------- data formats ----
+
+    private fun analyzeJson(content: String): List<Diagnostic> {
+        val result = JsonValidator.validate(content)
+        if (result.valid) return emptyList()
+        return listOf(
+            Diagnostic(
+                DiagnosticSeverity.ERROR,
+                result.line,
+                result.error ?: "JSON non valido",
+                "json.syntax",
+            ),
+        )
+    }
+
+    private fun analyzeXml(content: String): List<Diagnostic> = XmlValidator.validate(content)
+        .errors
+        .mapIndexed { index, error ->
+            val line = Regex("riga (\\d+)").find(error)?.groupValues?.get(1)?.toIntOrNull() ?: 1
+            Diagnostic(
+                DiagnosticSeverity.ERROR,
+                line,
+                error,
+                if (index == 0) "xml.wellformed" else "xml.wellformed.more",
+            )
+        }
 
     private fun analyzeCss(content: String): List<Diagnostic> {
         val diagnostics = mutableListOf<Diagnostic>()

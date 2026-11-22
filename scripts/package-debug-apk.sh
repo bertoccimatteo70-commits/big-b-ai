@@ -17,8 +17,16 @@ VERSION_CODE="$(grep -oP 'versionCode\s*=\s*\K[0-9]+' app/build.gradle.kts | hea
 APK="app/build/outputs/apk/debug/app-debug.apk"
 ABIS="arm64-v8a armeabi-v7a x86_64"
 
-# ITAGPT 2.1 ships no GGUF model. A debug APK that contains one is a build
-# failure, not a warning: the whole point of 2.1 is a small, installable APK.
+if [ ! -s "$APK" ]; then
+  echo "ERRORE: APK debug assente: $APK" >&2
+  exit 1
+fi
+# The archive listing is needed by the checks below; computing it once also
+# avoids running unzip repeatedly on a 150 MB file.
+APK_ENTRIES="$(unzip -l "$APK")"
+
+# ITAGPT ships no GGUF model. A debug APK that contains one is a build
+# failure, not a warning: the whole point is a small, installable APK.
 if grep -Eq 'assets/.*\.gguf' <<<"$APK_ENTRIES"; then
   echo "ERRORE: l'APK debug contiene un modello GGUF negli asset." >&2
   grep -E 'assets/.*\.gguf' <<<"$APK_ENTRIES" >&2
@@ -103,7 +111,7 @@ Embedding:     opzionale, import manuale di multilingual-e5-small Q8_0
                (132439008 byte, SHA-256 e011debc…77c93), verificato all'import.
 Test eseguiti: test unitari JVM dei quattro moduli + lint + build debug.
                Nessun test su dispositivo fisico o emulatore.
-Release note:  docs/RELEASE-2.2.0.md
+Release note:  docs/RELEASE-${VERSION}.md
 EOF
 
 echo "APK:      $OUT"

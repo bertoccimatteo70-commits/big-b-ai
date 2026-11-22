@@ -120,8 +120,8 @@ object ProjectInsights {
             checks.forEach { builder.append("- ").append(it).append('\n') }
         }
         builder.append(
-            "Nota: questi sono controlli statici e (per HTML/JS) esecuzione in sandbox. " +
-                "Nessun compilatore Android/Java/C++ è disponibile sul dispositivo.",
+            "Nota: analisi statica e, quando il runtime è disponibile, esecuzione in sandbox. " +
+                "Nessuna compilazione è stata eseguita: Android non include javac, kotlinc o clang.",
         )
         return builder.toString().trim()
     }

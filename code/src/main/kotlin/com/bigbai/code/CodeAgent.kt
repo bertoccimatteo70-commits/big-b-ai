@@ -197,6 +197,9 @@ object CodeAgent {
 
             REGOLE
             - Non inventare file, API, compilazioni o test superati.
+            - Dopo le modifiche l'app esegue una verifica reale (analisi statica, JSON/XML/CSV, esecuzione
+              HTML/JS). Non dichiarare tu risultati di compilazione o test: la compilazione Java/Kotlin/C++
+              non è disponibile su Android e viene dichiarata non eseguita.
             - Non dire di aver fatto qualcosa che non hai fatto: l'app esegue solo gli strumenti.
             - Non eliminare file senza che sia necessario; l'eliminazione richiede conferma.
             - Il progetto è tuo: niente percorsi assoluti, niente "..".
@@ -228,6 +231,9 @@ object CodeAgent {
 
             RULES
             - Never invent files, APIs, builds or passing tests.
+            - After the edits the app runs a real verification (static analysis, JSON/XML/CSV, HTML/JS
+              execution). Do not claim build or test results yourself: Java/Kotlin/C++ compilation is not
+              available on Android and is reported as not executed.
             - Never claim to have done something the app did not execute.
             - Do not delete files unless necessary; deletion needs confirmation.
             - Stay inside the project: no absolute paths, no "..".

@@ -17,6 +17,12 @@ VERSION_CODE="$(grep -oP 'versionCode\s*=\s*\K[0-9]+' app/build.gradle.kts | hea
 APK="app/build/outputs/apk/release/app-release.apk"
 ABIS="arm64-v8a armeabi-v7a x86_64"
 
+if [ ! -s "$APK" ]; then
+  echo "ERRORE: APK release assente: $APK" >&2
+  exit 1
+fi
+APK_ENTRIES="$(unzip -l "$APK")"
+
 # No model is packaged in the release either. The model manager downloads
 # weights later, on explicit user request, and verifies them with SHA-256.
 if grep -Eq 'assets/.*\.gguf' <<<"$APK_ENTRIES"; then
@@ -115,7 +121,7 @@ Embedding:     opzionale, import manuale di multilingual-e5-small Q8_0
                (132439008 byte, SHA-256 e011debc…77c93), verificato all'import.
 Test eseguiti: test unitari JVM dei quattro moduli, lint e build release.
                Nessun test strumentale su dispositivo fisico o emulatore.
-Release note:  docs/RELEASE-2.2.0.md
+Release note:  docs/RELEASE-${VERSION}.md
 EOF
 
 echo "APK:      $OUT"

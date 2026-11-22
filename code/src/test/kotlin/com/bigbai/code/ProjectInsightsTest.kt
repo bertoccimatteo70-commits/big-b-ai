@@ -89,6 +89,6 @@ class ProjectInsightsTest {
         assertTrue(report.contains("index.html"))
         assertTrue(report.contains("1 errori"))
         assertTrue(report.contains("Sandbox HTML"))
-        assertTrue(report.contains("Nessun compilatore"))
+        assertTrue(report.contains("Nessuna compilazione"))
     }
 }

@@ -32,7 +32,26 @@ object SandboxPolicy {
         }
         // Java does not always report IPv6 unique-local addresses as site-local.
         val bytes = address.address
-        return bytes.size == 16 && (bytes[0].toInt() and 0xfe) == 0xfc
+        if (bytes.size != 16) return false
+        if ((bytes[0].toInt() and 0xfe) == 0xfc) return true
+        // IPv4-mapped IPv6 (::ffff:192.168.0.1) is not reported as site-local by
+        // the JDK, but it reaches the same private IPv4 address.
+        val mapped = bytes.take(10).all { it == 0.toByte() } &&
+            bytes[10] == 0xff.toByte() && bytes[11] == 0xff.toByte()
+        if (mapped) {
+            val v4 = bytes.copyOfRange(12, 16).map { it.toInt() and 0xff }
+            return isPrivateIpv4(v4)
+        }
+        return false
+    }
+
+    private fun isPrivateIpv4(bytes: List<Int>): Boolean {
+        if (bytes.size != 4) return false
+        val (a, b) = bytes
+        return a == 0 || a == 10 || a == 127 || a >= 224 ||
+            (a == 169 && b == 254) ||
+            (a == 172 && b in 16..31) ||
+            (a == 192 && b == 168)
     }
 
     fun isRemote(url: String): Boolean =

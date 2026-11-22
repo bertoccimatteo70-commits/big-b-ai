@@ -37,7 +37,40 @@ data class SandboxResult(
  * Java and C++ are not executable here: Android ships no javac/clang for apps,
  * and the UI states that instead of pretending to compile them.
  */
-class JsSandbox(private val context: Context) {
+class JsSandbox(private val context: Context) : ExecutionRuntime {
+
+    /**
+     * Runs a project file through the same isolated WebView used by the preview.
+     * Only HTML and JavaScript are executable; anything else is refused with an
+     * explicit reason instead of being reported as executed.
+     */
+    override suspend fun execute(request: ExecutionRequest): ExecutionResult {
+        val language = request.language.lowercase()
+        if (language !in setOf("html", "htm", "javascript", "js")) {
+            return ExecutionResult(
+                success = false,
+                unsupportedReason = "Il runtime dell'app esegue solo HTML e JavaScript.",
+            )
+        }
+        val document = if (language == "javascript" || language == "js") {
+            // Closing tags inside the script would end the block early; the
+            // escape keeps the user's source intact for the JS engine.
+            val escaped = request.content.replace("</script", "<\\/script")
+            "<!DOCTYPE html><html><head><meta charset=\"utf-8\"></head><body>" +
+                "<script>$escaped</script></body></html>"
+        } else {
+            request.content
+        }
+        val result = run(document, request.timeoutMs, request.allowNetwork)
+        return ExecutionResult(
+            success = result.success,
+            logs = result.logs,
+            errors = result.errors,
+            durationMs = result.durationMs,
+            timedOut = result.timedOut,
+            blockedRequests = result.blockedRequests,
+        )
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     suspend fun run(

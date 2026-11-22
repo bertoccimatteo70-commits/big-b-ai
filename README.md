@@ -1,20 +1,22 @@
-# ITAGPT 2.2
+# ITAGPT 2.3
 
 Assistente AI locale per Android (Kotlin, Jetpack Compose, llama.cpp/JNI), con chat, OCR offline,
 import documenti, ricerca web automatica, memoria locale e ambiente di sviluppo ITAGPT Code.
 
 `applicationId com.bigbai.app` e namespace restano invariati per conservare installazioni e dati.
-La versione è **2.2.0** (`versionCode 11`).
+La versione è **2.3.0** (`versionCode 12`).
 
 > **Cambio di architettura in 2.1:** nessun modello AI è incluso nell'APK. Qwen2.5 1.5B e il
 > modello di embedding sono stati rimossi dal pacchetto. L'app si installa e si avvia senza modelli,
 > senza download automatici e senza API key. La chat richiede un modello scelto e scaricato
 > esplicitamente dalla sezione Modelli; l'embedding è opzionale e si importa da un file locale.
 >
-> **2.2 interviene su ITAGPT Code:** eliminazione con conferma, limite reale di 40 file e 72
-> operazioni per attività, selezione unica del modello Code, percorsi e scritture verificate,
-> checkpoint prima delle modifiche con rollback, contesto più pertinente, editor con numeri di
-> riga/ricerca/undo e sandbox con isolamento di rete più stretto.
+> **2.3 completa ITAGPT Code con strumenti reali:** terminale sul progetto (comandi documentati,
+> cronologia, timeout, interruzione), verifica distinta in analisi statica / validazione dati /
+> esecuzione / compilazione, parser reali per JSON, XML e CSV, esecuzione HTML e JavaScript nella
+> sandbox, agente estratto in un motore testabile, rollback con rilevamento delle modifiche
+> dell'utente e ripristino verificato byte per byte. Java, Kotlin, C/C++ e Python restano **solo
+> analisi statica**: Android non include quei compilatori e l'app lo dichiara.
 
 ## Stato dichiarato
 
@@ -33,7 +35,7 @@ Stati usati: `COMPLETATO E VERIFICATO`, `IMPLEMENTATO NON VERIFICATO SU DISPOSIT
 | UI/UX e accessibilità | **PARZIALE** | pulsante web, stato ricerca, fonti, stato senza modello, layout adattivo; nessun test visivo su device |
 | Tablet, mouse, trackpad, tastiera fisica | **PARZIALE** | drawer permanente sotto 1200 dp, contenuto limitato in larghezza, Ctrl+N/Ctrl+K/Ctrl+L/Esc; non provati su hardware |
 | Prestazioni e rilevamento hardware | **PARZIALE** | profilo termico/batteria con test JVM; nessun benchmark su Xiaomi Pad 8 / realme 16 Pro |
-| AI Code | **PARZIALE** | 12 passi, limite di 40 file/72 operazioni applicato, checkpoint prima delle modifiche, rollback con safety checkpoint, editor migliorato; test JVM, nessun terminale/compilatore e nessun test su device |
+| AI Code | **PARZIALE** | terminale reale sul progetto, verifica con esecuzione HTML/JS e validazione dati, rollback protetto e verificato, motore dell'agente testato su JVM; compilazione Java/Kotlin/C/C++ non disponibile e dichiarata; nessun test su device |
 | Voce | **PARZIALE** | dettatura di sistema e TTS; niente full-duplex |
 | OCR e documenti | **IMPLEMENTATO NON VERIFICATO SU DISPOSITIVO** | ML Kit Latin, PDF scansionati, DOCX/XLSX/CSV/TXT; parser testati, nessun file reale su device |
 | Localizzazione IT/EN | **PARZIALE** | molte schermate storiche hanno testo italiano inline; non è stata fatta una revisione completa |
@@ -42,9 +44,9 @@ Stati usati: `COMPLETATO E VERIFICATO`, `IMPLEMENTATO NON VERIFICATO SU DISPOSIT
 | Test su dispositivo fisico/emulatore | **BLOCCATO** | nessun dispositivo disponibile in questo ambiente |
 
 Il report completo, con comandi, dimensioni e limiti, è in
-[docs/RELEASE-2.2.0.md](docs/RELEASE-2.2.0.md).
+[docs/RELEASE-2.3.0.md](docs/RELEASE-2.3.0.md).
 
-## APK 2.2
+## APK 2.3
 
 La run CI di riferimento è la **#44961030062**, build del commit `816d68d` (workflow **Android CI -
 ITAGPT debug and release**, conclusa con successo). Gli APK sono negli artifact GitHub Actions,
@@ -66,6 +68,26 @@ Il download degli artifact richiede l'accesso a GitHub.
 
 L'APK è universale: `arm64-v8a`, `armeabi-v7a`, `x86_64`. Non ci sono split per ABI e non esiste un
 limite artificiale di dimensione.
+
+## Cosa è cambiato in 2.3
+
+### ITAGPT Code 2.3
+
+- **Terminale reale** sulla cartella del progetto: `ls`, `cat`, `grep`, `find`, `tree`, `mkdir`,
+  `touch`, `cp`, `mv`, `rm`, `echo` con redirezione, `stat`, `sha256`, `run`, `verify`, `git`,
+  `history`, `help`. Cronologia, interruzione, timeout e output limitato.
+- **Verifica distinta**: analisi statica, validazione JSON/XML/CSV con parser reali, esecuzione
+  HTML/JavaScript nella WebView isolata, compilazione dichiarata non disponibile. Nessun
+  controllo viene presentato come eseguito se non lo è.
+- **Agente testabile**: il ciclo dell'agente vive in `AgentRunner` (Kotlin puro) e viene usato
+  dall'app; i test JVM coprono scritture multiple, errori del provider, timeout, budget, conferma
+  dell'eliminazione e checkpoint fallito.
+- **Rollback più sicuro**: le modifiche dell'utente successive all'attività vengono rilevate e
+  lasciate intatte; il ripristino viene verificato byte per byte; il rollback automatico è
+  opzionale e richiede tutte le condizioni di sicurezza.
+- **Nessuna dipendenza nuova**: il terminale, i validatori e il verificatore sono codice del
+  progetto, senza librerie aggiuntive.
+- La compilazione Java/Kotlin/C/C++ **non è disponibile** su Android: non viene simulata.
 
 ## Cosa è cambiato in 2.1
 
@@ -111,17 +133,10 @@ limite artificiale di dimensione.
 - Stato “nessun modello” con pulsante reale verso la libreria; nessun caricamento infinito.
 - Fonti compatte con sito e data; pannello fonti completo.
 
-### ITAGPT Code
-
-- Limite portato da 5 a 12 passi per attività, con tetti invariati su file e azioni.
-- Restano lettura/scrittura/eliminazione con conferma, checkpoint, diff, analisi statica e
-  continuazione con «continua».
-- Non esiste un terminale o un compilatore Android reale: non viene simulato.
-
 ## Verifiche eseguite
 
 - Build Kotlin/Compose: `:app:compileDebugKotlin` riuscita.
-- Test JVM: **266 test, 0 falliti, 0 errori, 0 saltati** su `core`, `llm`, `code`, `app`.
+- Test JVM: **364 test, 0 falliti, 0 errori, 0 saltati** su `core` (60), `code` (171), `llm` (108), `app` (25).
 - Lint debug: **0 errori, 69 warning**.
 - Parser ricerca: test su DuckDuckGo HTML, Google News RSS, metadati pagina, deduplica URL.
 - Provider reali da host: Google News RSS (HTTP 200, 102 item) e Wikipedia API (HTTP 200).

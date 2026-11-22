@@ -62,6 +62,7 @@ class SettingsRepository(private val context: Context) {
     suspend fun setRepeatPenalty(value: Float) = update { it.copy(repeatPenalty = value.coerceIn(1f, 1.6f)) }
     suspend fun setMinP(value: Float) = update { it.copy(minP = value.coerceIn(0f, 0.5f)) }
     suspend fun setSemanticMemoryEnabled(value: Boolean) = update { it.copy(semanticMemoryEnabled = value) }
+    suspend fun setCodeAutoRollback(value: Boolean) = update { it.copy(codeAutoRollback = value) }
 
     /**
      * ITAGPT Code daily quota, stored as raw values so the core module does not
@@ -121,6 +122,7 @@ class SettingsRepository(private val context: Context) {
         private val KEY_ADVANCED = booleanPreferencesKey("advanced_unlocked")
         private val KEY_PERF_PANEL = booleanPreferencesKey("perf_panel")
         private val KEY_CODE_NETWORK = booleanPreferencesKey("code_network")
+        private val KEY_CODE_AUTO_ROLLBACK = booleanPreferencesKey("code_auto_rollback")
         private val KEY_REDUCE_MOTION = booleanPreferencesKey("reduce_motion")
         private val KEY_TUTOR_ENABLED = booleanPreferencesKey("tutor_enabled")
         private val KEY_TUTOR_TARGET = stringPreferencesKey("tutor_target")
@@ -163,6 +165,7 @@ class SettingsRepository(private val context: Context) {
             advancedUnlocked = this[KEY_ADVANCED] ?: false,
             showPerfPanel = this[KEY_PERF_PANEL] ?: false,
             codeNetworkAllowed = this[KEY_CODE_NETWORK] ?: false,
+            codeAutoRollback = this[KEY_CODE_AUTO_ROLLBACK] ?: false,
             reduceMotion = this[KEY_REDUCE_MOTION] ?: false,
             tutorEnabled = this[KEY_TUTOR_ENABLED] ?: false,
             tutorTarget = this[KEY_TUTOR_TARGET] ?: "es",
@@ -209,6 +212,7 @@ class SettingsRepository(private val context: Context) {
             this[KEY_ADVANCED] = s.advancedUnlocked
             this[KEY_PERF_PANEL] = s.showPerfPanel
             this[KEY_CODE_NETWORK] = s.codeNetworkAllowed
+            this[KEY_CODE_AUTO_ROLLBACK] = s.codeAutoRollback
             this[KEY_REDUCE_MOTION] = s.reduceMotion
             this[KEY_TUTOR_ENABLED] = s.tutorEnabled
             this[KEY_TUTOR_TARGET] = s.tutorTarget

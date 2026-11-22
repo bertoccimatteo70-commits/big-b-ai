@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -63,9 +64,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -114,11 +116,16 @@ import com.bigbai.app.ui.LocalAppDrawer
 import com.bigbai.app.ui.chat.ThinkingIndicator
 import com.bigbai.code.AgentStep
 import com.bigbai.code.AgentStepStatus
+import com.bigbai.code.CheckStatus
 import com.bigbai.code.Diagnostic
 import com.bigbai.code.DiagnosticSeverity
 import com.bigbai.code.FileNode
 import com.bigbai.code.GitCommitInfo
+import com.bigbai.code.LanguageSupport
 import com.bigbai.code.PatchEngine
+import com.bigbai.code.TerminalLine
+import com.bigbai.code.TerminalTone
+import com.bigbai.code.VerificationReport
 import com.bigbai.core.model.Project
 import com.bigbai.core.model.ProjectMemoryKind
 import com.bigbai.core.model.Role
@@ -345,11 +352,14 @@ private fun ProjectWorkspace(
         },
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-            TabRow(selectedTabIndex = tab) {
+            // Five tabs must stay reachable on a phone: a scrollable row keeps
+            // every label readable instead of squeezing the last one.
+            ScrollableTabRow(selectedTabIndex = tab, edgePadding = 0.dp) {
                 Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Chat") })
                 Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("File") })
                 Tab(selected = tab == 2, onClick = { tab = 2 }, text = { Text("Git") })
-                Tab(selected = tab == 3, onClick = { tab = 3 }, text = { Text("Strumenti") })
+                Tab(selected = tab == 3, onClick = { tab = 3 }, text = { Text("Terminale") })
+                Tab(selected = tab == 4, onClick = { tab = 4 }, text = { Text("Strumenti") })
             }
             state.error?.let { error ->
                 Banner(error, true) { viewModel.clearError() }
@@ -362,6 +372,7 @@ private fun ProjectWorkspace(
                     0 -> CodeChatTab(state, viewModel)
                     1 -> FilesTab(state, viewModel)
                     2 -> GitTab(state, viewModel)
+                    3 -> TerminalTab(state, viewModel)
                     else -> ToolsTab(state, viewModel)
                 }
             }
@@ -433,7 +444,8 @@ private fun CodeChatTab(state: CodeUiState, viewModel: CodeViewModel) {
             text = {
                 Text(
                     "I file toccati dall'ultima attività verranno riportati al checkpoint e quelli " +
-                        "creati dall'attività verranno rimossi. Prima del ripristino viene creato un " +
+                        "creati dall'attività verranno rimossi. I file che hai modificato dopo l'attività " +
+                        "vengono lasciati intatti e segnalati. Prima del ripristino viene creato un " +
                         "checkpoint di sicurezza, quindi l'operazione resta recuperabile.",
                 )
             },
@@ -523,6 +535,16 @@ private fun CodeChatTab(state: CodeUiState, viewModel: CodeViewModel) {
                         steps = state.steps,
                         canRollback = state.taskCheckpoint != null && !state.generating,
                         onRollback = { confirmRollback = true },
+                    )
+                }
+            }
+            state.restoreVerification?.let { message ->
+                item(key = "restore") {
+                    Text(
+                        message,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 4.dp),
                     )
                 }
             }
@@ -1136,6 +1158,205 @@ private fun SandboxPane(state: CodeUiState, viewModel: CodeViewModel) {
 }
 
 @Composable
+private fun TerminalTab(state: CodeUiState, viewModel: CodeViewModel) {
+    val listState = rememberLazyListState()
+    val inputFocus = remember { FocusRequester() }
+
+    LaunchedEffect(state.terminalLines.size) {
+        if (state.terminalLines.isNotEmpty()) {
+            listState.animateScrollToItem(state.terminalLines.lastIndex)
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize().imePadding()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Terminale", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    text = if (state.terminalCwd.isEmpty()) "/" else "/${state.terminalCwd}",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            if (state.terminalRunning) {
+                Text(
+                    "in esecuzione",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.tertiary,
+                )
+                Spacer(Modifier.width(6.dp))
+            }
+            IconButton(
+                onClick = viewModel::clearTerminal,
+                enabled = state.terminalLines.isNotEmpty(),
+            ) {
+                Icon(Icons.Outlined.Delete, contentDescription = "Svuota il terminale")
+            }
+        }
+        Text(
+            "Comandi reali sulla cartella del progetto. Non è una shell Android: nessun accesso fuori " +
+                "dal progetto, output limitato, timeout per comando.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 12.dp),
+        )
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+        ) {
+            if (state.terminalLines.isEmpty()) {
+                item {
+                    Column {
+                        Text(
+                            "Scrivi «help» per l'elenco dei comandi. Prova ad esempio:",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            listOf("help", "ls", "tree", "verify", "run index.html").forEach { command ->
+                                AssistChip(
+                                    onClick = {
+                                        viewModel.onTerminalInputChange(command)
+                                        inputFocus.requestFocus()
+                                    },
+                                    label = { Text(command, fontFamily = FontFamily.Monospace) },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            items(state.terminalLines) { line ->
+                Text(
+                    text = line.text,
+                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                    color = when (line.tone) {
+                        TerminalTone.COMMAND -> MaterialTheme.colorScheme.primary
+                        TerminalTone.ERROR -> MaterialTheme.colorScheme.error
+                        TerminalTone.SUCCESS -> MaterialTheme.colorScheme.tertiary
+                        TerminalTone.INFO -> MaterialTheme.colorScheme.onSurfaceVariant
+                        TerminalTone.OUTPUT -> MaterialTheme.colorScheme.onSurface
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
+                )
+            }
+        }
+        Surface(tonalElevation = 3.dp) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedTextField(
+                    value = state.terminalInput,
+                    onValueChange = viewModel::onTerminalInputChange,
+                    modifier = Modifier
+                        .weight(1f)
+                        .focusRequester(inputFocus)
+                        .onPreviewKeyEvent { event ->
+                            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                            when (event.key) {
+                                Key.DirectionUp -> {
+                                    viewModel.terminalHistory(-1)
+                                    true
+                                }
+                                Key.DirectionDown -> {
+                                    viewModel.terminalHistory(1)
+                                    true
+                                }
+                                else -> false
+                            }
+                        },
+                    placeholder = { Text("Comando…") },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                    keyboardActions = KeyboardActions(onSend = { viewModel.runTerminalCommand() }),
+                )
+                Spacer(Modifier.width(8.dp))
+                if (state.terminalRunning) {
+                    IconButton(onClick = viewModel::stopTerminal) {
+                        Icon(Icons.Outlined.Stop, contentDescription = "Interrompi il comando")
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            viewModel.runTerminalCommand()
+                            inputFocus.requestFocus()
+                        },
+                        enabled = state.terminalInput.isNotBlank(),
+                    ) {
+                        Icon(Icons.Outlined.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Esegui")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VerificationPane(report: VerificationReport) {
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+        Text(
+            report.summary(),
+            style = MaterialTheme.typography.labelMedium,
+            color = if (report.passed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+        )
+        report.checks.forEach { check ->
+            val (label, color) = when (check.status) {
+                CheckStatus.PASSED -> "OK" to MaterialTheme.colorScheme.primary
+                CheckStatus.WARNING -> "AVVISO" to MaterialTheme.colorScheme.tertiary
+                CheckStatus.FAILED -> "FALLITO" to MaterialTheme.colorScheme.error
+                CheckStatus.UNSUPPORTED -> "NON DISPONIBILE" to MaterialTheme.colorScheme.onSurfaceVariant
+                CheckStatus.INFO -> "INFO" to MaterialTheme.colorScheme.onSurfaceVariant
+            }
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            ) {
+                Column(modifier = Modifier.padding(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            label,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = color,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "${check.category.label} · ${check.name}",
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    Text(check.detail, style = MaterialTheme.typography.labelSmall)
+                    check.issues.take(4).forEach { issue ->
+                        Text(
+                            "• $issue",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun GitTab(state: CodeUiState, viewModel: CodeViewModel) {
     var message by remember { mutableStateOf("") }
     var branchName by remember { mutableStateOf("") }
@@ -1258,6 +1479,7 @@ private fun GitTab(state: CodeUiState, viewModel: CodeViewModel) {
 private fun ToolsTab(state: CodeUiState, viewModel: CodeViewModel) {
     var memoryText by remember { mutableStateOf("") }
     var kind by remember { mutableStateOf(ProjectMemoryKind.NOTE) }
+    var showLanguages by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -1281,6 +1503,53 @@ private fun ToolsTab(state: CodeUiState, viewModel: CodeViewModel) {
         if (state.sandbox != null) {
             Spacer(Modifier.height(6.dp))
             SandboxPane(state, viewModel)
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 14.dp))
+
+        Text("Verifica del progetto", style = MaterialTheme.typography.titleSmall)
+        Text(
+            "Esegue davvero: analisi statica, validazione JSON/XML/CSV ed esecuzione HTML/JavaScript " +
+                "nella sandbox. La compilazione Java/Kotlin/C++ è dichiarata non disponibile, non simulata.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(6.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Button(onClick = viewModel::runVerification, enabled = !state.verifying) {
+                Icon(Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+                Text(if (state.verifying) "Verifica in corso…" else "Verifica ora")
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "Analisi e esecuzione, non compilazione",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        state.verification?.let { report -> VerificationPane(report) }
+
+        Spacer(Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Ripristino automatico", style = MaterialTheme.typography.labelMedium)
+                Text(
+                    "Dopo una verifica fallita ripristina il checkpoint, ma solo se non ci sono " +
+                        "modifiche tue successive all'attività.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(checked = state.autoRollback, onCheckedChange = viewModel::setAutoRollback)
+        }
+        state.restoreVerification?.let { message ->
+            Text(
+                message,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 14.dp))
@@ -1383,14 +1652,37 @@ private fun ToolsTab(state: CodeUiState, viewModel: CodeViewModel) {
         }
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 14.dp))
-        Text("Note sui linguaggi", style = MaterialTheme.typography.titleSmall)
+        Text("Linguaggi supportati", style = MaterialTheme.typography.titleSmall)
         Text(
-            "HTML/CSS/JS: esecuzione reale in sandbox.\n" +
-                "Java: analisi statica (bilanciamento, nome classe, catch vuoti). Nessun compilatore sul dispositivo.\n" +
-                "C++: analisi statica (bilanciamento, include guard, uso di namespace). Nessun compilatore sul dispositivo.",
+            "La tabella seguente è generata dal supporto reale dell'app, non da una descrizione fissa.",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Spacer(Modifier.height(6.dp))
+        OutlinedButton(onClick = { showLanguages = !showLanguages }) {
+            Text(if (showLanguages) "Nascondi la tabella" else "Mostra cosa è possibile")
+        }
+        if (showLanguages) {
+            Spacer(Modifier.height(6.dp))
+            LanguageSupport.all().forEach { info ->
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Text(
+                            "${info.language} · ${info.level.label}",
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                        Text(
+                            info.reason,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

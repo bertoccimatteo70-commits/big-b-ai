@@ -50,6 +50,8 @@ data class AppSettings(
     val advancedUnlocked: Boolean = false,
     val showPerfPanel: Boolean = false,
     val codeNetworkAllowed: Boolean = false,
+    /** Automatic rollback after a failed verification, only when safe. */
+    val codeAutoRollback: Boolean = false,
     val reduceMotion: Boolean = false,
     /** "auto", "it" or "en". Controls TTS and dictation language. */
     val voiceLanguage: String = "auto",

@@ -1,4 +1,4 @@
-# Limiti noti — ITAGPT 2.2
+# Limiti noti — ITAGPT 2.3
 
 Questo documento elenca ciò che **non** è stato verificato o non è disponibile. L'obiettivo è che
 nessuno scopra un limite solo dopo aver installato l'APK.
@@ -8,7 +8,7 @@ nessuno scopra un limite solo dopo aver installato l'APK.
 | Cosa | Stato |
 |---|---|
 | Compilazione debug/release (R8) | Verificata dalla CI; build release minificata |
-| Test unitari JVM | **266 test, 0 falliti, 0 errori, 0 saltati** |
+| Test unitari JVM | **364 test, 0 falliti, 0 errori, 0 saltati** (core 60, code 171, llm 108, app 25) |
 | Lint debug | **0 errori, 69 warning** |
 | Librerie native arm64-v8a, armeabi-v7a, x86_64 | Compilate e verificate negli APK dalla CI |
 | Modelli negli asset | **0 file**; gate di packaging |
@@ -16,8 +16,10 @@ nessuno scopra un limite solo dopo aver installato l'APK.
 | Avvio app, Keystore, SQLCipher, SAF | **Non verificati** a runtime |
 | Chat con modello reale | **Non verificata** su device |
 | Chat senza modello | Implementata (messaggio + CTA); **non eseguita su device** |
-| ITAGPT Code: conferme, limiti, checkpoint, rollback | Logica coperta da test JVM; **SAF, JGit e UI non eseguiti su device** |
-| ITAGPT Code: esecuzione Java/Kotlin/C++ | **Non implementata**: Android non include la toolchain; resta l'analisi statica |
+| ITAGPT Code: agente, checkpoint, rollback | Motore estratto in `AgentRunner` e coperto da test JVM e d'integrazione; **SAF, JGit e UI non eseguiti su device** |
+| ITAGPT Code: terminale | Comandi reali sul workspace, 22 test JVM; **nessun test su cartella SAF reale** |
+| ITAGPT Code: verifica | Analisi statica, parser JSON/XML/CSV ed esecuzione HTML/JS con test JVM; **WebView non eseguita su device** |
+| ITAGPT Code: esecuzione Java/Kotlin/C/C++/Python | **Non disponibile**: Android non include javac, kotlinc, clang o Python; l'app lo dichiara |
 | ITAGPT Code: editor e sandbox | Compilano; **nessun test visivo o WebView su device** |
 | OCR immagini/PDF | Implementato con ML Kit; **non eseguito su device** |
 | DOCX/XLSX/CSV/TXT | Parser coperti da test JVM; **non provati su file reali su device** |
@@ -86,10 +88,18 @@ JVM dove possibile, ma non sono state eseguite su Android: non vengono dichiarat
 
 ## ITAGPT Code
 
-- Nessun terminale, compilatore Java/C++ o build reale sul dispositivo: Android non include
-  `javac`/`clang`. Non viene simulato nulla.
+- Il terminale **non è una shell Android**: esegue comandi implementati dall'app sulla cartella
+  autorizzata (SAF). Non esistono `bash`, pipe, sottoprocessi o accesso a `/system`.
+- **Nessun compilatore** Java, Kotlin, C/C++ o interprete Python è incluso: la verifica distingue
+  l'analisi statica dalla compilazione e dichiara quest'ultima non disponibile. Non viene simulata.
+- L'esecuzione reale è limitata a HTML e JavaScript nella WebView isolata; JSON, XML e CSV vengono
+  validati con parser reali, non eseguiti.
 - Il limite è 12 passi per attività; oltre, l'utente può scrivere «continua».
 - Le modifiche richiedono conferma per l'eliminazione e restano nella cartella autorizzata.
+- Il rollback automatico è disattivato per default e richiede: verifica fallita, almeno un file
+  scritto, checkpoint disponibile e nessuna modifica dell'utente successiva all'attività.
+- Il checkpoint Git fotografa i file di testo fino a 600 file / 12 MB: oltre quel limite il
+  ripristino può essere incompleto e viene segnalato, non nascosto.
 
 ## Sicurezza e release
 
