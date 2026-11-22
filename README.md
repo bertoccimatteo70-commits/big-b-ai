@@ -48,7 +48,7 @@ Il report completo, con comandi, dimensioni e limiti, è in
 
 ## APK 2.3
 
-La run CI di riferimento è la **#45025333599**, build del commit `120f020` (workflow **Android CI -
+La run CI di riferimento è la **#45025333599**, build del commit `e47692c` (codice 2.3.0 in `120f020`) (workflow **Android CI -
 ITAGPT debug and release**, conclusa con successo: native, 364 test JVM, lint, debug e release).
 Gli APK sono negli artifact GitHub Actions, non nel repository.
 
